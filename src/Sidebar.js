@@ -34,7 +34,7 @@ export default function Sidebar({ children }) {
         style={{
           position: "fixed",
           top: "60px", // Below the header
-          left: isOpen ? "0" : "-280px",
+          left: isOpen ? "0" : "-300px", // Completely off-screen when closed
           width: "280px",
           height: "calc(100vh - 60px)",
           backgroundColor: theme.accent, // Orange

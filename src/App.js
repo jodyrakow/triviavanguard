@@ -9,6 +9,7 @@ import ResultsMode from "./ResultsMode";
 import AnswersMode from "./AnswersMode";
 import Sidebar from "./Sidebar";
 import SidebarMenu from "./SidebarMenu";
+import logo from "./logo.svg";
 import {
   ButtonTab,
   ButtonPrimary,
@@ -1295,15 +1296,11 @@ export default function App() {
           boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
         }}
       >
-        <h1
-          style={{
-            fontSize: "2rem",
-            color: colors.dark,
-            margin: 0,
-          }}
-        >
-          TriviaVanguard
-        </h1>
+        <img
+          src={logo}
+          alt="TriviaVanguard"
+          style={{ height: "45px" }}
+        />
       </div>
 
       {/* Main content area */}
@@ -1315,21 +1312,6 @@ export default function App() {
           marginTop: "60px", // Offset for fixed header
         }}
       >
-      <h2
-        style={{
-          fontSize: "1.75rem",
-          color: colors.dark,
-          textIndent: "0.75rem",
-          marginTop: "-.25rem",
-        }}
-      >
-        {activeMode === "score"
-          ? "Scoring mode"
-          : activeMode === "results"
-            ? "Results mode"
-            : "Show mode"}
-      </h2>
-
       <div
         style={{
           display: "flex",
@@ -1350,21 +1332,14 @@ export default function App() {
           active={activeMode === "score"}
           onClick={() => setActiveMode("score")}
         >
-          Scoring mode
-        </ButtonTab>
-
-        <ButtonTab
-          active={activeMode === "answers"}
-          onClick={() => setActiveMode("answers")}
-        >
-          Answers mode
+          Enter scores
         </ButtonTab>
 
         <ButtonTab
           active={activeMode === "results"}
           onClick={() => setActiveMode("results")}
         >
-          Results mode
+          View results
         </ButtonTab>
       </div>
       <div style={{ fontSize: ".9rem", opacity: 0.85 }}>
