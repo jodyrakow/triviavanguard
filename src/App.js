@@ -127,9 +127,9 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [timerRunning, setTimerRunning] = useState(false);
 
-  // App.js (top of component state)
+  // App.js (top of component state) - Timer hidden by default
   const [showTimer, setShowTimer] = useState(
-    () => localStorage.getItem("tv_showTimer") !== "false"
+    () => localStorage.getItem("tv_showTimer") === "true"
   );
 
   useEffect(() => {
