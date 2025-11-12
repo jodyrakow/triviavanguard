@@ -12,14 +12,14 @@ export default function Sidebar({ children }) {
         style={{
           position: "fixed",
           top: "60px", // Below the header
-          left: isOpen ? "0" : "-240px", // Show button tab when closed
-          width: "280px",
+          left: 0,
+          width: isOpen ? "280px" : "50px", // Narrow tab when closed
           height: "calc(100vh - 60px)",
           backgroundColor: theme.accent, // Orange
           color: "#fff",
-          transition: "left 0.3s ease",
+          transition: "width 0.3s ease",
           zIndex: 1000,
-          overflowY: "auto",
+          overflowY: isOpen ? "auto" : "hidden",
           boxShadow: isOpen ? "2px 0 8px rgba(0,0,0,0.2)" : "none",
         }}
       >
@@ -29,7 +29,7 @@ export default function Sidebar({ children }) {
           style={{
             position: "absolute",
             top: "10px",
-            right: "10px",
+            left: "10px",
             backgroundColor: "rgba(255,255,255,0.2)",
             border: "none",
             borderRadius: "4px",
@@ -37,16 +37,23 @@ export default function Sidebar({ children }) {
             cursor: "pointer",
             color: "#fff",
             fontSize: "20px",
+            width: "35px",
+            height: "35px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
           aria-label={isOpen ? "Close menu" : "Open menu"}
         >
           {isOpen ? "×" : "☰"}
         </button>
 
-        {/* Menu content */}
-        <div style={{ padding: "3rem 1rem 1rem 1rem" }}>
-          {children}
-        </div>
+        {/* Menu content - only visible when open */}
+        {isOpen && (
+          <div style={{ padding: "3rem 1rem 1rem 1rem" }}>
+            {children}
+          </div>
+        )}
       </div>
 
       {/* Overlay when drawer is open */}
