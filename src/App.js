@@ -7,6 +7,8 @@ import ShowMode from "./ShowMode";
 import ScoringMode from "./ScoringMode";
 import ResultsMode from "./ResultsMode";
 import AnswersMode from "./AnswersMode";
+import Sidebar from "./Sidebar";
+import SidebarMenu from "./SidebarMenu";
 import {
   ButtonTab,
   ButtonPrimary,
@@ -1270,23 +1272,49 @@ export default function App() {
 
   // UI
   return (
-    <div
-      style={{
-        fontFamily: tokens.font.display,
-        padding: tokens.spacing.xl,
-        backgroundColor: colors.bg,
-      }}
-    >
-      <h1
+    <>
+      {/* Sidebar with menu */}
+      <Sidebar>
+        <SidebarMenu />
+      </Sidebar>
+
+      {/* Fixed header bar */}
+      <div
         style={{
-          fontSize: "3rem",
-          color: colors.dark,
-          marginTop: tokens.spacing.xl,
-          marginBottom: "0",
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "60px",
+          backgroundColor: "#fff",
+          borderBottom: "2px solid " + colors.accent,
+          zIndex: 998,
+          display: "flex",
+          alignItems: "center",
+          padding: "0 2rem",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
         }}
       >
-        TriviaVanguard
-      </h1>
+        <h1
+          style={{
+            fontSize: "2rem",
+            color: colors.dark,
+            margin: 0,
+          }}
+        >
+          TriviaVanguard
+        </h1>
+      </div>
+
+      {/* Main content area */}
+      <div
+        style={{
+          fontFamily: tokens.font.display,
+          padding: tokens.spacing.xl,
+          backgroundColor: colors.bg,
+          marginTop: "60px", // Offset for fixed header
+        }}
+      >
       <h2
         style={{
           fontSize: "1.75rem",
@@ -1728,6 +1756,7 @@ export default function App() {
           <Button onClick={() => setOlderShowsOpen(false)}>Close</Button>
         </div>
       </ui.Modal>
-    </div>
+      </div>
+    </>
   );
 }
