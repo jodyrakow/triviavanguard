@@ -7,34 +7,12 @@ export default function Sidebar({ children }) {
 
   return (
     <>
-      {/* Hamburger button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          position: "fixed",
-          top: "70px", // Below the header
-          left: isOpen ? "260px" : "10px",
-          zIndex: 1001,
-          backgroundColor: theme.accent, // Orange
-          border: "none",
-          borderRadius: "4px",
-          padding: "8px 12px",
-          cursor: "pointer",
-          transition: "left 0.3s ease",
-          color: "#fff",
-          fontSize: "20px",
-        }}
-        aria-label={isOpen ? "Close menu" : "Open menu"}
-      >
-        {isOpen ? "×" : "☰"}
-      </button>
-
-      {/* Sidebar drawer */}
+      {/* Sidebar with hamburger button always visible */}
       <div
         style={{
           position: "fixed",
           top: "60px", // Below the header
-          left: isOpen ? "0" : "-300px", // Completely off-screen when closed
+          left: isOpen ? "0" : "-240px", // Show button tab when closed
           width: "280px",
           height: "calc(100vh - 60px)",
           backgroundColor: theme.accent, // Orange
@@ -42,11 +20,33 @@ export default function Sidebar({ children }) {
           transition: "left 0.3s ease",
           zIndex: 1000,
           overflowY: "auto",
-          padding: "1rem",
           boxShadow: isOpen ? "2px 0 8px rgba(0,0,0,0.2)" : "none",
         }}
       >
-        {children}
+        {/* Hamburger button inside sidebar */}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          style={{
+            position: "absolute",
+            top: "10px",
+            right: "10px",
+            backgroundColor: "rgba(255,255,255,0.2)",
+            border: "none",
+            borderRadius: "4px",
+            padding: "8px 12px",
+            cursor: "pointer",
+            color: "#fff",
+            fontSize: "20px",
+          }}
+          aria-label={isOpen ? "Close menu" : "Open menu"}
+        >
+          {isOpen ? "×" : "☰"}
+        </button>
+
+        {/* Menu content */}
+        <div style={{ padding: "3rem 1rem 1rem 1rem" }}>
+          {children}
+        </div>
       </div>
 
       {/* Overlay when drawer is open */}
