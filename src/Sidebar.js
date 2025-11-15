@@ -11,10 +11,10 @@ export default function Sidebar({ children }) {
       <div
         style={{
           position: "fixed",
-          top: "60px", // Below the header
+          top: "80px", // Below the header
           left: 0,
           width: isOpen ? "280px" : "50px", // Narrow tab when closed
-          height: "calc(100vh - 60px)",
+          height: "calc(100vh - 80px)",
           backgroundColor: theme.accent, // Orange
           color: "#fff",
           transition: "width 0.3s ease",
@@ -29,19 +29,21 @@ export default function Sidebar({ children }) {
           style={{
             position: "absolute",
             top: "10px",
-            left: "10px",
+            right: "8px",
             backgroundColor: "rgba(255,255,255,0.2)",
             border: "none",
             borderRadius: "4px",
-            padding: "8px 12px",
+            padding: "6px",
             cursor: "pointer",
             color: "#fff",
             fontSize: "20px",
             width: "35px",
             height: "35px",
+            boxSizing: "border-box",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            transition: "all 0.3s ease",
           }}
           aria-label={isOpen ? "Close menu" : "Open menu"}
         >
@@ -50,9 +52,7 @@ export default function Sidebar({ children }) {
 
         {/* Menu content - only visible when open */}
         {isOpen && (
-          <div style={{ padding: "3rem 1rem 1rem 1rem" }}>
-            {children}
-          </div>
+          <div style={{ padding: "3rem 1rem 1rem 1rem" }}>{children}</div>
         )}
       </div>
 
@@ -62,7 +62,7 @@ export default function Sidebar({ children }) {
           onClick={() => setIsOpen(false)}
           style={{
             position: "fixed",
-            top: "60px",
+            top: "80px",
             left: "280px",
             right: 0,
             bottom: 0,

@@ -9,7 +9,7 @@ import ResultsMode from "./ResultsMode";
 import AnswersMode from "./AnswersMode";
 import Sidebar from "./Sidebar";
 import SidebarMenu from "./SidebarMenu";
-import logo from "./logo.svg";
+import logo from "./trivia-logo.png";
 import {
   ButtonTab,
   ButtonPrimary,
@@ -1286,7 +1286,7 @@ export default function App() {
           top: 0,
           left: 0,
           right: 0,
-          height: "60px",
+          height: "80px",
           backgroundColor: "#fff",
           borderBottom: "2px solid " + colors.accent,
           zIndex: 998,
@@ -1299,7 +1299,7 @@ export default function App() {
         <img
           src={logo}
           alt="TriviaVanguard"
-          style={{ height: "45px" }}
+          style={{ height: "68px" }}
         />
       </div>
 
@@ -1309,7 +1309,8 @@ export default function App() {
           fontFamily: tokens.font.display,
           padding: tokens.spacing.xl,
           backgroundColor: colors.bg,
-          marginTop: "60px", // Offset for fixed header
+          marginTop: "80px", // Offset for fixed header
+          marginLeft: "50px", // Offset for sidebar
         }}
       >
       <div

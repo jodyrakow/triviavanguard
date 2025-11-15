@@ -1,5 +1,6 @@
 // SidebarMenu.js - Menu contents for the sidebar drawer
 import React, { useState } from "react";
+import { tokens } from "./styles/index.js";
 
 export default function SidebarMenu() {
   const [expandedSections, setExpandedSections] = useState({
@@ -27,6 +28,7 @@ export default function SidebarMenu() {
     borderRadius: "4px",
     fontWeight: "bold",
     fontSize: "1rem",
+    fontFamily: tokens.font.display,
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
@@ -35,17 +37,19 @@ export default function SidebarMenu() {
   const contentStyle = {
     padding: "0.5rem 0.75rem",
     fontSize: "0.9rem",
+    fontFamily: tokens.font.body,
   };
 
   const itemStyle = {
     padding: "0.5rem 0",
     cursor: "pointer",
     borderBottom: "1px solid rgba(255,255,255,0.1)",
+    fontFamily: tokens.font.body,
   };
 
   return (
     <div style={{ color: "#fff" }}>
-      <h2 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>Menu</h2>
+      <h2 style={{ fontSize: "1.5rem", marginBottom: "1.5rem", fontFamily: tokens.font.display }}>Menu</h2>
 
       {/* Host Tools */}
       <div style={sectionStyle}>
