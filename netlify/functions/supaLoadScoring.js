@@ -9,32 +9,23 @@ const supaAdmin = createClient(url, serviceKey, {
 
 export const handler = async (event) => {
   try {
-    const { showId, roundId } = event.queryStringParameters || {};
-    if (!showId || !roundId) {
+    const { showId } = event.queryStringParameters || {};
+    if (!showId) {
       return {
         statusCode: 400,
         headers: { "Access-Control-Allow-Origin": "*" },
-        body: JSON.stringify({ error: "Missing showId or roundId" }),
+        body: JSON.stringify({ error: "Missing showId" }),
       };
     }
 
-    // fetch shared (teams/entryOrder)
-    const { data: sharedRow, error: e1 } = await supaAdmin
+    // Fetch ALL scoring data for this show (single row with round_id = "all")
+    const { data: showRow, error: e1 } = await supaAdmin
       .from("live_scoring")
       .select("payload,updated_at")
       .eq("show_id", showId)
-      .eq("round_id", "shared")
+      .eq("round_id", "all")
       .maybeSingle();
     if (e1) throw e1;
-
-    // fetch this round (grid)
-    const { data: roundRow, error: e2 } = await supaAdmin
-      .from("live_scoring")
-      .select("payload,updated_at")
-      .eq("show_id", showId)
-      .eq("round_id", roundId)
-      .maybeSingle();
-    if (e2) throw e2;
 
     return {
       statusCode: 200,
@@ -43,12 +34,8 @@ export const handler = async (event) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        shared: sharedRow?.payload ?? null,
-        round: roundRow?.payload ?? null,
-        updatedAt: {
-          shared: sharedRow?.updated_at ?? null,
-          round: roundRow?.updated_at ?? null,
-        },
+        payload: showRow?.payload ?? null,
+        updatedAt: showRow?.updated_at ?? null,
       }),
     };
   } catch (err) {

@@ -49,7 +49,13 @@ export default function ScoringMode({
   const teamBarRef = useRef(null);
 
   const questions = useMemo(() => {
-    const raw = roundObj?.questions || [];
+    // Flatten questions from categories structure
+    const raw = [];
+    const categories = roundObj?.categories || [];
+    for (const cat of categories) {
+      const catQuestions = cat.questions || [];
+      raw.push(...catQuestions);
+    }
 
     // Find the single tiebreaker question (if present)
     const tbQ =
@@ -90,7 +96,13 @@ export default function ScoringMode({
 
   // --- Tiebreaker detection (one per show) ---
   const tiebreaker = React.useMemo(() => {
-    const list = roundObj?.questions || [];
+    // Flatten questions from categories structure
+    const list = [];
+    const categories = roundObj?.categories || [];
+    for (const cat of categories) {
+      const catQuestions = cat.questions || [];
+      list.push(...catQuestions);
+    }
     // prefer explicit type, else "TB" order, else id that starts with tb-
     return (
       list.find((q) => (q.questionType || "").toLowerCase() === "tiebreaker") ||
@@ -890,7 +902,16 @@ export default function ScoringMode({
       teamName: trimmed,
       showBonus: 0,
     };
-    setTeams((prev) => [...prev, newTeam]);
+    setTeams((prev) => {
+      const updated = [...prev, newTeam];
+      // Set focus to the new team (will be last in visible teams)
+      // Use setTimeout to ensure visibleTeams updates first
+      setTimeout(() => {
+        setTeamIdxSolo(updated.length - 1);
+        setFocus({ teamIdx: updated.length - 1, questionIdx: 0 });
+      }, 0);
+      return updated;
+    });
     setEntryOrder((prev) => [...prev, newTeam.showTeamId]);
     try {
       window.sendTeamAdd?.({
@@ -994,26 +1015,35 @@ export default function ScoringMode({
   const focusColor = theme.dark;
 
   const sticky = {
-    thTop: { position: "sticky", top: 0, zIndex: 3, background: "#fff" },
+    thTop: {
+      position: "sticky",
+      top: 0,
+      zIndex: 10,
+      background: "#fff",
+      boxShadow: "0 2px 4px rgba(0,0,0,0.1)", // Add shadow for visibility
+    },
     qNumTh: {
       position: "sticky",
       left: 0,
-      zIndex: 4,
+      top: 0,
+      zIndex: 11, // Higher than thTop so corner cell stays on top
       background: "#fff",
       textAlign: "center",
       minWidth: COL_Q_WIDTH,
       width: COL_Q_WIDTH,
       maxWidth: COL_Q_WIDTH,
+      boxShadow: "2px 2px 4px rgba(0,0,0,0.1)", // Shadow on both axes
     },
     qNumTd: {
       position: "sticky",
       left: 0,
-      zIndex: 2,
+      zIndex: 5,
       background: "#fff",
       textAlign: "center",
       minWidth: COL_Q_WIDTH,
       width: COL_Q_WIDTH,
       maxWidth: COL_Q_WIDTH,
+      boxShadow: "2px 0 4px rgba(0,0,0,0.05)", // Subtle shadow
     },
   };
 
@@ -1116,129 +1146,18 @@ export default function ScoringMode({
 
             <ButtonTab
               active={teamMode}
-              onClick={() => setTeamMode((prev) => !prev)}
+              onClick={() => {
+                if (!teamMode) {
+                  // Entering team mode - show the currently focused team
+                  setTeamIdxSolo(focus.teamIdx);
+                }
+                setTeamMode((prev) => !prev);
+              }}
               title="Toggle team scoring mode"
               style={{ flexShrink: 0 }}
             >
               {teamMode ? "Exit Team Scoring Mode" : "Team Scoring Mode"}
             </ButtonTab>
-          </div>
-
-          {/* Scoring controls */}
-          <div style={{ display: "flex", gap: ".5rem", alignItems: "center" }}>
-            <div
-              style={{
-                display: "inline-flex",
-                border: "1px solid #ccc",
-                borderRadius: 999,
-                overflow: "hidden",
-                background: "#fff",
-              }}
-              title="Choose scoring type"
-            >
-              <button
-                style={ui.segBtn(scoringMode === "pub")}
-                onClick={() => setScoringMode("pub")}
-              >
-                Pub
-              </button>
-              <button
-                style={ui.segBtn(scoringMode === "pooled")}
-                onClick={() => setScoringMode("pooled")}
-                title="Static pool size"
-              >
-                Pooled
-              </button>
-              <button
-                style={ui.segBtn(scoringMode === "pooled-adaptive")}
-                onClick={() => setScoringMode("pooled-adaptive")}
-                title="Pool adapts based on team count"
-              >
-                Adaptive
-              </button>
-            </div>
-
-            {scoringMode === "pub" ? (
-              <label
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: ".35rem",
-                }}
-              >
-                <span style={{ whiteSpace: "nowrap" }}>Pts/Q:</span>
-                <input
-                  type="number"
-                  value={pubPoints}
-                  min={0}
-                  step={1}
-                  onChange={(e) => setPubPoints(Number(e.target.value || 0))}
-                  style={{
-                    width: 70,
-                    padding: ".3rem .4rem",
-                    border: "1px solid #ccc",
-                    borderRadius: ".35rem",
-                  }}
-                  onKeyDown={onEnterBlur}
-                />
-              </label>
-            ) : scoringMode === "pooled-adaptive" ? (
-              <label
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: ".35rem",
-                }}
-                title={`Current pool: ${teams.length} teams × ${poolContribution} = ${teams.length * poolContribution} pts/question`}
-              >
-                <span style={{ whiteSpace: "nowrap" }}>Pts/Team:</span>
-                <input
-                  type="number"
-                  value={poolContribution}
-                  min={0}
-                  step={1}
-                  onChange={(e) =>
-                    setPoolContribution(Number(e.target.value || 0))
-                  }
-                  onKeyDown={onEnterBlur}
-                  style={{
-                    width: 70,
-                    padding: ".3rem .4rem",
-                    border: "1px solid #ccc",
-                    borderRadius: ".35rem",
-                  }}
-                />
-                <span style={{ fontSize: ".85rem", opacity: 0.7 }}>
-                  (Pool: {teams.length * poolContribution})
-                </span>
-              </label>
-            ) : (
-              <label
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: ".35rem",
-                }}
-              >
-                <span style={{ whiteSpace: "nowrap" }}>Pool/Q:</span>
-                <input
-                  type="number"
-                  value={poolPerQuestion}
-                  min={0}
-                  step={10}
-                  onChange={(e) =>
-                    setPoolPerQuestion(Number(e.target.value || 0))
-                  }
-                  onKeyDown={onEnterBlur}
-                  style={{
-                    width: 110,
-                    padding: ".3rem .4rem",
-                    border: "1px solid #ccc",
-                    borderRadius: ".35rem",
-                  }}
-                />
-              </label>
-            )}
           </div>
         </div>
 

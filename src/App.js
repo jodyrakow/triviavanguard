@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef, useMemo } from "react";
 import axios from "axios";
 import "./App.css";
 import "react-h5-audio-player/lib/styles.css";
+import Draggable from "react-draggable";
 import ShowMode from "./ShowMode";
 import ScoringMode from "./ScoringMode";
 import ResultsMode from "./ResultsMode";
@@ -26,8 +27,9 @@ const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 export const supabase =
   supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
-// Default shared state structure for all shows
-const DEFAULT_SHARED_STATE = {
+// Default state structure for all shows
+// NEW STRUCTURE: All scoring data in one bundle (not split by round)
+const DEFAULT_SHOW_STATE = {
   teams: [],
   entryOrder: [],
   prizes: "",
@@ -44,6 +46,7 @@ const DEFAULT_SHARED_STATE = {
     announcements: "",
   },
   tiebreakers: {}, // { [roundId]: tiebreakerQuestion }
+  grid: {}, // { [showTeamId]: { [showQuestionId]: { isCorrect, questionBonus, overridePoints, tiebreakerGuess, tiebreakerGuessRaw } } }
 };
 
 // 🔐 PASSWORD PROTECTION
@@ -69,6 +72,7 @@ export default function App() {
   const [olderShows, setOlderShows] = useState([]);
   const [selectedRoundId, setSelectedRoundId] = useState(""); // string (e.g. "1")
   const [showDetails, setshowDetails] = useState(true);
+  const [scriptOpen, setScriptOpen] = useState(false);
   const [visibleImages, setVisibleImages] = useState({});
   const questionRefs = useRef({});
   const [visibleCategoryImages, setVisibleCategoryImages] = useState({});
@@ -160,43 +164,34 @@ export default function App() {
     if (!selectedShowId) return;
 
     setScoringCache((prev) => {
-      const show = prev[selectedShowId] || {};
-      const shared = show._shared || {
-        teams: [],
-        entryOrder: [],
-        prizes: "",
-        scoringMode: "pub",
-        pubPoints: 10,
-        poolPerQuestion: 500,
-        poolContribution: 10,
-      };
+      const show = prev[selectedShowId] || DEFAULT_SHOW_STATE;
 
-      const nextShared = { ...shared, scoringMode, pubPoints, poolPerQuestion, poolContribution };
+      const nextShow = { ...show, scoringMode, pubPoints, poolPerQuestion, poolContribution };
 
       const next = {
         ...prev,
-        [selectedShowId]: {
-          ...show,
-          _shared: nextShared,
-        },
+        [selectedShowId]: nextShow,
       };
 
-      // Save to Supabase
-      saveDebounced("shared", () => {
+      // Save to Supabase with round_id="all"
+      saveDebounced("all", () => {
         fetch("/.netlify/functions/supaSaveScoring", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             showId: selectedShowId,
-            roundId: "shared",
+            roundId: "all",
             payload: {
-              teams: nextShared.teams ?? [],
-              entryOrder: nextShared.entryOrder ?? [],
-              prizes: nextShared.prizes ?? "",
-              scoringMode: nextShared.scoringMode ?? "pub",
-              pubPoints: nextShared.pubPoints ?? 10,
-              poolPerQuestion: nextShared.poolPerQuestion ?? 500,
-              poolContribution: nextShared.poolContribution ?? 10,
+              teams: nextShow.teams ?? [],
+              entryOrder: nextShow.entryOrder ?? [],
+              prizes: nextShow.prizes ?? "",
+              scoringMode: nextShow.scoringMode ?? "pub",
+              pubPoints: nextShow.pubPoints ?? 10,
+              poolPerQuestion: nextShow.poolPerQuestion ?? 500,
+              poolContribution: nextShow.poolContribution ?? 10,
+              hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
+              tiebreakers: nextShow.tiebreakers ?? {},
+              grid: nextShow.grid ?? {},
             },
           }),
         }).catch(() => {});
@@ -287,9 +282,8 @@ export default function App() {
       if (!showId || !roundId || !teamId || !showQuestionId) return;
 
       setScoringCache((prev) => {
-        const show = prev[showId] || {};
-        const round = show[roundId] || { grid: {} };
-        const byTeam = round.grid?.[teamId] ? { ...round.grid[teamId] } : {};
+        const show = prev[showId] || DEFAULT_SHOW_STATE;
+        const byTeam = show.grid?.[teamId] ? { ...show.grid[teamId] } : {};
         const cell = byTeam[showQuestionId] || {
           isCorrect: false,
           questionBonus: 0,
@@ -305,10 +299,7 @@ export default function App() {
           ...prev,
           [showId]: {
             ...show,
-            [roundId]: {
-              ...round,
-              grid: { ...(round.grid || {}), [teamId]: byTeam },
-            },
+            grid: { ...(show.grid || {}), [teamId]: byTeam },
           },
         };
 
@@ -334,9 +325,8 @@ export default function App() {
       if (!showId || !roundId || !teamId || !showQuestionId) return;
 
       setScoringCache((prev) => {
-        const show = prev[showId] || {};
-        const round = show[roundId] || { grid: {} };
-        const byTeam = round.grid?.[teamId] ? { ...round.grid[teamId] } : {};
+        const show = prev[showId] || DEFAULT_SHOW_STATE;
+        const byTeam = show.grid?.[teamId] ? { ...show.grid[teamId] } : {};
         const cell = byTeam[showQuestionId] || {
           isCorrect: false,
           questionBonus: 0,
@@ -356,10 +346,7 @@ export default function App() {
           ...prev,
           [showId]: {
             ...show,
-            [roundId]: {
-              ...round,
-              grid: { ...(round.grid || {}), [teamId]: byTeam },
-            },
+            grid: { ...(show.grid || {}), [teamId]: byTeam },
           },
         };
 
@@ -378,17 +365,9 @@ export default function App() {
       if (showId !== currentShowIdRef.current) return;
 
       setScoringCache((prev) => {
-        const show = prev[showId] || {};
-        const shared = show._shared || {
-          teams: [],
-          entryOrder: [],
-          prizes: "",
-          scoringMode: "pub",
-          pubPoints: 10,
-          poolPerQuestion: 500,
-        };
+        const show = prev[showId] || DEFAULT_SHOW_STATE;
 
-        const nextTeams = (shared.teams || []).map((t) =>
+        const nextTeams = (show.teams || []).map((t) =>
           t.showTeamId === teamId
             ? { ...t, showBonus: Number(showBonus || 0) }
             : t
@@ -398,7 +377,7 @@ export default function App() {
           ...prev,
           [showId]: {
             ...show,
-            _shared: { ...shared, teams: nextTeams },
+            teams: nextTeams,
           },
         };
 
@@ -418,36 +397,29 @@ export default function App() {
       if (showId !== currentShowIdRef.current) return;
 
       setScoringCache((prev) => {
-        const show = prev[showId] || {};
-        const shared = show._shared || {
-          teams: [],
-          entryOrder: [],
-          prizes: "",
-          scoringMode: "pub",
-          pubPoints: 10,
-          poolPerQuestion: 500,
-        };
+        const show = prev[showId] || DEFAULT_SHOW_STATE;
 
         // skip if already present
-        if (shared.teams?.some((t) => t.showTeamId === teamId)) return prev;
+        if (show.teams?.some((t) => t.showTeamId === teamId)) return prev;
 
         const nextTeams = [
-          ...(shared.teams || []),
+          ...(show.teams || []),
           {
             showTeamId: teamId,
             teamName,
             showBonus: 0,
           },
         ];
-        const nextEntry = shared.entryOrder?.includes(teamId)
-          ? shared.entryOrder
-          : [...(shared.entryOrder || []), teamId];
+        const nextEntry = show.entryOrder?.includes(teamId)
+          ? show.entryOrder
+          : [...(show.entryOrder || []), teamId];
 
         const next = {
           ...prev,
           [showId]: {
             ...show,
-            _shared: { ...shared, teams: nextTeams, entryOrder: nextEntry },
+            teams: nextTeams,
+            entryOrder: nextEntry,
           },
         };
 
@@ -467,17 +439,9 @@ export default function App() {
       if (showId !== currentShowIdRef.current) return;
 
       setScoringCache((prev) => {
-        const show = prev[showId] || {};
-        const shared = show._shared || {
-          teams: [],
-          entryOrder: [],
-          prizes: "",
-          scoringMode: "pub",
-          pubPoints: 10,
-          poolPerQuestion: 500,
-        };
+        const show = prev[showId] || DEFAULT_SHOW_STATE;
 
-        const nextTeams = (shared.teams || []).map((t) =>
+        const nextTeams = (show.teams || []).map((t) =>
           t.showTeamId === teamId ? { ...t, teamName } : t
         );
 
@@ -485,7 +449,7 @@ export default function App() {
           ...prev,
           [showId]: {
             ...show,
-            _shared: { ...shared, teams: nextTeams },
+            teams: nextTeams,
           },
         };
 
@@ -505,20 +469,12 @@ export default function App() {
       if (showId !== currentShowIdRef.current) return;
 
       setScoringCache((prev) => {
-        const show = prev[showId] || {};
-        const shared = show._shared || {
-          teams: [],
-          entryOrder: [],
-          prizes: "",
-          scoringMode: "pub",
-          pubPoints: 10,
-          poolPerQuestion: 500,
-        };
+        const show = prev[showId] || DEFAULT_SHOW_STATE;
 
-        const nextTeams = (shared.teams || []).filter(
+        const nextTeams = (show.teams || []).filter(
           (t) => t.showTeamId !== teamId
         );
-        const nextEntry = (shared.entryOrder || []).filter(
+        const nextEntry = (show.entryOrder || []).filter(
           (id) => id !== teamId
         );
 
@@ -526,7 +482,8 @@ export default function App() {
           ...prev,
           [showId]: {
             ...show,
-            _shared: { ...shared, teams: nextTeams, entryOrder: nextEntry },
+            teams: nextTeams,
+            entryOrder: nextEntry,
           },
         };
 
@@ -557,10 +514,9 @@ export default function App() {
       if (showId !== currentShowIdRef.current) return;
 
       setScoringCache((prev) => {
-        const show = prev[showId] || {};
-        const round = show[roundId] || { grid: {} };
+        const show = prev[showId] || DEFAULT_SHOW_STATE;
 
-        const byTeam = round.grid?.[teamId] ? { ...round.grid[teamId] } : {};
+        const byTeam = show.grid?.[teamId] ? { ...show.grid[teamId] } : {};
         const cell = byTeam[showQuestionId] || {
           isCorrect: false,
           questionBonus: 0,
@@ -580,10 +536,7 @@ export default function App() {
           ...prev,
           [showId]: {
             ...show,
-            [roundId]: {
-              ...round,
-              grid: { ...(round.grid || {}), [teamId]: byTeam },
-            },
+            grid: { ...(show.grid || {}), [teamId]: byTeam },
           },
         };
 
@@ -602,12 +555,10 @@ export default function App() {
       if (showId !== currentShowIdRef.current) return;
 
       setScoringCache((prev) => {
-        const show = prev[showId] || {};
-        const shared = show._shared || DEFAULT_SHARED_STATE;
-        const nextShared = { ...shared, prizes: val };
+        const show = prev[showId] || DEFAULT_SHOW_STATE;
         return {
           ...prev,
-          [showId]: { ...show, _shared: nextShared },
+          [showId]: { ...show, prizes: val },
         };
       });
     });
@@ -620,12 +571,10 @@ export default function App() {
       if (showId !== currentShowIdRef.current) return;
 
       setScoringCache((prev) => {
-        const show = prev[showId] || {};
-        const shared = show._shared || DEFAULT_SHARED_STATE;
-        const nextShared = { ...shared, hostInfo };
+        const show = prev[showId] || DEFAULT_SHOW_STATE;
         return {
           ...prev,
-          [showId]: { ...show, _shared: nextShared },
+          [showId]: { ...show, hostInfo },
         };
       });
     });
@@ -650,18 +599,9 @@ export default function App() {
 
       // Update cache
       setScoringCache((prev) => {
-        const show = prev[showId] || {};
-        const shared = show._shared || {
-          teams: [],
-          entryOrder: [],
-          prizes: "",
-          scoringMode: "pub",
-          pubPoints: 10,
-          poolPerQuestion: 500,
-          poolContribution: 10,
-        };
-        const nextShared = {
-          ...shared,
+        const show = prev[showId] || DEFAULT_SHOW_STATE;
+        const nextShow = {
+          ...show,
           ...(mode !== undefined && { scoringMode: mode }),
           ...(pub !== undefined && { pubPoints: Number(pub) }),
           ...(pool !== undefined && { poolPerQuestion: Number(pool) }),
@@ -669,7 +609,7 @@ export default function App() {
         };
         return {
           ...prev,
-          [showId]: { ...show, _shared: nextShared },
+          [showId]: nextShow,
         };
       });
     });
@@ -806,59 +746,41 @@ export default function App() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
+  // Load ALL scoring data for the show (once per show, not per round)
   useEffect(() => {
-    if (!selectedShowId || !selectedRoundId) return;
+    if (!selectedShowId) return;
 
     (async () => {
       try {
         const res = await fetch(
-          `/.netlify/functions/supaLoadScoring?showId=${encodeURIComponent(selectedShowId)}&roundId=${encodeURIComponent(selectedRoundId)}`
+          `/.netlify/functions/supaLoadScoring?showId=${encodeURIComponent(selectedShowId)}`
         );
         const json = await res.json();
 
         setScoringCache((prev) => {
-          const prevShow = prev[selectedShowId] || {};
-          const loadedShared = json.shared ??
-            prevShow._shared ?? {
-              teams: [],
-              entryOrder: [],
-              prizes: "",
-              scoringMode: "pub",
-              pubPoints: 10,
-              poolPerQuestion: 500,
-              poolContribution: 10,
-            };
+          const prevShow = prev[selectedShowId] || DEFAULT_SHOW_STATE;
+          const loadedData = json.payload ?? prevShow;
 
-          // 🔧 FIX: Merge the new round data instead of replacing the entire show cache
-          const updatedRound = json.round ?? prevShow[selectedRoundId] ?? { grid: {} };
-
-          // Option C: Only override scoring settings if the show has been started AND has actual scoring data saved
-          // A show is considered "started" if there's actual scoring data (grid has entries)
-          // AND the shared data came from Supabase (not fallback defaults)
-          const gridHasData = updatedRound?.grid && Object.keys(updatedRound.grid).length > 0;
-          const hasSupabaseSharedData = !!json.shared; // true if Supabase returned shared data
-          const showHasBeenStarted = gridHasData && hasSupabaseSharedData;
+          // Only override scoring settings if the show has actual scoring data saved
+          const gridHasData = loadedData?.grid && Object.keys(loadedData.grid).length > 0;
+          const showHasBeenStarted = gridHasData && !!json.payload;
 
           if (showHasBeenStarted) {
             // Update local scoring state from loaded Supabase data (show in progress)
-            if (loadedShared.scoringMode)
-              setScoringMode(loadedShared.scoringMode);
-            if (loadedShared.pubPoints !== undefined)
-              setPubPoints(Number(loadedShared.pubPoints));
-            if (loadedShared.poolPerQuestion !== undefined)
-              setPoolPerQuestion(Number(loadedShared.poolPerQuestion));
-            if (loadedShared.poolContribution !== undefined)
-              setPoolContribution(Number(loadedShared.poolContribution));
+            if (loadedData.scoringMode)
+              setScoringMode(loadedData.scoringMode);
+            if (loadedData.pubPoints !== undefined)
+              setPubPoints(Number(loadedData.pubPoints));
+            if (loadedData.poolPerQuestion !== undefined)
+              setPoolPerQuestion(Number(loadedData.poolPerQuestion));
+            if (loadedData.poolContribution !== undefined)
+              setPoolContribution(Number(loadedData.poolContribution));
           }
           // Otherwise: Keep Airtable config that was set when the bundle loaded
 
           return {
             ...prev,
-            [selectedShowId]: {
-              ...prevShow, // preserve all existing rounds
-              _shared: loadedShared,
-              [selectedRoundId]: updatedRound, // update only the current round
-            },
+            [selectedShowId]: { ...DEFAULT_SHOW_STATE, ...loadedData },
           };
         });
       } catch (e) {
@@ -866,7 +788,7 @@ export default function App() {
         // falls back to whatever is in local scoringCache/localStorage
       }
     })();
-  }, [selectedShowId, selectedRoundId]);
+  }, [selectedShowId]); // Load once per show, not per round
 
   const getClosestQuestionKey = () => {
     const viewportCenter = window.innerHeight / 2;
@@ -955,6 +877,35 @@ export default function App() {
           if (typeof config.poolContribution === 'number') {
             setPoolContribution(config.poolContribution);
           }
+
+          // Set timer default if provided
+          if (typeof config.timerDefault === 'number') {
+            setTimerDuration(config.timerDefault);
+            setTimeLeft(config.timerDefault);
+          }
+
+          // Pre-populate hostInfo from Airtable (always sync from show config)
+          const currentHostInfo = composedCachedState?.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
+          const updatedHostInfo = { ...currentHostInfo };
+          let hasChanges = false;
+
+          // Update if we have a value and it's different (including empty -> filled)
+          if (config.hostName && (!currentHostInfo.host || config.hostName !== currentHostInfo.host)) {
+            updatedHostInfo.host = config.hostName;
+            hasChanges = true;
+          }
+          if (config.cohostName && (!currentHostInfo.cohost || config.cohostName !== currentHostInfo.cohost)) {
+            updatedHostInfo.cohost = config.cohostName;
+            hasChanges = true;
+          }
+          if (config.startTime && (!currentHostInfo.startTimesText || config.startTime !== currentHostInfo.startTimesText)) {
+            updatedHostInfo.startTimesText = config.startTime;
+            hasChanges = true;
+          }
+
+          if (hasChanges) {
+            patchShared({ hostInfo: updatedHostInfo });
+          }
         }
 
         // set default round if needed
@@ -997,39 +948,35 @@ export default function App() {
 
   const patchShared = (patch) => {
     setScoringCache((prev) => {
-      const show = prev[selectedShowId] || {};
-      const shared = show._shared || DEFAULT_SHARED_STATE;
+      const show = prev[selectedShowId] || DEFAULT_SHOW_STATE;
 
-      // merge the change (patch) into shared
-      const nextShared = { ...shared, ...patch };
+      // merge the change (patch) into the show
+      const nextShow = { ...show, ...patch };
 
       const next = {
         ...prev,
-        [selectedShowId]: {
-          ...show,
-          _shared: nextShared,
-          [selectedRoundId]: show[selectedRoundId] || { grid: {} },
-        },
+        [selectedShowId]: nextShow,
       };
 
-      // Persist to Supabase using values from nextShared - save COMPLETE shared state
-      saveDebounced("shared", () => {
+      // Persist to Supabase with round_id="all" - save COMPLETE state
+      saveDebounced("all", () => {
         fetch("/.netlify/functions/supaSaveScoring", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             showId: selectedShowId,
-            roundId: "shared",
+            roundId: "all",
             payload: {
-              teams: nextShared.teams ?? [],
-              entryOrder: nextShared.entryOrder ?? [],
-              prizes: nextShared.prizes ?? "",
-              scoringMode: nextShared.scoringMode ?? "pub",
-              pubPoints: nextShared.pubPoints ?? 10,
-              poolPerQuestion: nextShared.poolPerQuestion ?? 500,
-              poolContribution: nextShared.poolContribution ?? 10,
-              hostInfo: nextShared.hostInfo ?? DEFAULT_SHARED_STATE.hostInfo,
-              tiebreakers: nextShared.tiebreakers ?? {},
+              teams: nextShow.teams ?? [],
+              entryOrder: nextShow.entryOrder ?? [],
+              prizes: nextShow.prizes ?? "",
+              scoringMode: nextShow.scoringMode ?? "pub",
+              pubPoints: nextShow.pubPoints ?? 10,
+              poolPerQuestion: nextShow.poolPerQuestion ?? 500,
+              poolContribution: nextShow.poolContribution ?? 10,
+              hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
+              tiebreakers: nextShow.tiebreakers ?? {},
+              grid: nextShow.grid ?? {},
             },
           }),
         }).catch(() => {});
@@ -1041,7 +988,7 @@ export default function App() {
         if (patch.prizes !== undefined) {
           window.tvSend?.("prizesUpdate", {
             showId: selectedShowId,
-            prizes: nextShared.prizes ?? "",
+            prizes: nextShow.prizes ?? "",
             ts: Date.now(),
           });
         }
@@ -1049,7 +996,7 @@ export default function App() {
         if (patch.hostInfo !== undefined) {
           window.tvSend?.("hostInfoUpdate", {
             showId: selectedShowId,
-            hostInfo: nextShared.hostInfo ?? DEFAULT_SHARED_STATE.hostInfo,
+            hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
             ts: Date.now(),
           });
         }
@@ -1066,16 +1013,14 @@ export default function App() {
 
   // 🔸 Compose a single cachedState shape shared by all modes
   const composedCachedState = (() => {
-    const showCache = scoringCache[selectedShowId] ?? {};
-    const shared = showCache._shared ?? null; // { teams, entryOrder, prizes, hostInfo, etc. }
-    const roundCache = showCache[selectedRoundId] ?? null; // { grid }
-    if (!shared && !roundCache) return null;
+    const show = scoringCache[selectedShowId] ?? null;
+    if (!show) return null;
     return {
-      teams: shared?.teams ?? [],
-      entryOrder: shared?.entryOrder ?? [],
-      grid: roundCache?.grid ?? {},
-      prizes: shared?.prizes ?? "",
-      hostInfo: shared?.hostInfo ?? DEFAULT_SHARED_STATE.hostInfo,
+      teams: show.teams ?? [],
+      entryOrder: show.entryOrder ?? [],
+      grid: show.grid ?? {},
+      prizes: show.prizes ?? "",
+      hostInfo: show.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
     };
   })();
 
@@ -1083,8 +1028,8 @@ export default function App() {
   const showBundleWithEdits = useMemo(() => {
     if (!showBundle) return null;
     const edits = questionEdits[selectedShowId];
-    const showCache = scoringCache[selectedShowId];
-    const tiebreakers = showCache?._shared?.tiebreakers || {};
+    const show = scoringCache[selectedShowId];
+    const tiebreakers = show?.tiebreakers || {};
 
     // Deep clone and apply edits + tiebreakers
     const updatedBundle = {
@@ -1213,14 +1158,13 @@ export default function App() {
       return { ...prev, rounds: updatedRounds };
     });
 
-    // Save to Supabase shared state
+    // Save to Supabase
     setScoringCache((prev) => {
-      const show = prev[selectedShowId] || {};
-      const shared = show._shared || DEFAULT_SHARED_STATE;
-      const tiebreakers = shared.tiebreakers || {};
+      const show = prev[selectedShowId] || DEFAULT_SHOW_STATE;
+      const tiebreakers = show.tiebreakers || {};
 
-      const nextShared = {
-        ...shared,
+      const nextShow = {
+        ...show,
         tiebreakers: {
           ...tiebreakers,
           [selectedRoundId]: tiebreakerQuestion,
@@ -1229,30 +1173,28 @@ export default function App() {
 
       const next = {
         ...prev,
-        [selectedShowId]: {
-          ...show,
-          _shared: nextShared,
-        },
+        [selectedShowId]: nextShow,
       };
 
-      // Save to Supabase
-      saveDebounced("shared", () => {
+      // Save to Supabase with round_id="all"
+      saveDebounced("all", () => {
         fetch("/.netlify/functions/supaSaveScoring", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             showId: selectedShowId,
-            roundId: "shared",
+            roundId: "all",
             payload: {
-              teams: nextShared.teams ?? [],
-              entryOrder: nextShared.entryOrder ?? [],
-              prizes: nextShared.prizes ?? "",
-              scoringMode: nextShared.scoringMode ?? "pub",
-              pubPoints: nextShared.pubPoints ?? 10,
-              poolPerQuestion: nextShared.poolPerQuestion ?? 500,
-              poolContribution: nextShared.poolContribution ?? 10,
-              hostInfo: nextShared.hostInfo ?? DEFAULT_SHARED_STATE.hostInfo,
-              tiebreakers: nextShared.tiebreakers ?? {},
+              teams: nextShow.teams ?? [],
+              entryOrder: nextShow.entryOrder ?? [],
+              prizes: nextShow.prizes ?? "",
+              scoringMode: nextShow.scoringMode ?? "pub",
+              pubPoints: nextShow.pubPoints ?? 10,
+              poolPerQuestion: nextShow.poolPerQuestion ?? 500,
+              poolContribution: nextShow.poolContribution ?? 10,
+              hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
+              tiebreakers: nextShow.tiebreakers ?? {},
+              grid: nextShow.grid ?? {},
             },
           }),
         }).catch(() => {});
@@ -1276,7 +1218,18 @@ export default function App() {
     <>
       {/* Sidebar with menu */}
       <Sidebar>
-        <SidebarMenu />
+        <SidebarMenu
+          showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
+          showTimer={showTimer}
+          setShowTimer={setShowTimer}
+          showDetails={showDetails}
+          setShowDetails={setshowDetails}
+          timerDuration={timerDuration}
+          setTimerDuration={setTimerDuration}
+          setScriptOpen={setScriptOpen}
+          hostInfo={composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo}
+          setHostInfo={(val) => patchShared({ hostInfo: val })}
+        />
       </Sidebar>
 
       {/* Fixed header bar */}
@@ -1307,7 +1260,7 @@ export default function App() {
       <div
         style={{
           fontFamily: tokens.font.display,
-          padding: tokens.spacing.xl,
+          padding: `${tokens.spacing.md} ${tokens.spacing.xl} ${tokens.spacing.xl} ${tokens.spacing.xl}`,
           backgroundColor: colors.bg,
           marginTop: "80px", // Offset for fixed header
           marginLeft: "50px", // Offset for sidebar
@@ -1318,33 +1271,41 @@ export default function App() {
           display: "flex",
           justifyContent: "left",
           gap: tokens.spacing.sm,
-          marginTop: tokens.spacing.md,
-          marginBottom: tokens.spacing.md,
+          marginBottom: tokens.spacing.sm,
         }}
       >
         <ButtonTab
           active={activeMode === "show"}
           onClick={() => setActiveMode("show")}
         >
-          Show mode
+          Questions & answers
         </ButtonTab>
 
         <ButtonTab
           active={activeMode === "score"}
           onClick={() => setActiveMode("score")}
         >
-          Enter scores
+          Scores
         </ButtonTab>
 
         <ButtonTab
           active={activeMode === "results"}
           onClick={() => setActiveMode("results")}
         >
-          View results
+          Results
         </ButtonTab>
       </div>
-      <div style={{ fontSize: ".9rem", opacity: 0.85 }}>
-        Realtime: <strong>{rtStatus}</strong>
+      <div style={{ fontSize: ".9rem", opacity: 0.85, display: "flex", alignItems: "center", gap: "0.35rem", marginLeft: "0.25rem" }}>
+        <span
+          style={{
+            display: "inline-block",
+            width: "8px",
+            height: "8px",
+            borderRadius: "50%",
+            backgroundColor: rtStatus === "SUBSCRIBED" ? "#22c55e" : rtStatus === "SUBSCRIBING" ? "#eab308" : "#ef4444",
+          }}
+        />
+        Multi-host sync: <strong>{rtStatus === "SUBSCRIBED" ? "Active" : rtStatus === "SUBSCRIBING" ? "Connecting..." : "Offline"}</strong>
       </div>
 
       <div>
@@ -1424,7 +1385,7 @@ export default function App() {
         </label>
       </div>
 
-      {roundNumbers.length > 1 && (
+      {roundNumbers.length > 1 && (activeMode === "show" || activeMode === "scores") && (
         <div>
           <label
             style={{
@@ -1476,29 +1437,20 @@ export default function App() {
           setCurrentImageIndex={setCurrentImageIndex}
           visibleCategoryImages={visibleCategoryImages}
           setVisibleCategoryImages={setVisibleCategoryImages}
-          timeLeft={timeLeft}
-          timerRunning={timerRunning}
-          handleStartPause={handleStartPause}
-          handleReset={handleReset}
-          timerDuration={timerDuration}
-          handleDurationChange={handleDurationChange}
-          timerRef={timerRef}
-          timerPosition={timerPosition}
-          setTimerPosition={setTimerPosition}
           getClosestQuestionKey={getClosestQuestionKey}
           numberToLetter={numberToLetter}
-          showTimer={showTimer}
           scoringMode={scoringMode}
           pubPoints={pubPoints}
           poolPerQuestion={poolPerQuestion}
           poolContribution={poolContribution}
           prizes={composedCachedState?.prizes ?? ""}
-          hostInfo={composedCachedState?.hostInfo ?? DEFAULT_SHARED_STATE.hostInfo}
-          setShowTimer={setShowTimer}
+          hostInfo={composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo}
           setPrizes={(val) => patchShared({ prizes: String(val || "") })}
           setHostInfo={(val) => patchShared({ hostInfo: val })}
           editQuestionField={editQuestionField}
           addTiebreaker={addTiebreaker}
+          scriptOpen={scriptOpen}
+          setScriptOpen={setScriptOpen}
         />
       )}
 
@@ -1521,59 +1473,45 @@ export default function App() {
           onChangeState={(payload) => {
             setScoringCache((prev) => {
               const { teams = [], entryOrder = [], grid = {} } = payload;
-              const prevShow = prev[selectedShowId] || {};
-              const prevShared = prevShow._shared || {};
+              const prevShow = prev[selectedShowId] || DEFAULT_SHOW_STATE;
+
+              const nextShow = {
+                ...prevShow,
+                teams,
+                entryOrder,
+                grid,
+              };
 
               const next = {
                 ...prev,
-                [selectedShowId]: {
-                  ...prevShow, // preserve all rounds
-                  _shared: {
-                    ...prevShared, // preserve scoring settings, prizes, etc.
-                    teams,
-                    entryOrder
-                  },
-                  [selectedRoundId]: { grid },
-                },
+                [selectedShowId]: nextShow,
               };
 
-              // Persist to Supabase (NOT Airtable)
-              // shared - save COMPLETE shared state to avoid losing prizes/scoring settings
-              const completeShared = {
-                teams,
-                entryOrder,
-                prizes: prevShared.prizes ?? "",
-                scoringMode: prevShared.scoringMode ?? "pub",
-                pubPoints: prevShared.pubPoints ?? 10,
-                poolPerQuestion: prevShared.poolPerQuestion ?? 500,
-                poolContribution: prevShared.poolContribution ?? 10,
-              };
-              saveDebounced("shared", () => {
+              // Persist to Supabase with round_id="all" - save COMPLETE show state
+              saveDebounced("all", () => {
                 fetch("/.netlify/functions/supaSaveScoring", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     showId: selectedShowId,
-                    roundId: "shared",
-                    payload: completeShared,
+                    roundId: "all",
+                    payload: {
+                      teams: nextShow.teams ?? [],
+                      entryOrder: nextShow.entryOrder ?? [],
+                      prizes: nextShow.prizes ?? "",
+                      scoringMode: nextShow.scoringMode ?? "pub",
+                      pubPoints: nextShow.pubPoints ?? 10,
+                      poolPerQuestion: nextShow.poolPerQuestion ?? 500,
+                      poolContribution: nextShow.poolContribution ?? 10,
+                      hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
+                      tiebreakers: nextShow.tiebreakers ?? {},
+                      grid: nextShow.grid ?? {},
+                    },
                   }),
                 }).catch(() => {});
               });
 
-              // per-round grid
-              saveDebounced("round", () => {
-                fetch("/.netlify/functions/supaSaveScoring", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    showId: selectedShowId,
-                    roundId: selectedRoundId,
-                    payload: { grid },
-                  }),
-                }).catch(() => {});
-              });
-
-              // keep your localStorage backup if you want
+              // keep your localStorage backup
               try {
                 localStorage.setItem(
                   "trivia.scoring.backup",
@@ -1613,7 +1551,6 @@ export default function App() {
       {activeMode === "results" && (
         <ResultsMode
           showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
-          selectedRoundId={selectedRoundId}
           selectedShowId={selectedShowId}
           cachedState={composedCachedState}
           cachedByRound={scoringCache[selectedShowId] ?? {}}
@@ -1732,6 +1669,96 @@ export default function App() {
           <Button onClick={() => setOlderShowsOpen(false)}>Close</Button>
         </div>
       </ui.Modal>
+
+      {/* Countdown Timer - Always available across all modes */}
+      {showTimer && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+            zIndex: 999,
+          }}
+        >
+          <Draggable
+            nodeRef={timerRef}
+            defaultPosition={timerPosition}
+            onStop={(e, data) => {
+              const newPos = { x: data.x, y: data.y };
+              setTimerPosition(newPos);
+              localStorage.setItem("timerPosition", JSON.stringify(newPos));
+            }}
+          >
+            <div
+              ref={timerRef}
+              style={{
+                position: "absolute",
+                backgroundColor: colors.dark,
+                color: "#fff",
+                padding: "1rem",
+                borderRadius: "0.5rem",
+                border: `1px solid ${colors.accent}`,
+                boxShadow: "0 0 10px rgba(0,0,0,0.3)",
+                fontFamily: tokens.font.body,
+                width: "180px",
+                textAlign: "center",
+                pointerEvents: "auto",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "2rem",
+                  fontWeight: "bold",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                {timeLeft}s
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                <ButtonPrimary
+                  onClick={handleStartPause}
+                  style={{ width: "70px" }}
+                >
+                  {timerRunning ? "Pause" : "Start"}
+                </ButtonPrimary>
+                <Button onClick={handleReset} style={{ width: "70px" }}>
+                  Reset
+                </Button>
+              </div>
+
+              <input
+                type="number"
+                value={timerDuration}
+                onChange={handleDurationChange}
+                style={{
+                  width: "80px",
+                  padding: "0.25rem",
+                  borderRadius: "0.25rem",
+                  border: "1px solid #ccc",
+                  fontSize: "0.9rem",
+                  textAlign: "center",
+                }}
+                min={5}
+                max={300}
+              />
+            </div>
+          </Draggable>
+        </div>
+      )}
       </div>
     </>
   );
