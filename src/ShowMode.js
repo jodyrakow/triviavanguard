@@ -397,7 +397,7 @@ export default function ShowMode({
   };
 
   // --- Host Script (safe, minimal data) ---
-  const fmtNum = (n) => (Number.isFinite(n) ? n.toLocaleString("en-US") : "—");
+  const _fmtNum = (n) => (Number.isFinite(n) ? n.toLocaleString("en-US") : "—");
 
   // count non-tiebreaker questions from groupedQuestions
   const totalQuestions = useMemo(() => {
@@ -416,7 +416,7 @@ export default function ShowMode({
     return count;
   }, [allRounds]);
 
-  const totalPointsPossible = useMemo(() => {
+  const _totalPointsPossible = useMemo(() => {
     let sum = 0;
     for (const r of allRounds) {
       for (const q of r?.questions || []) {
@@ -439,7 +439,7 @@ export default function ShowMode({
     return sum;
   }, [allRounds, scoringMode, pubPoints, poolPerQuestion]);
   // Default-per-question and count of special questions (non-TB with overrides)
-  const { defaultPer, specialCount } = useMemo(() => {
+  const { defaultPer: _defaultPer, specialCount: _specialCount } = useMemo(() => {
     const allRounds = Array.isArray(showBundle?.rounds)
       ? showBundle.rounds
       : [];
@@ -579,6 +579,7 @@ export default function ShowMode({
     showBundle?.config?.cohostName,
     showBundle?.config?.totalGamesThisNight,
     showBundle?.config?.showTemplate,
+    showBundle?.config?.allStartTimes,
   ]);
 
   return (

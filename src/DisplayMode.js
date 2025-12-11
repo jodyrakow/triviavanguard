@@ -17,7 +17,7 @@ export default function DisplayMode() {
   const DESIGN_HEIGHT = 1080;
 
   // How much to scale the canvas to fit the actual window
-  const [scale, setScale] = useState(1);
+  const [_scale, setScale] = useState(1);
 
   useEffect(() => {
     const updateScale = () => {
