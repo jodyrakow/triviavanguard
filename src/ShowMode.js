@@ -396,9 +396,6 @@ export default function ShowMode({
     return `${n}th`;
   };
 
-  // --- Host Script (safe, minimal data) ---
-  const _fmtNum = (n) => (Number.isFinite(n) ? n.toLocaleString("en-US") : "—");
-
   // count non-tiebreaker questions from groupedQuestions
   const totalQuestions = useMemo(() => {
     let count = 0;
@@ -416,30 +413,8 @@ export default function ShowMode({
     return count;
   }, [allRounds]);
 
-  const _totalPointsPossible = useMemo(() => {
-    let sum = 0;
-    for (const r of allRounds) {
-      for (const q of r?.questions || []) {
-        if (isTB(q)) continue; // exclude tiebreakers from totals
-        const perQ =
-          typeof q?.pointsPerQuestion === "number" ? q.pointsPerQuestion : null;
-        // Per-question override wins (for either mode). Otherwise use the mode default.
-        const base =
-          perQ ??
-          (scoringMode === "pooled"
-            ? Number.isFinite(poolPerQuestion)
-              ? poolPerQuestion
-              : 0
-            : Number.isFinite(pubPoints)
-              ? pubPoints
-              : 0);
-        sum += Number.isFinite(base) ? base : 0;
-      }
-    }
-    return sum;
-  }, [allRounds, scoringMode, pubPoints, poolPerQuestion]);
   // Default-per-question and count of special questions (non-TB with overrides)
-  const { defaultPer: _defaultPer, specialCount: _specialCount } = useMemo(() => {
+  useMemo(() => {
     const allRounds = Array.isArray(showBundle?.rounds)
       ? showBundle.rounds
       : [];

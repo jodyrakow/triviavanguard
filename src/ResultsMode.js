@@ -36,7 +36,6 @@ export default function ResultsMode({
   setPrizes: setPrizesString, // NEW: setter for shared prizes
   questionEdits = {}, // { [showQuestionId]: { question?, flavorText?, answer? } }
 }) {
-  const _roundNumber = Number(selectedRoundId);
   // New architecture is ALWAYS cumulative (all data in one flat structure)
   const usingCumulative = true;
 
