@@ -1,0 +1,406 @@
+﻿ShowCategory,Super secret,Category seeds,Category,Question type,Create new,Category images,Category image attachments,Category audio,Category audio attachments,Round,Category order,Expected count,ShowQuestions,Show
+ R1 Category 1,,,,Visual,,,,,,1,1,10,,
+ R1 Category 2,,,,Spoken,,,,,,1,2,5,,
+ R1 Category 3,,,,Spoken,,,,,,1,3,5,,
+ R1 Category 4,,,,Audio,,,,,,1,4,5,,
+ R2 Category 1,,,,Spoken,,,,,,2,1,5,,
+ R2 Category 2,,,,Spoken,,,,,,2,2,5,,
+ R2 Category 3,,,,Audio,,,,,,2,3,5,,
+2025-08-11  @ VFW R1 Category 1,,,Mech my day,Visual,,"Mech my day,Mega Man,K-9,Rosie,Bender,Astro Boy,Marvin the Paranoid Android,B.E.N. (Bio-Electronic Navigator),Fembots,Data,C3P0,Johnny 5",,,,1,1,10,,2025-08-11  @ VFW
+2025-08-11  @ VFW R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,5,,2025-08-11  @ VFW
+2025-08-11  @ VFW R1 Category 3,,,Shakespeare or Taylor Swift?,Spoken,,,,,,1,3,5,,2025-08-11  @ VFW
+2025-08-11  @ VFW R1 Category 4,checked,,Sitcom theme songs,Audio,,,,,,1,4,5,,2025-08-11  @ VFW
+2025-08-11  @ VFW R2 Category 1,,,They don't make those anymore,Spoken,,,,,,2,1,5,,2025-08-11  @ VFW
+2025-08-11  @ VFW R2 Category 2,,,Which witch?,Spoken,,,,,,2,2,5,,2025-08-11  @ VFW
+2025-08-11  @ VFW R2 Category 3,,,Famous voices,Audio,,,,,,2,3,5,,2025-08-11  @ VFW
+2025-08-14 Game 1 @ Frosty's R1 Category 1,,,Don't judge a book,Visual,,"Don’t Judge a Book,DaVinci code,Handmaid's Tale edited,Gulliver's Travels,The Hunger Games,War of the Worlds,Fifty Shades of Grey,It,Hitchhiker's Guide to the Galaxy,The Help,Twilight,DaVinci Code edited,Gulliver's Travels edited,The Hunger Games edited,The War of the Worlds edited,The Help edited,Twilight edited,Fifty Shades of Grey edited,It edited,Hitchhiker's Guide to the Galaxy edited,Handmaid's Tale",Don’t Judge a Book.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/gxlm25ipADEltWNy_0B4Vw/cagYBRdpGT8OBuaADN19soqBhD_kOAbxoGpjiKf371D8hck_A1AbAE6Rf8bIkcZX_RUlmtu6ixw4nXbQ1JkCyOF9pBxCMR-ZXjDVPorYyaOHhXmiZr-foy_KiBw_QQVXFXolqvU4pAVBt_o57U_qyqBDlGSXAZNzHLZzxoa0wNQ/ZLF1J0t0pzxB-jMpWGwZtDu77lNlZTzzsakoelXA3L4),,,1,1,10,,2025-08-14 Game 1 @ Frosty's
+2025-08-14 Game 1 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-08-14 Game 1 @ Frosty's
+2025-08-14 Game 1 @ Frosty's R1 Category 3,,,It's-a-me,Spoken,,,,,,1,3,3,,2025-08-14 Game 1 @ Frosty's
+2025-08-14 Game 1 @ Frosty's R1 Category 4,,,That's what I'm saying,Spoken,,,,,,1,4,3,,2025-08-14 Game 1 @ Frosty's
+2025-08-14 Game 1 @ Frosty's R1 Category 5,,,"""Ahoy, mateys!""",Spoken,,,,,,1,5,3,,2025-08-14 Game 1 @ Frosty's
+2025-08-14 Game 1 @ Frosty's R1 Category 6,,,... and chill,Spoken,,,,,,1,6,3,,2025-08-14 Game 1 @ Frosty's
+2025-08-14 Game 1 @ Frosty's R1 Category 7,checked,,Sitcom theme songs,Audio,,,,,,1,7,5,,2025-08-14 Game 1 @ Frosty's
+2025-08-14 Game 2 @ Frosty's R1 Category 1,,,Chop shop,Visual,,Chop Shop,Chop Shop.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/Vc6zdysMkq579Rg7BLPoyg/BdAnS5o9CXOxULiYBHLugKbdb4UpSjIys9HT4NeH7lFMqSGL52eprZppAXJiW11x0ixZvqcioiX3d8fyXnRQArnCbpMOe2nAdo3dIktQmoH5YLM_VQYaSIX9GJgR1QwLBpDQO7gyugDBqB4qV90fb0YboOuBPc77uw5B6D8EVq0/fJqGzjJ7paqgNDxlRjhLoyDupNbZOlCqiofZZVdUjPw),,,1,1,10,,2025-08-14 Game 2 @ Frosty's
+2025-08-14 Game 2 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-08-14 Game 2 @ Frosty's
+2025-08-14 Game 2 @ Frosty's R1 Category 3,,,Penguin Classics,Spoken,,,,,,1,3,3,,2025-08-14 Game 2 @ Frosty's
+2025-08-14 Game 2 @ Frosty's R1 Category 4,,,Quotable quotes,Spoken,,,,,,1,4,3,,2025-08-14 Game 2 @ Frosty's
+2025-08-14 Game 2 @ Frosty's R1 Category 5,,,Piece by piece,Spoken,,,,,,1,5,3,,2025-08-14 Game 2 @ Frosty's
+2025-08-14 Game 2 @ Frosty's R1 Category 6,,,I know that voice!,Spoken,,,,,,1,6,3,,2025-08-14 Game 2 @ Frosty's
+2025-08-14 Game 2 @ Frosty's R1 Category 7,,,Better together,Audio,,,,,,1,7,5,,2025-08-14 Game 2 @ Frosty's
+2025-09-09  @ Beck's R1 Category 1,,,Pocket change,Visual,,"Diesel jeans pocket,Levi's jeans pocket,Guess jeans pocket,True Religion jeans pocket,American Eagle jeans pocket,Rock Revival jeans pocket,Silver jeans pocket,Wrangler jeans pocket,Lee jeans pocket,Polo Ralph Lauren jeans pocket,Pocket Change","Diesel jeans pocket.png (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/P_oXZHZtfWpLUHx54fNpLw/vUkdUa2BAyTRkB96vKZf0uyPV4OgxU5U_uBrS5KOpAcb2XFK6W8rrOyRlyQfo317LFkUeyKdKbHymy2RGvBbbkB5epr5Lq5YondrJeMeP0eg42XBSvuP-iy97np3K8CCrTbXPKNt0v_1zT60mGVAyufNhCWMBxjuZU3j-3zVkK8/UuBeEYNVAJKbmzBp70kge3U9IqKt9XhtneSRBKjOd8g),Levi's jeans pocket.png (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/_JaurX-ugY4Km7e8-Rj2AQ/mVWTRzRJfFuIbaxvpT65hxlY8-VT29gO9GAT4bH036WweqJV9vrPJUbytcr_cS0yc3qKq7Cr36d7zRFNm3C9RjhV6FYOxfjH7sN3zDK75kr8j9ZCZvZDsoL1xocvND6L6cdM5t480CcXoecGCOtotJ7jwUBuRPMKzQuOwXo4g90/J_peVQvXo7xu17o9u0XJGIHpojV5XAlsifP7iRl_n3I),Guess jeans pocket.png (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/Ge3AETjPLOwqK12wO2OCIw/h6RDox3tG0i7pB_4VQVW8Ru4aGMlFYMB5xVgOMuaXyqDwrlo4dIkVoNkEJlkejP7wzPlVWF3FN4fcUbXu78ToF5xIevE-kaP4HuhmuZmebidEn0J77_Ccr5wvGheW7qAKh9sjfEvSvVCqTSga6STZSjd90yXMWdGGy3_YZTYDx0/eU4Tn0deYG8vySY3Tgs9tkT0C27rwdg_Pi-8um_y9XU),True Religion jeans pocket.png (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/kYhvLVzbrjIbOQftLaiphw/U7GEznTx0MEOXCGNeNi55FAQqakL9mICl19HHvUA5OTtXjHzj-h4VQot4KKDTKduAbegf6yOFxpPTNOl1dv3osWDOc-frbUTTfoX743ZkXsPMtP1putdv0pyCfYlPYZqguZ3MXklIzrm-aUF8aerhY_-uDZLtya3lLN4xGRsYVG2vD4NA-397MI5lNH5UWIT/AmLwwwS3iCbReYETu9IUhzxAAuh52Ge6qPKj_PGOtQ8),American Eagle jeans pocket.png (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/yscFQgJX0HQS5FbMCBe9Sw/HJ528oELdgQ-YV2vMMYcxVwgSWPncxraEWXGsnB76PXPtbTW6MG0Kmy9q1J_XOPW8wxBhtqjj_CFaVLZggYlL4C8NNY6lKFN9oZ7MAeJNerYAJuruVONvWT12QVBgigUM9ixkIJJeVo0Y4q8TF21H7odPtatNbdvEhkETbbbux0fZUbvpdqPnEbd7qHPyJVK/HLHc8wADlhR4eyXi5alGr8XgsqHsamag1DxRYXcCiLw),Rock Revival jeans pocket.png (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/wui-YqsdmiLoY2M-ODL-9g/pWzfdfL5HkrwJkqMk0CqaXeavlkpIimuqwK3XxjaBBXLb_XiwrYjCeuNmeWLeEE-K3XIF5J8UzlD1vUG0_SvnhW3y4Elz0Je5oX9DbA9EUYYGfqsuDpqjtly9gZLNYhdyribo_cfkLbXBLrtRtE4IJku51wf3caKrVS3zxnv6hIzRBU-Y_VlU2sSPE6LIglK/wwixB4-06BrsShIwgvcL4tUwGBiLOGmLs5MCxC-FtBI),Silver jeans pocket.png (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/LS1uztSkKMpbBt09D8MqYA/-AkT_QYwFWWVUHcAgK7zWaOvw47jAYHX3PCT0BvwrmJm6KqVue9CYf_xIHw6dCDGu5csE6QYnOSiMFvbnD4kY5BLqgEbG8rmngCJAGRZuh3oh8YY1SRbU0bCTxHaTt16HNYBfVhmKqaVnOso7qAdzFMf0MyFc23tpZJUeaHczgE/oB3B1J6GBsjoT6A6IhCjoufrEQErvpru-alQd_-5j8w),Wrangler jeans pocket.png (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/42GengZL7DNzZHakD7uSRQ/wv7B_J9Lhvo1pRZrbPipn0gFRJpE_9SVfYLI3UJdB2i8rCMyjffuo21M2ayelv8bZmRdGgBYqE5TJk0wsNzPTK-vETRZrMnTy69NEL8QT3oejAy1vgmdio0T1rvhXJgimzp5zBlcBDyef1o9GoPysaZ7aOfx4vM0X1Cgt1JENhGdV6DxQf360-AxQEQ4Op_A/LqNWkEA0cZ5VX0NKmdsHAaLULYXDyg6KXgKmU_zAuKg),Lee jeans pocket.png (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/wy7Efj62h6p8zGbIKANHew/HY1Cbq6SnpYJdX0_Kgy4UFwi5ojTS9ojJL-rrvyVRvZRDJJ0dabDSL9W_grNMHKVCBR7tvSU3zS0Dy4ppqU9X90iwo-zTaCG-Pnj7xabkGOkL81vXtoLD2soeJ6ZSYkv1bKjER02YSHoQBVrUODN81fiTlFUPvvCiIxVhRP5gbk/UR_NV6P5H-aDzVsGyQHfhPnWoDqPmTpTZsRAUZ11ek8),Polo Ralph Lauren jeans pocket.png (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/pja4-bs_kLdg66q1Omo7Qw/iVq3WO541kqiguo0EFmr0sXQjBkyH7etjwkUYj9suZY1jUT4wGaFYpJrjD-bswGW7NkmBb2amUWRKwQ4GwomxWEptbErBVCmn4AOsn7wIUVelbFJY8ygbCjzCxA4Ub6vVXI_vY37Op-5wLXOFU22PCXudBGaVLs6xGfa8SIGyZnWsWL-529U5wucZ-2dHi-1/3DPVw9tkUYxXtOIGSxz4LjQGaCOBrd7A1AzpTAE6PCY),Pocket Change.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/S9WuYtqZbBY4ocWMGBpYGw/WzQA8mKxmcLV-fkYHTmOLE3wDXojRloRk3gLiO45-DLP4_s2XYA0mBbgfBVSOpd6O6xupXXzDbRWORbTfnYwDYpwUkVNNX5glDMMR8TUFT5rybONMdqYi0zdwWWv_hG7g9E_kk2j5F-5BsD6XbnyOPF405tnJ-7CC965zvYOoE4/DZigGND1FTOaxTeJfLjk2jR2VxU1EWli6qnxeGGVWqo)",,,1,1,10,,2025-09-09  @ Beck's
+2025-09-09  @ Beck's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,5,,2025-09-09  @ Beck's
+2025-09-09  @ Beck's R1 Category 3,,,Totally unrelated trivia,Spoken,,,,,,1,3,5,,2025-09-09  @ Beck's
+2025-09-09  @ Beck's R1 Category 4,,,As seen on TV,Audio,,,,,,1,4,5,,2025-09-09  @ Beck's
+2025-09-09  @ Beck's R2 Category 1,checked,,Purple people eaters,Spoken,,,,,,2,1,5,,2025-09-09  @ Beck's
+2025-09-09  @ Beck's R2 Category 2,,,Four square,Spoken,,,,,,2,2,5,,2025-09-09  @ Beck's
+2025-09-09  @ Beck's R2 Category 3,,,"""Hey, big spender""",Audio,,,,,,2,3,5,,2025-09-09  @ Beck's
+2025-09-11 Game 1 @ Frosty's R1 Category 1,,,Pop!,Visual,,POP!,POP!.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/vV2nasNWcPFzdk-I89MM1w/fqvT2JcepYk7UwKhQL6BNTPUO9l6GPTOLKBNpb6Pcl6u_ht9sFre9QYf_g6bPqj7C5s-2ARyOeNRttO_u3PtwqAK1xehyfLZPIDDQk1IzR9t3rEvhcELy1IwpaG0aT5DD7nDi6AVv7tpIYljU6YC6pfxIrHZeqe1lemkvaZGSFg/wKTvPlZFDChDobwDpij4JH9lohFqTdggMu5jeqmDtzs),,,1,1,10,,2025-09-11 Game 1 @ Frosty's
+2025-09-11 Game 1 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-09-11 Game 1 @ Frosty's
+2025-09-11 Game 1 @ Frosty's R1 Category 3,,,The only US state...,Spoken,,,,,,1,3,3,,2025-09-11 Game 1 @ Frosty's
+2025-09-11 Game 1 @ Frosty's R1 Category 4,,,Four square,Spoken,,,,,,1,4,3,,2025-09-11 Game 1 @ Frosty's
+2025-09-11 Game 1 @ Frosty's R1 Category 5,,,Round and round,Spoken,,,,,,1,5,3,,2025-09-11 Game 1 @ Frosty's
+2025-09-11 Game 1 @ Frosty's R1 Category 6,checked,,Purple people eaters,Spoken,,,,,,1,6,3,,2025-09-11 Game 1 @ Frosty's
+2025-09-11 Game 1 @ Frosty's R1 Category 7,,,Seeing red,Audio,,,,,,1,7,5,,2025-09-11 Game 1 @ Frosty's
+2025-09-11 Game 2 @ Frosty's R1 Category 1,,,Unbe-LEAF-able logos,Visual,,Unbe-LEAF-able logos,Unbe-LEAF-able logos.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/0736udJU6OCtBO7hIcOcXQ/WqBI5DCh1cr4BUdcCA74sKKdmt6Lp192t9RJ3cP-yuQPHj0CGB63zzRrfN02CIOj5orN_x1DKWO53gRQEY37oC0KuDNlRoZDwiaOTYW_-yJKXMwK8E-dEmuWvEtVS1MbGP4V4B7l3cW3-vUQeWQkx1Ftex1MJiZQB3t4mdRjTQM/F6evNmhCtzTf4bpg8ZWsxJezgcQTxXgiqeGsYDA-WHU),,,1,1,10,,2025-09-11 Game 2 @ Frosty's
+2025-09-11 Game 2 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-09-11 Game 2 @ Frosty's
+2025-09-11 Game 2 @ Frosty's R1 Category 3,,,For the birds,Spoken,,,,,,1,3,3,,2025-09-11 Game 2 @ Frosty's
+2025-09-11 Game 2 @ Frosty's R1 Category 4,,,One direction,Spoken,,,,,,1,4,3,,2025-09-11 Game 2 @ Frosty's
+2025-09-11 Game 2 @ Frosty's R1 Category 5,checked,,Purple people eaters,Spoken,,,,,,1,5,3,,2025-09-11 Game 2 @ Frosty's
+2025-09-11 Game 2 @ Frosty's R1 Category 6,,,Mamma mia!,Spoken,,,,,,1,6,3,,2025-09-11 Game 2 @ Frosty's
+2025-09-11 Game 2 @ Frosty's R1 Category 7,,,Good enough to eat,Audio,,,,,,1,7,5,,2025-09-11 Game 2 @ Frosty's
+2025-09-12 Game 1 @ Tavern R1 Category 1,,,Popular puppets,Visual,,Popular puppets,Popular puppets.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/4c8vcD9VgDym9LcYdz0hRQ/jeiXmQXrcndjfKOQqfzOWBgX1rvUfv8zqNaDeRYcJPMRxpABN7tNuzRmzt8vEPOAfr6TYfe1Pu63wFWK92hVTh9UrbnVl5roLWtitRC8Dw7jMtbyyeqvPztCfXWhG6Vr4WZ_lY69pm_8WexwY9izLTh6uyq91prF6Qj6Fp4yqaM/17d2v1opehoR4m77fYbtlMMUaUlTR9CvH9t02zGngi8),,,1,1,10,,2025-09-12 Game 1 @ Tavern
+2025-09-12 Game 1 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-09-12 Game 1 @ Tavern
+2025-09-12 Game 1 @ Tavern R1 Category 3,,,Four square,Spoken,,,,,,1,3,3,,2025-09-12 Game 1 @ Tavern
+2025-09-12 Game 1 @ Tavern R1 Category 4,checked,,Purple people eaters,Spoken,,,,,,1,4,3,,2025-09-12 Game 1 @ Tavern
+2025-09-12 Game 1 @ Tavern R1 Category 5,,,Totally unrelated trivia,Spoken,,,,,,1,5,6,,2025-09-12 Game 1 @ Tavern
+2025-09-12 Game 1 @ Tavern R1 Category 6,,,Jock jams,Audio,,,,,,1,6,5,,2025-09-12 Game 1 @ Tavern
+2025-09-12 Game 2 @ Tavern R1 Category 1,,,They're serving,Visual,,They're serving,They're serving.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/N7EOqAAEqWhEvq2VS8-cVQ/OL_l5YJ46WeVtJhsY_BBJP7jZ_KL9cgDp8CccuMufRPFvB7hZfTHJRNUFXiQxyDNelcHMrnTqA1JGAavtzPwKv-y3We8Uui9qYMs5FrKsgEZ56C2ush3CuKh2G2CqeVzWg3yOxg_cjNu-oVzD3zljwixdv5VxBc_BOxJYkWN9d4/1cWz-ZW33LiqJveq3CmdklkLfuy4jMN3cu6wg1m-D4M),,,1,1,10,,2025-09-12 Game 2 @ Tavern
+2025-09-12 Game 2 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-09-12 Game 2 @ Tavern
+2025-09-12 Game 2 @ Tavern R1 Category 3,,,One direction,Spoken,,,,,,1,3,3,,2025-09-12 Game 2 @ Tavern
+2025-09-12 Game 2 @ Tavern R1 Category 4,,,Mamma mia!,Spoken,,,,,,1,4,3,,2025-09-12 Game 2 @ Tavern
+2025-09-12 Game 2 @ Tavern R1 Category 5,checked,,Purple people eaters,Spoken,,,,,,1,5,3,,2025-09-12 Game 2 @ Tavern
+2025-09-12 Game 2 @ Tavern R1 Category 6,,,Ring around the round,Spoken,,,,,,1,6,3,,2025-09-12 Game 2 @ Tavern
+2025-09-12 Game 2 @ Tavern R1 Category 7,,,Good enough to eat,Audio,,,,,,1,7,5,,2025-09-12 Game 2 @ Tavern
+2025-09-15  @ VFW R1 Category 1,,,Wizarding scenes,Visual,,Wizarding scenes,,,,1,1,10,,2025-09-15  @ VFW
+2025-09-15  @ VFW R1 Category 2,,,Wizarding World 101,Spoken,,,,,,1,2,5,,2025-09-15  @ VFW
+2025-09-15  @ VFW R1 Category 3,,,Hogwarts: A History,Spoken,,,,,,1,3,5,,2025-09-15  @ VFW
+2025-09-15  @ VFW R1 Category 4,,,Wands at the ready!,Spoken,,,,,,1,4,5,,2025-09-15  @ VFW
+2025-09-15  @ VFW R1 Category 5,,,Wizarding World who's who,Spoken,,,,,,1,5,5,,2025-09-15  @ VFW
+2025-09-15  @ VFW R1 Category 6,,,Quotable quotes,Audio,,,,,,1,6,10,,2025-09-15  @ VFW
+2025-09-15  @ VFW R2 Category 1,,,Wizarding World who's who,Visual,,"Wizarding World who's who 2,Wizarding World who's who,Wizarding World who's who",,,,2,1,10,,2025-09-15  @ VFW
+2025-09-15  @ VFW R2 Category 2,,,Where in the Wizarding World?,Spoken,,,,,,2,2,5,,2025-09-15  @ VFW
+2025-09-15  @ VFW R2 Category 3,,,Split your soul,Spoken,,,,,,2,3,5,,2025-09-15  @ VFW
+2025-09-15  @ VFW R2 Category 4,,,Gadgets & gizmos a-plenty,Spoken,,,,,,2,4,5,,2025-09-15  @ VFW
+2025-09-15  @ VFW R2 Category 5,,,Fantastic Beasts and Where to Find Them,Spoken,,,,,,2,5,5,,2025-09-15  @ VFW
+2025-09-15  @ VFW R2 Category 7,,,Whose line is it anyway?,Audio,,,,,,2,7,10,,2025-09-15  @ VFW
+2025-09-16  @ Ciao Thyme R1 Category 1,,,I'm with the band,Visual,,,,,,1,1,10,,2025-09-16  @ Ciao Thyme
+2025-09-16  @ Ciao Thyme R1 Category 2,,,Music from the 1960s,Audio,,,,,,1,2,10,,2025-09-16  @ Ciao Thyme
+2025-09-16  @ Ciao Thyme R1 Category 3,,,Music from the 1970s,Audio,,,,,,1,3,10,,2025-09-16  @ Ciao Thyme
+2025-09-16  @ Ciao Thyme R1 Category 4,,,Music from the 1980s,Audio,,,,,,1,4,10,,2025-09-16  @ Ciao Thyme
+2025-09-16  @ Ciao Thyme R2 Category 1,,,Cover ups,Visual,,Cover Ups IV,,,,2,1,10,,2025-09-16  @ Ciao Thyme
+2025-09-16  @ Ciao Thyme R2 Category 2,,,Music from the 1990s,Audio,,,,,,2,2,10,,2025-09-16  @ Ciao Thyme
+2025-09-16  @ Ciao Thyme R2 Category 3,,,Music from the 2000s,Audio,,,,,,2,3,10,,2025-09-16  @ Ciao Thyme
+2025-09-20 Game 1 @ Tavern R1 Category 1,,,Movie memorabilia,Visual,,Movie memorabilia,Movie memorabilia.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/K1N6Bkbn73OZDQFPmZtCpA/HcwCForGPYcIQ3YOvUIVhuVlCp8V-zNyXbB7Ru48C3OBvfiut4MAgnpYaoBADauW82EGYReVtLjh7p217iOns-8Hz-ICGJBp9SWS7IRR59YsciuMUhoHLDqflTfajQXn4kL6ekLSlTDdmoUx8nPeHX5reLruwaCP7a6r2TPAoI0/YuF-vOkt19hK7ohTVgqmL6qdTDklGz8X1Sy-cyUBe_Y),,,1,1,10,,2025-09-20 Game 1 @ Tavern
+2025-09-20 Game 1 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-09-20 Game 1 @ Tavern
+2025-09-20 Game 1 @ Tavern R1 Category 3,,,Road trip!,Spoken,,,,,,1,3,3,,2025-09-20 Game 1 @ Tavern
+2025-09-20 Game 1 @ Tavern R1 Category 4,,,Everyday math,Spoken,,,,,,1,4,3,,2025-09-20 Game 1 @ Tavern
+2025-09-20 Game 1 @ Tavern R1 Category 5,checked,,The Emmys,Spoken,,,,,,1,5,3,,2025-09-20 Game 1 @ Tavern
+2025-09-20 Game 1 @ Tavern R1 Category 6,,,To quote Freddy Mercury...,Spoken,,,,,,1,6,3,,2025-09-20 Game 1 @ Tavern
+2025-09-20 Game 1 @ Tavern R1 Category 7,,,Walk this way,Audio,,,,,,1,7,5,,2025-09-20 Game 1 @ Tavern
+2025-09-20 Game 2 @ Tavern R1 Category 1,,,A-N-T,Visual,,A-N-T,A-N-T.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/9il4ToU513o086hiEvfsNA/IfDTqFlsNbuKkW8425JOsoNyFWWjKLkcZvVtiUM8vpl6pidGBMaOXKbi8ols2_sXY6Tm6uaTCdVYXnDPZjKUxKyZRwiU_s8b8YvYyM-lJYjjXr46h0Lvpwh5Omql6bUfb79xSyYpF25s6PttLc6-mw/rFH9oJOu3eTlr0RMV3IT6-VkTB_j2pRKdEUsIsj3pR0),,,1,1,10,,2025-09-20 Game 2 @ Tavern
+2025-09-20 Game 2 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-09-20 Game 2 @ Tavern
+2025-09-20 Game 2 @ Tavern R1 Category 3,,,GOATs,Spoken,,,,,,1,3,3,,2025-09-20 Game 2 @ Tavern
+2025-09-20 Game 2 @ Tavern R1 Category 4,,,Goats,Spoken,,,,,,1,4,3,,2025-09-20 Game 2 @ Tavern
+2025-09-20 Game 2 @ Tavern R1 Category 5,checked,,The Emmys,Spoken,,,,,,1,5,3,,2025-09-20 Game 2 @ Tavern
+2025-09-20 Game 2 @ Tavern R1 Category 6,,,You sank my battleship!,Spoken,,,,,,1,6,3,,2025-09-20 Game 2 @ Tavern
+2025-09-20 Game 2 @ Tavern R1 Category 7,,,"""""""And the"""" bands""",Audio,,,,,,1,7,5,,2025-09-20 Game 2 @ Tavern
+2025-09-22  @ VFW R1 Category 1,,,Cover me - Time magazine style,Visual,,Cover me,Cover me.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/78OTdFyFovYpPSLnJnnUyA/CU2rY2NVAq3N1wJmMaSU1Q61ni_lO4ydOKVXknR7uuA93io9D4rJtQtvvgGlOyij_cqjXYBN_SUIbZLpzEmcxTPkEIxXEnaCSrWQRZUoyquqrEm3j2tMhxBRTbCuSsu_CtSD22zUFfjf3ZxhjyJ-BBRHI4I5TygtkZdU7sZFC20/abNED3ylQxYrh-Yqdbd6RWQXEyqfbVBwL25MkmQRDV0),,,1,1,10,,2025-09-22  @ VFW
+2025-09-22  @ VFW R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,5,,2025-09-22  @ VFW
+2025-09-22  @ VFW R1 Category 3,,,Totally unrelated trivia,Spoken,,,,,,1,3,5,,2025-09-22  @ VFW
+2025-09-22  @ VFW R1 Category 4,,,Walk this way,Audio,,,,,,1,4,5,,2025-09-22  @ VFW
+2025-09-22  @ VFW R2 Category 1,,,Worth 1000 words,Spoken,,,,,,2,1,5,,2025-09-22  @ VFW
+2025-09-22  @ VFW R2 Category 2,checked,,"""Baby, baby""",Spoken,,,,,,2,2,5,,2025-09-22  @ VFW
+2025-09-22  @ VFW R2 Category 3,,,Jump on it,Audio,,,,,,2,3,5,,2025-09-22  @ VFW
+2025-09-23  @ Beck's R1 Category 1,,,Cover me - Time magazine style,Visual,,Cover me,,,,1,1,10,,2025-09-23  @ Beck's
+2025-09-23  @ Beck's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,5,,2025-09-23  @ Beck's
+2025-09-23  @ Beck's R1 Category 3,,,Totally unrelated trivia,Spoken,,,,,,1,3,5,,2025-09-23  @ Beck's
+2025-09-23  @ Beck's R1 Category 4,,,Walk this way,Audio,,,,,,1,4,5,,2025-09-23  @ Beck's
+2025-09-23  @ Beck's R2 Category 1,,,Worth 1000 words,Spoken,,,,,,2,1,5,,2025-09-23  @ Beck's
+2025-09-23  @ Beck's R2 Category 2,checked,,"""Baby, baby""",Spoken,,,,,,2,2,5,,2025-09-23  @ Beck's
+2025-09-23  @ Beck's R2 Category 3,,,Jump on it,Audio,,,,,,2,3,5,,2025-09-23  @ Beck's
+2025-09-25 Game 1 @ Frosty's R1 Category 1,,,It's fall!,Visual,,It's fall!,,,,1,1,10,,2025-09-25 Game 1 @ Frosty's
+2025-09-25 Game 1 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-09-25 Game 1 @ Frosty's
+2025-09-25 Game 1 @ Frosty's R1 Category 3,,,To quote Freddy Mercury...,Spoken,,,,,,1,3,3,,2025-09-25 Game 1 @ Frosty's
+2025-09-25 Game 1 @ Frosty's R1 Category 4,,,Road trip!,Spoken,,,,,,1,4,3,,2025-09-25 Game 1 @ Frosty's
+2025-09-25 Game 1 @ Frosty's R1 Category 5,checked,,"""Baby, baby""",Spoken,,,,,,1,5,3,,2025-09-25 Game 1 @ Frosty's
+2025-09-25 Game 1 @ Frosty's R1 Category 6,,,GOATs,Spoken,,,,,,1,6,3,,2025-09-25 Game 1 @ Frosty's
+2025-09-25 Game 1 @ Frosty's R1 Category 7,,,Walk this way,Audio,,,,,,1,7,5,,2025-09-25 Game 1 @ Frosty's
+2025-09-25 Game 2 @ Frosty's R1 Category 1,,,Disney babies,Visual,,Disney babies,,,,1,1,10,,2025-09-25 Game 2 @ Frosty's
+2025-09-25 Game 2 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-09-25 Game 2 @ Frosty's
+2025-09-25 Game 2 @ Frosty's R1 Category 3,,,What comes next?,Spoken,,,,,,1,3,3,,2025-09-25 Game 2 @ Frosty's
+2025-09-25 Game 2 @ Frosty's R1 Category 4,checked,,"""Baby, baby""",Spoken,,,,,,1,4,3,,2025-09-25 Game 2 @ Frosty's
+2025-09-25 Game 2 @ Frosty's R1 Category 5,,,Commanders in Chief,Spoken,,,,,,1,5,3,,2025-09-25 Game 2 @ Frosty's
+2025-09-25 Game 2 @ Frosty's R1 Category 6,,,Pretty cool props,Spoken,,,,,,1,6,3,,2025-09-25 Game 2 @ Frosty's
+2025-09-25 Game 2 @ Frosty's R1 Category 7,,,"""""""And the"""" bands""",Audio,,,,,,1,7,5,,2025-09-25 Game 2 @ Frosty's
+2025-09-26 Game 1 @ Tavern R1 Category 1,,,Villainous,Visual,,Villainous,Villainous.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/ULHwYWmX_t9cRUmyW_ft_A/LZEVczGsOkeY0wL3p3HdGnVag3cXVQxnldE7CvXH_ptBFU6Mo47YwegLzScMBLrr8G-Y08VCx8Rpk1BKN8zBLOljRXMpBVfGmBCxAxNT6BBIfjKLsBm2xQUbXHnlaIC3i-O9RcZzy6-0UGj8NHtlBCCYY6nz5wDO4FDS4H1GkIg/-2LaqU6IJfUsYJF4UzusaXP0n4F3WHL6IKGcIaR00cs),,,1,1,10,,2025-09-26 Game 1 @ Tavern
+2025-09-26 Game 1 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-09-26 Game 1 @ Tavern
+2025-09-26 Game 1 @ Tavern R1 Category 3,,,Alliterative celebrities,Spoken,,,,,,1,3,3,,2025-09-26 Game 1 @ Tavern
+2025-09-26 Game 1 @ Tavern R1 Category 4,,,I'm as good once as I ever was,Spoken,,,,,,1,4,3,,2025-09-26 Game 1 @ Tavern
+2025-09-26 Game 1 @ Tavern R1 Category 5,checked,,"""Baby, baby""",Spoken,,,,,,1,5,3,,2025-09-26 Game 1 @ Tavern
+2025-09-26 Game 1 @ Tavern R1 Category 6,,,It was supposed to be a three hour tour,Spoken,,,,,,1,6,3,,2025-09-26 Game 1 @ Tavern
+2025-09-26 Game 1 @ Tavern R1 Category 7,,,"""Tut tut, it looks like rain""",Audio,,,,,,1,7,5,,2025-09-26 Game 1 @ Tavern
+2025-09-26 Game 2 @ Tavern R1 Category 1,,,By the letter - P,Visual,,By the letter - P,By the letter - P.pdf (https://v5.airtableusercontent.com/v3/u/47/47/1764187200000/W7_HZ1m5aPb9CPFyrZKMfg/zN30G4yLSop88dPy9FDH3c8qxEhQAhQoJkKlguKKGPKn5GdEgPPtBO6hvwN71fFDIy7J7OvJBo6v4qJa_bif-_yqKGi5I61Z5WKV449CFObT2LPB0xppqze6deQc6P1-Rd4yGK3FF2OzcovDivpDaELLOBHrhyazyydnDzn6D1A/tqL5oMcTs91nsgZrqkdVmGMVtWpj00CegbY3FlcrCNk),,,1,1,10,,2025-09-26 Game 2 @ Tavern
+2025-09-26 Game 2 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-09-26 Game 2 @ Tavern
+2025-09-26 Game 2 @ Tavern R1 Category 3,,,Superfoods,Spoken,,,,,,1,3,3,,2025-09-26 Game 2 @ Tavern
+2025-09-26 Game 2 @ Tavern R1 Category 4,checked,,"""Baby, baby""",Spoken,,,,,,1,4,3,,2025-09-26 Game 2 @ Tavern
+2025-09-26 Game 2 @ Tavern R1 Category 5,,,It was supposed to be a three hour tour,Spoken,,,,,,1,5,3,,2025-09-26 Game 2 @ Tavern
+2025-09-26 Game 2 @ Tavern R1 Category 6,,,Since sliced bread,Spoken,,,,,,1,6,3,,2025-09-26 Game 2 @ Tavern
+2025-09-26 Game 2 @ Tavern R1 Category 7,,,Music on a stick,Audio,,,,,,1,7,5,,2025-09-26 Game 2 @ Tavern
+ R1 Category 1,,,,Visual,,,,,,1,1,10,,
+ R1 Category 2,,,,Spoken,,,,,,1,2,5,,
+ R1 Category 3,,,,Spoken,,,,,,1,3,5,,
+ R1 Category 4,,,,Audio,,,,,,1,4,5,,
+ R2 Category 1,,,,Spoken,,,,,,2,1,5,,
+ R2 Category 2,,,,Spoken,,,,,,2,2,5,,
+ R2 Category 3,,,,Audio,,,,,,2,3,5,,
+ R1 Category 1,,,,Visual,,,,,,1,1,10,,
+ R1 Category 2,,,,Spoken,,,,,,1,2,5,,
+ R1 Category 3,,,,Spoken,,,,,,1,3,5,,
+ R1 Category 4,,,,Audio,,,,,,1,4,5,,
+ R2 Category 1,,,,Spoken,,,,,,2,1,5,,
+ R2 Category 2,,,,Spoken,,,,,,2,2,5,,
+ R2 Category 3,,,,Audio,,,,,,2,3,5,,
+ R1 Category 1,,,,Visual,,,,,,1,1,10,,
+ R1 Category 2,,,,Spoken,,,,,,1,2,5,,
+ R1 Category 3,,,,Spoken,,,,,,1,3,5,,
+ R1 Category 4,,,,Audio,,,,,,1,4,5,,
+ R2 Category 1,,,,Spoken,,,,,,2,1,5,,
+ R2 Category 2,,,,Spoken,,,,,,2,2,5,,
+ R2 Category 3,,,,Audio,,,,,,2,3,5,,
+ R1 Category 1,,,,Visual,,,,,,1,1,10,,
+ R1 Category 2,,,,Spoken,,,,,,1,2,5,,
+ R1 Category 3,,,,Spoken,,,,,,1,3,5,,
+ R1 Category 4,,,,Audio,,,,,,1,4,5,,
+ R2 Category 1,,,,Spoken,,,,,,2,1,5,,
+ R2 Category 2,,,,Spoken,,,,,,2,2,5,,
+ R2 Category 3,,,,Audio,,,,,,2,3,5,,
+ R1 Category 1,,,,Visual,,,,,,1,1,10,,
+ R1 Category 2,,,,Spoken,,,,,,1,2,5,,
+ R1 Category 3,,,,Spoken,,,,,,1,3,5,,
+ R1 Category 4,,,,Audio,,,,,,1,4,5,,
+ R2 Category 1,,,,Spoken,,,,,,2,1,5,,
+ R2 Category 2,,,,Spoken,,,,,,2,2,5,,
+ R2 Category 3,,,,Audio,,,,,,2,3,5,,
+2025-10-02 Game 1 @ Frosty's R1 Category 1,,,Essential equipment,Visual,,,,,,1,1,10,,2025-10-02 Game 1 @ Frosty's
+2025-10-02 Game 1 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-10-02 Game 1 @ Frosty's
+2025-10-02 Game 1 @ Frosty's R1 Category 3,,,Color theory,Spoken,,,,,,1,3,3,,2025-10-02 Game 1 @ Frosty's
+2025-10-02 Game 1 @ Frosty's R1 Category 4,,,Alliterative celebrities,Spoken,,,,,,1,4,3,,2025-10-02 Game 1 @ Frosty's
+2025-10-02 Game 1 @ Frosty's R1 Category 5,checked,,Retro toys,Spoken,,,,,,1,5,3,,2025-10-02 Game 1 @ Frosty's
+2025-10-02 Game 1 @ Frosty's R1 Category 6,,,On the border,Spoken,,,,,,1,6,3,,2025-10-02 Game 1 @ Frosty's
+2025-10-02 Game 1 @ Frosty's R1 Category 7,,,Oscar-worthy,Audio,,,,,,1,7,5,,2025-10-02 Game 1 @ Frosty's
+2025-10-02 Game 2 @ Frosty's R1 Category 1,,,Hand carved,Visual,,Hand carved,,,,1,1,10,,2025-10-02 Game 2 @ Frosty's
+2025-10-02 Game 2 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-10-02 Game 2 @ Frosty's
+2025-10-02 Game 2 @ Frosty's R1 Category 3,,,Superfoods,Spoken,,,,,,1,3,3,,2025-10-02 Game 2 @ Frosty's
+2025-10-02 Game 2 @ Frosty's R1 Category 4,,,You can count it on two hands,Spoken,,,,,,1,4,3,,2025-10-02 Game 2 @ Frosty's
+2025-10-02 Game 2 @ Frosty's R1 Category 5,checked,,Retro toys,Spoken,,,,,,1,5,3,,2025-10-02 Game 2 @ Frosty's
+2025-10-02 Game 2 @ Frosty's R1 Category 6,,,Triplets,Spoken,,,,,,1,6,3,,2025-10-02 Game 2 @ Frosty's
+2025-10-02 Game 2 @ Frosty's R1 Category 7,,,Leader of the pack,Audio,,,,,,1,7,5,,2025-10-02 Game 2 @ Frosty's
+2025-10-03 Game 1 @ Tavern R1 Category 1,,,Wordsmiths,Visual,,,,,,1,1,10,,2025-10-03 Game 1 @ Tavern
+2025-10-03 Game 1 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-10-03 Game 1 @ Tavern
+2025-10-03 Game 1 @ Tavern R1 Category 3,,,There's an app for that,Spoken,,,,,,1,3,3,,2025-10-03 Game 1 @ Tavern
+2025-10-03 Game 1 @ Tavern R1 Category 4,,,Animated animals,Spoken,,,,,,1,4,3,,2025-10-03 Game 1 @ Tavern
+2025-10-03 Game 1 @ Tavern R1 Category 5,checked,,Retro toys,Spoken,,,,,,1,5,3,,2025-10-03 Game 1 @ Tavern
+2025-10-03 Game 1 @ Tavern R1 Category 6,,,Triplets,Spoken,,,,,,1,6,3,,2025-10-03 Game 1 @ Tavern
+2025-10-03 Game 1 @ Tavern R1 Category 7,,,Feelin' horny?,Audio,,,,,,1,7,5,,2025-10-03 Game 1 @ Tavern
+2025-10-03 Game 2 @ Tavern R1 Category 1,,,Let's dish,Visual,,Let's dish,,,,1,1,10,,2025-10-03 Game 2 @ Tavern
+2025-10-03 Game 2 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-10-03 Game 2 @ Tavern
+2025-10-03 Game 2 @ Tavern R1 Category 3,,,On the border,Spoken,,,,,,1,3,3,,2025-10-03 Game 2 @ Tavern
+2025-10-03 Game 2 @ Tavern R1 Category 4,,,You can count it on two hands,Spoken,,,,,,1,4,3,,2025-10-03 Game 2 @ Tavern
+2025-10-03 Game 2 @ Tavern R1 Category 5,checked,,Retro toys,Spoken,,,,,,1,5,3,,2025-10-03 Game 2 @ Tavern
+2025-10-03 Game 2 @ Tavern R1 Category 6,,,Color theory,Spoken,,,,,,1,6,3,,2025-10-03 Game 2 @ Tavern
+2025-10-03 Game 2 @ Tavern R1 Category 7,,,Leader of the pack,Audio,,,,,,1,7,5,,2025-10-03 Game 2 @ Tavern
+2025-10-06  @ VFW R1 Category 1,checked,,TV dads,Visual,,"TV dads,TV dads",,,,1,1,10,,2025-10-06  @ VFW
+2025-10-06  @ VFW R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,5,,2025-10-06  @ VFW
+2025-10-06  @ VFW R1 Category 3,,,Before & after,Spoken,,,,,,1,3,5,,2025-10-06  @ VFW
+2025-10-06  @ VFW R1 Category 4,,,Don't modulate the key then not debate with me!,Audio,,,,,,1,4,5,,2025-10-06  @ VFW
+2025-10-06  @ VFW R2 Category 1,,,Feelin' thirsty?,Spoken,,,,,,2,1,5,,2025-10-06  @ VFW
+2025-10-06  @ VFW R2 Category 2,,,Bases loaded,Spoken,,,,,,2,2,5,,2025-10-06  @ VFW
+2025-10-06  @ VFW R2 Category 3,,,I'd like to buy a vowel,Audio,,,,,,2,3,5,,2025-10-06  @ VFW
+2025-10-07  @ Beck's R1 Category 1,,,"""What's up, doc?""",Visual,,"""What's up, doc"",""What's up, doc""",,,,1,1,10,,2025-10-07  @ Beck's
+2025-10-07  @ Beck's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,5,,2025-10-07  @ Beck's
+2025-10-07  @ Beck's R1 Category 3,,,Before & after,Spoken,,,,,,1,3,5,,2025-10-07  @ Beck's
+2025-10-07  @ Beck's R1 Category 4,,,Can't help falling,Audio,,,,,,1,4,5,,2025-10-07  @ Beck's
+2025-10-07  @ Beck's R2 Category 1,checked,,TV dads,Spoken,,,,,,2,1,5,,2025-10-07  @ Beck's
+2025-10-07  @ Beck's R2 Category 2,,,Survey said...!,Spoken,,,,,,2,2,5,,2025-10-07  @ Beck's
+2025-10-07  @ Beck's R2 Category 3,,,I'd like to buy a vowel,Audio,,,,,,2,3,5,,2025-10-07  @ Beck's
+2025-10-10 Game 1 @ Tavern R1 Category 1,,,May I have this dance?,Visual,,"May I have this dance,May I have this dance",,,,1,1,10,,2025-10-10 Game 1 @ Tavern
+2025-10-10 Game 1 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-10-10 Game 1 @ Tavern
+2025-10-10 Game 1 @ Tavern R1 Category 3,,,It's in the stars,Spoken,,,,,,1,3,3,,2025-10-10 Game 1 @ Tavern
+2025-10-10 Game 1 @ Tavern R1 Category 4,,,Sweet tooth,Spoken,,,,,,1,4,3,,2025-10-10 Game 1 @ Tavern
+2025-10-10 Game 1 @ Tavern R1 Category 5,checked,,TV dads,Spoken,,,,,,1,5,3,,2025-10-10 Game 1 @ Tavern
+2025-10-10 Game 1 @ Tavern R1 Category 6,,,Rhymes on a dime,Spoken,,,,,,1,6,3,,2025-10-10 Game 1 @ Tavern
+2025-10-10 Game 1 @ Tavern R1 Category 7,,,Waltzing the night away,Audio,,,,,,1,7,5,,2025-10-10 Game 1 @ Tavern
+2025-10-10 Game 2 @ Tavern R1 Category 1,,,Legendary creatures,Visual,,,,,,1,1,10,,2025-10-10 Game 2 @ Tavern
+2025-10-10 Game 2 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,3,,2025-10-10 Game 2 @ Tavern
+2025-10-10 Game 2 @ Tavern R1 Category 3,,,Before & after,Spoken,,,,,,1,3,3,,2025-10-10 Game 2 @ Tavern
+2025-10-10 Game 2 @ Tavern R1 Category 4,,,Survey said...!,Spoken,,,,,,1,4,3,,2025-10-10 Game 2 @ Tavern
+2025-10-10 Game 2 @ Tavern R1 Category 5,checked,,TV dads,Spoken,,,,,,1,5,3,,2025-10-10 Game 2 @ Tavern
+2025-10-10 Game 2 @ Tavern R1 Category 6,,,Namesakes,Spoken,,,,,,1,6,3,,2025-10-10 Game 2 @ Tavern
+2025-10-10 Game 2 @ Tavern R1 Category 7,,,"""Holy harmonicas, Batman!""",Audio,,,,,,1,7,5,,2025-10-10 Game 2 @ Tavern
+2025-10-16 Game 1 @ Frosty's R1 Category 1,,,Dynamic duos,Visual,checked,,,,,1,1,10,,2025-10-16 Game 1 @ Frosty's
+2025-10-16 Game 1 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-10-16 Game 1 @ Frosty's
+2025-10-16 Game 1 @ Frosty's R1 Category 3,,,Check the calendar,Spoken,checked,,,,,1,3,3,,2025-10-16 Game 1 @ Frosty's
+2025-10-16 Game 1 @ Frosty's R1 Category 4,,,'Tis the season of holiday specials,Spoken,checked,,,,,1,4,3,,2025-10-16 Game 1 @ Frosty's
+2025-10-16 Game 1 @ Frosty's R1 Category 5,,,How often should you tell chemistry jokes? Periodically.,Spoken,checked,,,,,1,5,3,,2025-10-16 Game 1 @ Frosty's
+2025-10-16 Game 1 @ Frosty's R1 Category 6,,,Cult classics,Spoken,checked,,,,,1,6,3,,2025-10-16 Game 1 @ Frosty's
+2025-10-16 Game 1 @ Frosty's R1 Category 7,checked,,The British Invasion,Audio,checked,,,,,1,7,5,,2025-10-16 Game 1 @ Frosty's
+2025-10-16 Game 2 @ Frosty's R1 Category 1,,,Like Mike,Visual,checked,,,,,1,1,10,,2025-10-16 Game 2 @ Frosty's
+2025-10-16 Game 2 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-10-16 Game 2 @ Frosty's
+2025-10-16 Game 2 @ Frosty's R1 Category 3,,,Going green,Spoken,checked,,,,,1,3,3,,2025-10-16 Game 2 @ Frosty's
+2025-10-16 Game 2 @ Frosty's R1 Category 4,,,TV hangouts,Spoken,checked,,,,,1,4,3,,2025-10-16 Game 2 @ Frosty's
+2025-10-16 Game 2 @ Frosty's R1 Category 5,checked,,The British Invasion,Spoken,checked,,,,,1,5,3,,2025-10-16 Game 2 @ Frosty's
+2025-10-16 Game 2 @ Frosty's R1 Category 6,,,For all the world to see,Spoken,checked,,,,,1,6,3,,2025-10-16 Game 2 @ Frosty's
+2025-10-16 Game 2 @ Frosty's R1 Category 7,,,"""Hey, girl!""",Audio,checked,,,,,1,7,5,,2025-10-16 Game 2 @ Frosty's
+2025-10-17 Game 1 @ Tavern R1 Category 1,,,Just a li'l visual round,Visual,checked,,,,,1,1,10,,2025-10-17 Game 1 @ Tavern
+2025-10-17 Game 1 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-10-17 Game 1 @ Tavern
+2025-10-17 Game 1 @ Tavern R1 Category 3,,,Order up!,Spoken,checked,,,,,1,3,3,,2025-10-17 Game 1 @ Tavern
+2025-10-17 Game 1 @ Tavern R1 Category 4,,,For all the world to see,Spoken,checked,,,,,1,4,3,,2025-10-17 Game 1 @ Tavern
+2025-10-17 Game 1 @ Tavern R1 Category 5,,,Cult classics,Spoken,checked,,,,,1,5,3,,2025-10-17 Game 1 @ Tavern
+2025-10-17 Game 1 @ Tavern R1 Category 6,,,Dynamic duos,Spoken,checked,,,,,1,6,3,,2025-10-17 Game 1 @ Tavern
+2025-10-17 Game 1 @ Tavern R1 Category 7,checked,,The British Invasion,Audio,checked,,,,,1,7,5,,2025-10-17 Game 1 @ Tavern
+2025-10-17 Game 2 @ Tavern R1 Category 1,,,Feeling like a kid again,Visual,checked,,,,,1,1,10,,2025-10-17 Game 2 @ Tavern
+2025-10-17 Game 2 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-10-17 Game 2 @ Tavern
+2025-10-17 Game 2 @ Tavern R1 Category 3,,,TV hangouts,Spoken,checked,,,,,1,3,3,,2025-10-17 Game 2 @ Tavern
+2025-10-17 Game 2 @ Tavern R1 Category 4,,,'Tis the season of holiday specials,Spoken,checked,,,,,1,4,3,,2025-10-17 Game 2 @ Tavern
+2025-10-17 Game 2 @ Tavern R1 Category 5,checked,,The British Invasion,Spoken,checked,,,,,1,5,3,,2025-10-17 Game 2 @ Tavern
+2025-10-17 Game 2 @ Tavern R1 Category 6,,,How often should you tell chemistry jokes? Periodically.,Spoken,checked,,,,,1,6,3,,2025-10-17 Game 2 @ Tavern
+2025-10-17 Game 2 @ Tavern R1 Category 7,,,Bardcore,Audio,checked,,,,,1,7,5,,2025-10-17 Game 2 @ Tavern
+2025-10-20  @ VFW R1 Category 1,,,Looney Tunes,Visual,checked,,,,,1,1,10,,2025-10-20  @ VFW
+2025-10-20  @ VFW R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,5,,2025-10-20  @ VFW
+2025-10-20  @ VFW R1 Category 3,,,Totally unrelated trivia,Spoken,checked,,,,,1,3,5,,2025-10-20  @ VFW
+2025-10-20  @ VFW R1 Category 4,,,Soundscapes,Audio,checked,,,,,1,4,5,,2025-10-20  @ VFW
+2025-10-20  @ VFW R2 Category 1,checked,,Where the pros play,Spoken,checked,,,,,2,1,5,,2025-10-20  @ VFW
+2025-10-20  @ VFW R2 Category 2,,,I lava this category,Spoken,checked,,,,,2,2,5,,2025-10-20  @ VFW
+2025-10-20  @ VFW R2 Category 3,,,Letter ladder,Audio,checked,,,,,2,3,5,,2025-10-20  @ VFW
+2025-10-21  @ Beck's R1 Category 1,,,Spooky cinema,Visual,checked,Spooky Cinema,,,,1,1,10,,2025-10-21  @ Beck's
+2025-10-21  @ Beck's R1 Category 2,,,Classic Halloween movies,Spoken,checked,,,,,1,2,5,,2025-10-21  @ Beck's
+2025-10-21  @ Beck's R1 Category 3,,,Terrifying TV,Spoken,checked,,,,,1,3,5,,2025-10-21  @ Beck's
+2025-10-21  @ Beck's R1 Category 4,,,Creature feature,Audio,checked,,,,,1,4,5,,2025-10-21  @ Beck's
+2025-10-21  @ Beck's R2 Category 1,,,Spooky specifics,Spoken,checked,,,,,2,1,5,,2025-10-21  @ Beck's
+2025-10-21  @ Beck's R2 Category 2,,,As the story goes...,Spoken,checked,,,,,2,2,5,,2025-10-21  @ Beck's
+2025-10-21  @ Beck's R2 Category 3,,,Horror to our ears,Audio,checked,,,,,2,3,5,,2025-10-21  @ Beck's
+2025-10-24 Game 1 @ Tavern R1 Category 1,,,EYE spy,Visual,,EYE spy,,,,1,1,10,,2025-10-24 Game 1 @ Tavern
+2025-10-24 Game 1 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-10-24 Game 1 @ Tavern
+2025-10-24 Game 1 @ Tavern R1 Category 3,,,Cider season,Spoken,checked,,,,,1,3,3,,2025-10-24 Game 1 @ Tavern
+2025-10-24 Game 1 @ Tavern R1 Category 4,,,Music to my ears,Spoken,checked,,,,,1,4,3,,2025-10-24 Game 1 @ Tavern
+2025-10-24 Game 1 @ Tavern R1 Category 5,checked,,Where the pros play,Spoken,checked,,,,,1,5,3,,2025-10-24 Game 1 @ Tavern
+2025-10-24 Game 1 @ Tavern R1 Category 6,,,Going SCUBA diving. TTYL!,Spoken,checked,,,,,1,6,3,,2025-10-24 Game 1 @ Tavern
+2025-10-24 Game 1 @ Tavern R1 Category 7,,,No way!,Audio,checked,,,,,1,7,5,,2025-10-24 Game 1 @ Tavern
+2025-10-24 Game 2 @ Tavern R1 Category 1,,,Wild kingdom,Visual,,,,,,1,1,10,,2025-10-24 Game 2 @ Tavern
+2025-10-24 Game 2 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-10-24 Game 2 @ Tavern
+2025-10-24 Game 2 @ Tavern R1 Category 3,checked,,Where the pros play,Spoken,checked,,,,,1,3,3,,2025-10-24 Game 2 @ Tavern
+2025-10-24 Game 2 @ Tavern R1 Category 4,,,Complete the song lyrics,Spoken,checked,,,,,1,4,3,,2025-10-24 Game 2 @ Tavern
+2025-10-24 Game 2 @ Tavern R1 Category 5,,,Vroom vroom,Spoken,checked,,,,,1,5,3,,2025-10-24 Game 2 @ Tavern
+2025-10-24 Game 2 @ Tavern R1 Category 6,,,Villainous,Spoken,checked,,,,,1,6,3,,2025-10-24 Game 2 @ Tavern
+2025-10-24 Game 2 @ Tavern R1 Category 7,,,Stadium rock,Audio,checked,,,,,1,7,5,,2025-10-24 Game 2 @ Tavern
+2025-10-28  @ Ciao Thyme R1 Category 1,,,Spooky cinema,Visual,checked,Spooky Cinema,,,,1,1,10,,2025-10-28  @ Ciao Thyme
+2025-10-28  @ Ciao Thyme R1 Category 2,,,Classic Halloween movies,Spoken,checked,,,,,1,2,5,,2025-10-28  @ Ciao Thyme
+2025-10-28  @ Ciao Thyme R1 Category 3,,,Terrifying TV,Spoken,checked,,,,,1,3,5,,2025-10-28  @ Ciao Thyme
+2025-10-28  @ Ciao Thyme R1 Category 4,,,Iconic characters - Halloween edition,Spoken,checked,,,,,1,4,5,,2025-10-28  @ Ciao Thyme
+2025-10-28  @ Ciao Thyme R1 Category 7,,,Horror to our ears,Audio,checked,,,,,1,7,5,,2025-10-28  @ Ciao Thyme
+2025-10-28  @ Ciao Thyme R2 Category 1,,,Spooky specifics,Spoken,checked,,,,,2,1,5,,2025-10-28  @ Ciao Thyme
+2025-10-28  @ Ciao Thyme R2 Category 2,,,As the story goes...,Spoken,checked,,,,,2,2,5,,2025-10-28  @ Ciao Thyme
+2025-10-28  @ Ciao Thyme R2 Category 3,,,Halloween grab bag,Spoken,checked,,,,,2,3,5,,2025-10-28  @ Ciao Thyme
+2025-10-28  @ Ciao Thyme R2 Category 6,,,Scary soundtracks,Audio,checked,,,,,2,6,5,,2025-10-28  @ Ciao Thyme
+2025-10-30  @ Jack Pine R1 Category 1,,,Spooky cinema,Visual,checked,Spooky Cinema,,,,1,1,10,,2025-10-30  @ Jack Pine
+2025-10-30  @ Jack Pine R1 Category 2,,,Classic Halloween movies,Spoken,checked,,,,,1,2,5,,2025-10-30  @ Jack Pine
+2025-10-30  @ Jack Pine R1 Category 3,,,Terrifying TV,Spoken,checked,,,,,1,3,5,,2025-10-30  @ Jack Pine
+2025-10-30  @ Jack Pine R1 Category 4,,,Iconic characters - Halloween edition,Spoken,checked,,,,,1,4,5,,2025-10-30  @ Jack Pine
+2025-10-30  @ Jack Pine R1 Category 7,,,Horror to our ears,Audio,checked,,,,,1,7,5,,2025-10-30  @ Jack Pine
+2025-10-30  @ Jack Pine R2 Category 1,,,So sweet!,Visual,checked,,,,,2,1,10,,2025-10-30  @ Jack Pine
+2025-10-30  @ Jack Pine R2 Category 2,,,Spooky specifics,Spoken,checked,,,,,2,2,5,,2025-10-30  @ Jack Pine
+2025-10-30  @ Jack Pine R2 Category 3,,,As the story goes...,Spoken,checked,,,,,2,3,5,,2025-10-30  @ Jack Pine
+2025-10-30  @ Jack Pine R2 Category 4,,,Halloween grab bag,Spoken,checked,,,,,2,4,5,,2025-10-30  @ Jack Pine
+2025-10-30  @ Jack Pine R2 Category 7,,,Scary soundtracks,Audio,checked,,,,,2,7,5,,2025-10-30  @ Jack Pine
+2025-11-04  @ Beck's R1 Category 1,checked,,Doctor WHO?,Visual,,Doctor WHO?,,,,1,1,10,,2025-11-04  @ Beck's
+2025-11-04  @ Beck's R1 Category 2,,,Trivia grab bag,Spoken,,,,,,1,2,5,,2025-11-04  @ Beck's
+2025-11-04  @ Beck's R1 Category 3,,,Totally unrelated trivia,Spoken,,,,,,1,3,5,,2025-11-04  @ Beck's
+2025-11-04  @ Beck's R1 Category 4,,,Hear the rainbow,Audio,,,,,,1,4,5,,2025-11-04  @ Beck's
+2025-11-04  @ Beck's R2 Category 1,,,Alliterative celebrities,Spoken,,,,,,2,1,5,,2025-11-04  @ Beck's
+2025-11-04  @ Beck's R2 Category 2,,,Totally lit,Spoken,,,,,,2,2,5,,2025-11-04  @ Beck's
+2025-11-04  @ Beck's R2 Category 3,,,Hear the rainbow,Audio,,,,,,2,3,5,,2025-11-04  @ Beck's
+2025-11-06 Game 1 @ Frosty's R1 Category 1,,,Are you game?,Visual,checked,,,,,1,1,10,,2025-11-06 Game 1 @ Frosty's
+2025-11-06 Game 1 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-11-06 Game 1 @ Frosty's
+2025-11-06 Game 1 @ Frosty's R1 Category 3,,,Take three,Spoken,checked,,,,,1,3,3,,2025-11-06 Game 1 @ Frosty's
+2025-11-06 Game 1 @ Frosty's R1 Category 4,,,Quotable quotes,Spoken,checked,,,,,1,4,3,,2025-11-06 Game 1 @ Frosty's
+2025-11-06 Game 1 @ Frosty's R1 Category 5,checked,,Doctor WHO?,Spoken,checked,,,,,1,5,3,,2025-11-06 Game 1 @ Frosty's
+2025-11-06 Game 1 @ Frosty's R1 Category 6,,,American history,Spoken,checked,,,,,1,6,3,,2025-11-06 Game 1 @ Frosty's
+2025-11-06 Game 1 @ Frosty's R1 Category 7,,,Hear the rainbow,Audio,checked,,,,,1,7,5,,2025-11-06 Game 1 @ Frosty's
+2025-11-06 Game 2 @ Frosty's R1 Category 1,checked,,Doctor WHO?,Visual,checked,,,,,1,1,10,,2025-11-06 Game 2 @ Frosty's
+2025-11-06 Game 2 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-11-06 Game 2 @ Frosty's
+2025-11-06 Game 2 @ Frosty's R1 Category 3,,,Late night... with TriviaVanguard,Spoken,checked,,,,,1,3,3,,2025-11-06 Game 2 @ Frosty's
+2025-11-06 Game 2 @ Frosty's R1 Category 4,,,Reboots,Spoken,checked,,,,,1,4,3,,2025-11-06 Game 2 @ Frosty's
+2025-11-06 Game 2 @ Frosty's R1 Category 5,checked,,Doctor WHO?,Spoken,checked,,,,,1,5,3,,2025-11-06 Game 2 @ Frosty's
+2025-11-06 Game 2 @ Frosty's R1 Category 6,,,Alphabet soup: Q,Spoken,checked,,,,,1,6,3,,2025-11-06 Game 2 @ Frosty's
+2025-11-06 Game 2 @ Frosty's R1 Category 7,checked,,Doctor WHO?,Audio,checked,,,,,1,7,5,,2025-11-06 Game 2 @ Frosty's
+2025-11-07 Game 1 @ Tavern R1 Category 1,,,Funny business,Visual,checked,Funny Business,,,,1,1,10,,2025-11-07 Game 1 @ Tavern
+2025-11-07 Game 1 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-11-07 Game 1 @ Tavern
+2025-11-07 Game 1 @ Tavern R1 Category 3,,,Reboots,Spoken,checked,,,,,1,3,3,,2025-11-07 Game 1 @ Tavern
+2025-11-07 Game 1 @ Tavern R1 Category 4,,,Take three,Spoken,checked,,,,,1,4,3,,2025-11-07 Game 1 @ Tavern
+2025-11-07 Game 1 @ Tavern R1 Category 5,checked,,Doctor WHO?,Spoken,checked,,,,,1,5,3,,2025-11-07 Game 1 @ Tavern
+2025-11-07 Game 1 @ Tavern R1 Category 6,,,Quotable quotes,Spoken,checked,,,,,1,6,3,,2025-11-07 Game 1 @ Tavern
+2025-11-07 Game 1 @ Tavern R1 Category 7,,,Hear the rainbow,Audio,checked,,,,,1,7,5,,2025-11-07 Game 1 @ Tavern
+2025-11-07 Game 2 @ Tavern R1 Category 1,,,Are you game?,Visual,checked,Are you game - pieces,,,,1,1,10,,2025-11-07 Game 2 @ Tavern
+2025-11-07 Game 2 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-11-07 Game 2 @ Tavern
+2025-11-07 Game 2 @ Tavern R1 Category 3,,,American history,Spoken,checked,,,,,1,3,3,,2025-11-07 Game 2 @ Tavern
+2025-11-07 Game 2 @ Tavern R1 Category 4,,,Totally lit,Spoken,checked,,,,,1,4,3,,2025-11-07 Game 2 @ Tavern
+2025-11-07 Game 2 @ Tavern R1 Category 5,checked,,Doctor WHO?,Spoken,checked,,,,,1,5,3,,2025-11-07 Game 2 @ Tavern
+2025-11-07 Game 2 @ Tavern R1 Category 6,,,Alphabet soup: J,Spoken,checked,,,,,1,6,3,,2025-11-07 Game 2 @ Tavern
+2025-11-07 Game 2 @ Tavern R1 Category 7,,,Hear the rainbow,Audio,checked,,,,,1,7,5,,2025-11-07 Game 2 @ Tavern
+2025-11-15 Game 1 @ Tavern R1 Category 1,,,Not-so-average Joes,Visual,checked,Not-so-average Joes,,,,1,1,10,,2025-11-15 Game 1 @ Tavern
+2025-11-15 Game 1 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-11-15 Game 1 @ Tavern
+2025-11-15 Game 1 @ Tavern R1 Category 3,,,The Kleenex effect,Spoken,checked,,,,,1,3,3,,2025-11-15 Game 1 @ Tavern
+2025-11-15 Game 1 @ Tavern R1 Category 4,,,Setting the scene,Spoken,checked,,,,,1,4,3,,2025-11-15 Game 1 @ Tavern
+2025-11-15 Game 1 @ Tavern R1 Category 5,,,Stayin' alive,Spoken,checked,,,,,1,5,3,,2025-11-15 Game 1 @ Tavern
+2025-11-15 Game 1 @ Tavern R1 Category 6,,,If you like to sweat even when it's freezing outside....,Spoken,checked,,,,,1,6,3,,2025-11-15 Game 1 @ Tavern
+2025-11-15 Game 1 @ Tavern R1 Category 7,checked,,I love the '80s,Audio,checked,,,,,1,7,5,,2025-11-15 Game 1 @ Tavern
+2025-11-15 Game 2 @ Tavern R1 Category 1,,,Teen Beat,Visual,checked,Teen Beat,,,,1,1,10,,2025-11-15 Game 2 @ Tavern
+2025-11-15 Game 2 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-11-15 Game 2 @ Tavern
+2025-11-15 Game 2 @ Tavern R1 Category 3,,,Recognizable restaurants,Spoken,checked,,,,,1,3,3,,2025-11-15 Game 2 @ Tavern
+2025-11-15 Game 2 @ Tavern R1 Category 4,,,What should I put on the envelope?,Spoken,checked,,,,,1,4,3,,2025-11-15 Game 2 @ Tavern
+2025-11-15 Game 2 @ Tavern R1 Category 5,,,Across the pond,Spoken,checked,,,,,1,5,3,,2025-11-15 Game 2 @ Tavern
+2025-11-15 Game 2 @ Tavern R1 Category 6,,,Royal flush?,Spoken,checked,,,,,1,6,3,,2025-11-15 Game 2 @ Tavern
+2025-11-15 Game 2 @ Tavern R1 Category 7,checked,,I love the '80s,Audio,checked,,,,,1,7,5,,2025-11-15 Game 2 @ Tavern
+2025-11-18 Harry Potter @ Beck's R1 Category 1,,,Wizarding World who's who,Visual,checked,"Wizarding World who's who 2,Wizarding World who's who,Wizarding World who's who",,,,1,1,10,,2025-11-18 Harry Potter @ Beck's
+2025-11-18 Harry Potter @ Beck's R1 Category 2,,,Wizarding World 101,Spoken,checked,,,,,1,2,5,,2025-11-18 Harry Potter @ Beck's
+2025-11-18 Harry Potter @ Beck's R1 Category 3,,,Where in the Wizarding World?,Spoken,checked,,,,,1,3,5,,2025-11-18 Harry Potter @ Beck's
+2025-11-18 Harry Potter @ Beck's R1 Category 4,,,Wands at the ready!,Spoken,checked,,,,,1,4,5,,2025-11-18 Harry Potter @ Beck's
+2025-11-18 Harry Potter @ Beck's R1 Category 5,,,Whose line is it anyway?,Audio,checked,,,,,1,5,10,,2025-11-18 Harry Potter @ Beck's
+2025-11-18 Harry Potter @ Beck's R2 Category 1,,,Hogwarts: A History,Spoken,checked,,,,,2,1,3,,2025-11-18 Harry Potter @ Beck's
+2025-11-18 Harry Potter @ Beck's R2 Category 2,,,Wizarding World who's who,Spoken,checked,,,,,2,2,3,,2025-11-18 Harry Potter @ Beck's
+2025-11-18 Harry Potter @ Beck's R2 Category 3,,,Split your soul,Spoken,checked,,,,,2,3,3,,2025-11-18 Harry Potter @ Beck's
+2025-11-18 Harry Potter @ Beck's R2 Category 4,,,Fantastic Beasts and Where to Find Them,Spoken,checked,,,,,2,4,3,,2025-11-18 Harry Potter @ Beck's
+2025-11-18 Harry Potter @ Beck's R2 Category 5,,,"""Anything from the trolley, dears?""",Spoken,checked,,,,,2,5,3,,2025-11-18 Harry Potter @ Beck's
+2025-11-18 Harry Potter @ Beck's R2 Category 6,,,Quotable quotes,Audio,checked,,,,,2,6,10,,2025-11-18 Harry Potter @ Beck's
+2025-11-20 Game 1 @ Frosty's R1 Category 1,,,Marvelous minifigs,Visual,checked,Marvelous minifigs,,,,1,1,10,,2025-11-20 Game 1 @ Frosty's
+2025-11-20 Game 1 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-11-20 Game 1 @ Frosty's
+2025-11-20 Game 1 @ Frosty's R1 Category 3,,,The rule of three,Spoken,checked,,,,,1,3,3,,2025-11-20 Game 1 @ Frosty's
+2025-11-20 Game 1 @ Frosty's R1 Category 4,checked,,Wizarding World 101,Spoken,checked,,,,,1,4,3,,2025-11-20 Game 1 @ Frosty's
+2025-11-20 Game 1 @ Frosty's R1 Category 5,,,Check the calendar,Spoken,checked,,,,,1,5,3,,2025-11-20 Game 1 @ Frosty's
+2025-11-20 Game 1 @ Frosty's R1 Category 6,,,"""Go, sports team!""",Spoken,checked,,,,,1,6,3,,2025-11-20 Game 1 @ Frosty's
+2025-11-20 Game 1 @ Frosty's R1 Category 7,,,Let's get boot scootin',Audio,checked,,,,,1,7,5,,2025-11-20 Game 1 @ Frosty's
+2025-11-20 Game 2 @ Frosty's R1 Category 1,,,Look who's coming to (Thanksgiving) dinner,Visual,checked,Look who's coming to (Thanksgiving) dinner,,,,1,1,10,,2025-11-20 Game 2 @ Frosty's
+2025-11-20 Game 2 @ Frosty's R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-11-20 Game 2 @ Frosty's
+2025-11-20 Game 2 @ Frosty's R1 Category 3,,,"""California, Florida, both, or neither?""",Spoken,checked,,,,,1,3,3,,2025-11-20 Game 2 @ Frosty's
+2025-11-20 Game 2 @ Frosty's R1 Category 4,,,Wizarding World 101,Spoken,checked,,,,,1,4,3,,2025-11-20 Game 2 @ Frosty's
+2025-11-20 Game 2 @ Frosty's R1 Category 5,,,Celebrity couples,Spoken,checked,,,,,1,5,3,,2025-11-20 Game 2 @ Frosty's
+2025-11-20 Game 2 @ Frosty's R1 Category 6,,,Seeing red,Spoken,checked,,,,,1,6,3,,2025-11-20 Game 2 @ Frosty's
+2025-11-20 Game 2 @ Frosty's R1 Category 7,,,"""This time, with soul""",Audio,checked,,,,,1,7,5,,2025-11-20 Game 2 @ Frosty's
+2025-11-21 Game 1 @ Tavern R1 Category 1,checked,,Wizarding World 101,Visual,checked,Wizarding World 101,,,,1,1,10,,2025-11-21 Game 1 @ Tavern
+2025-11-21 Game 1 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-11-21 Game 1 @ Tavern
+2025-11-21 Game 1 @ Tavern R1 Category 3,,,"""Go, sports team!""",Spoken,checked,,,,,1,3,3,,2025-11-21 Game 1 @ Tavern
+2025-11-21 Game 1 @ Tavern R1 Category 4,,,Dynamic duos,Spoken,checked,,,,,1,4,3,,2025-11-21 Game 1 @ Tavern
+2025-11-21 Game 1 @ Tavern R1 Category 5,checked,,Wizarding World 101,Spoken,checked,,,,,1,5,3,,2025-11-21 Game 1 @ Tavern
+2025-11-21 Game 1 @ Tavern R1 Category 6,,,"""California, Florida, both, or neither?""",Spoken,checked,,,,,1,6,3,,2025-11-21 Game 1 @ Tavern
+2025-11-21 Game 1 @ Tavern R1 Category 7,,,Fired up,Audio,checked,,,,,1,7,5,,2025-11-21 Game 1 @ Tavern
+2025-11-21 Game 2 @ Tavern R1 Category 1,checked,,What's cookin'?,Visual,checked,What's cookin',,,,1,1,10,,2025-11-21 Game 2 @ Tavern
+2025-11-21 Game 2 @ Tavern R1 Category 2,,,Trivia grab bag,Spoken,checked,,,,,1,2,3,,2025-11-21 Game 2 @ Tavern
+2025-11-21 Game 2 @ Tavern R1 Category 3,,,The rule of three,Spoken,checked,,,,,1,3,3,,2025-11-21 Game 2 @ Tavern
+2025-11-21 Game 2 @ Tavern R1 Category 4,checked,,Wizarding World 101,Spoken,checked,,,,,1,4,3,,2025-11-21 Game 2 @ Tavern
+2025-11-21 Game 2 @ Tavern R1 Category 5,,,Feeling blue,Spoken,checked,,,,,1,5,3,,2025-11-21 Game 2 @ Tavern
+2025-11-21 Game 2 @ Tavern R1 Category 6,,,Celebrity couples,Spoken,checked,,,,,1,6,3,,2025-11-21 Game 2 @ Tavern
+2025-11-21 Game 2 @ Tavern R1 Category 7,,,"""This time, with soul""",Audio,checked,,,,,1,7,5,,2025-11-21 Game 2 @ Tavern
+2025-11-28 Game 1 @ Tavern R1 Category 1,,,,Visual,,,,,,1,1,10,,2025-11-28 Game 1 @ Tavern
+2025-11-28 Game 1 @ Tavern R1 Category 2,,,,Spoken,,,,,,1,2,3,,2025-11-28 Game 1 @ Tavern
+2025-11-28 Game 1 @ Tavern R1 Category 3,,,,Spoken,,,,,,1,3,3,,2025-11-28 Game 1 @ Tavern
+2025-11-28 Game 1 @ Tavern R1 Category 4,,,,Spoken,,,,,,1,4,3,,2025-11-28 Game 1 @ Tavern
+2025-11-28 Game 1 @ Tavern R1 Category 5,,,,Spoken,,,,,,1,5,3,,2025-11-28 Game 1 @ Tavern
+2025-11-28 Game 1 @ Tavern R1 Category 6,,,,Spoken,,,,,,1,6,3,,2025-11-28 Game 1 @ Tavern
+2025-11-28 Game 1 @ Tavern R1 Category 7,,,,Audio,,,,,,1,7,5,,2025-11-28 Game 1 @ Tavern
+2025-11-28 Game 2 @ Tavern R1 Category 1,,,,Visual,,,,,,1,1,10,,2025-11-28 Game 2 @ Tavern
+2025-11-28 Game 2 @ Tavern R1 Category 2,,,,Spoken,,,,,,1,2,3,,2025-11-28 Game 2 @ Tavern
+2025-11-28 Game 2 @ Tavern R1 Category 3,,,,Spoken,,,,,,1,3,3,,2025-11-28 Game 2 @ Tavern
+2025-11-28 Game 2 @ Tavern R1 Category 4,,,,Spoken,,,,,,1,4,3,,2025-11-28 Game 2 @ Tavern
+2025-11-28 Game 2 @ Tavern R1 Category 5,,,,Spoken,,,,,,1,5,3,,2025-11-28 Game 2 @ Tavern
+2025-11-28 Game 2 @ Tavern R1 Category 6,,,,Spoken,,,,,,1,6,3,,2025-11-28 Game 2 @ Tavern
+2025-11-28 Game 2 @ Tavern R1 Category 7,,,,Audio,,,,,,1,7,5,,2025-11-28 Game 2 @ Tavern

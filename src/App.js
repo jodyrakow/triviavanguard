@@ -7,7 +7,6 @@ import Draggable from "react-draggable";
 import ShowMode from "./ShowMode";
 import ScoringMode from "./ScoringMode";
 import ResultsMode from "./ResultsMode";
-import AnswersMode from "./AnswersMode";
 import Sidebar from "./Sidebar";
 import SidebarMenu from "./SidebarMenu";
 import logo from "./trivia-logo.png";
@@ -1383,7 +1382,7 @@ export default function App() {
         </label>
       </div>
 
-      {roundNumbers.length > 1 && (activeMode === "show" || activeMode === "scores") && (
+      {roundNumbers.length > 1 && (
         <div>
           <label
             style={{
@@ -1442,6 +1441,7 @@ export default function App() {
           poolPerQuestion={poolPerQuestion}
           poolContribution={poolContribution}
           prizes={composedCachedState?.prizes ?? ""}
+          cachedState={composedCachedState}
           hostInfo={composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo}
           setPrizes={(val) => patchShared({ prizes: String(val || "") })}
           setHostInfo={(val) => patchShared({ hostInfo: val })}
@@ -1531,25 +1531,11 @@ export default function App() {
         />
       )}
 
-      {activeMode === "answers" && (
-        <AnswersMode
-          showBundle={showBundleWithEdits}
-          selectedShowId={selectedShowId}
-          selectedRoundId={selectedRoundId}
-          cachedState={composedCachedState}
-          cachedByRound={scoringCache[selectedShowId]}
-          scoringMode={scoringMode}
-          pubPoints={pubPoints}
-          poolPerQuestion={poolPerQuestion}
-          prizes={composedCachedState?.prizes ?? ""}
-          editQuestionField={editQuestionField}
-        />
-      )}
-
       {activeMode === "results" && (
         <ResultsMode
           showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
           selectedShowId={selectedShowId}
+          selectedRoundId={selectedRoundId}
           cachedState={composedCachedState}
           cachedByRound={scoringCache[selectedShowId] ?? {}}
           scoringMode={scoringMode}

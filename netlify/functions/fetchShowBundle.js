@@ -5,10 +5,10 @@ const AIRTABLE_BASE_ID = "appnwzfwa2Bl6V2jX";
 const AIRTABLE_API_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}`;
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
 
-// Build Airtable URL (no fields[] to avoid 422 serialization issues)
+// Build Airtable URL
 function buildUrl(
   endpoint,
-  { filterByFormula, sort = [], pageSize = 100, offset } = {}
+  { filterByFormula, sort = [], pageSize = 100, offset, fields = [] } = {}
 ) {
   const url = new URL(`${AIRTABLE_API_URL}/${endpoint}`);
   if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
@@ -17,6 +17,9 @@ function buildUrl(
   sort.forEach((s, i) => {
     if (s.field) url.searchParams.set(`sort[${i}][field]`, s.field);
     if (s.direction) url.searchParams.set(`sort[${i}][direction]`, s.direction);
+  });
+  fields.forEach((f) => {
+    url.searchParams.set(`fields[]`, f);
   });
   return url;
 }
@@ -91,16 +94,70 @@ export async function handler(event) {
       if (showRes.ok) {
         const showData = await showRes.json();
         const f = showData.fields || {};
+
+        // Debug: log all field names to see what Airtable is actually returning
+        console.log(`[fetchShowBundle] All field names in Show record:`, Object.keys(f));
+
+        const locationName = f["Location name"] || null;
+        const scoringModeCell = f["Scoring mode"];
+        const showDate = f["Date"] || null;
+        const showTemplate = f["ShowTemplate"] || "";
+
+        console.log(`[fetchShowBundle] Show fields - Date: ${showDate}, Location name: "${locationName}", Host: "${f["Host name"]}", Cohost: "${f["Cohost name"]}", Start: "${f["Start time"]}", Template: "${showTemplate}"`);
+
+        // Count shows with same date and location
+        let totalGamesThisNight = 1; // default to 1 (just this show)
+        let allStartTimes = []; // Collect start times from all matching shows
+        if (showDate && locationName) {
+          try {
+            // Use IS_SAME for date comparison (works with Airtable date fields)
+            const showsOnDate = await fetchAll("Shows", {
+              filterByFormula: `IS_SAME({Date}, '${showDate}', 'day')`,
+            });
+
+            console.log(`[fetchShowBundle] Shows on ${showDate}:`, showsOnDate.map(s => ({
+              id: s.id,
+              locationName: s.fields?.["Location name"],
+            })));
+
+            // Filter by location name in JavaScript
+            const matchingShows = showsOnDate.filter(s => {
+              const loc = s.fields?.["Location name"];
+              return loc && loc.trim() === locationName.trim();
+            });
+
+            totalGamesThisNight = matchingShows.length;
+
+            // Extract start times from all matching shows and sort them
+            allStartTimes = matchingShows
+              .map(s => s.fields?.["Start time"])
+              .filter(Boolean)
+              .sort(); // Sort chronologically
+
+            console.log(`[fetchShowBundle] Found ${totalGamesThisNight} show(s) on ${showDate} at location "${locationName}" with start times:`, allStartTimes);
+          } catch (err) {
+            console.error("Could not count matching shows:", err);
+          }
+        }
+
         showConfig = {
-          announcements: f["Announcements"] || "",
-          prizeDonor: f["Prize donor"] || "",
-          locationName: f["Location name"] || "",
-          scoringMode: f["Scoring mode"] || null,
+          showId,
+          location: locationName || null,
+          scoringMode: scoringModeCell?.name || scoringModeCell || null,
           pubPoints: typeof f["Pub points"] === "number" ? f["Pub points"] : null,
           poolPerQuestion: typeof f["Pool per question"] === "number" ? f["Pool per question"] : null,
           poolContribution: typeof f["Pool contribution"] === "number" ? f["Pool contribution"] : null,
+          announcements: f["Announcements"] || "",
+          prizeDonor: f["Prize donor"] || "",
+          timerDefault: typeof f["Timer default"] === "number" ? f["Timer default"] : null,
+          hostName: f["Host name"] || "",
+          cohostName: f["Cohost name"] || "",
+          startTime: f["Start time"] || "",
+          showTemplate: showTemplate,
+          totalGamesThisNight,
+          allStartTimes, // Array of all start times for multi-game nights
         };
-        console.log(`[fetchShowBundle] Successfully fetched Show config:`, showConfig);
+        console.log(`[fetchShowBundle] Successfully fetched Show config:`, JSON.stringify(showConfig, null, 2));
       } else {
         // Log when Show record fetch fails
         const errorText = await showRes.text();
@@ -111,77 +168,139 @@ export async function handler(event) {
       console.error("Could not fetch Show config:", err);
     }
 
-    // Pull questions for this show
-    const filterByFormula = `{Show ID} = '${showId}'`;
-    const sort = [
-      { field: "Round", direction: "asc" },
-      { field: "Sort order", direction: "asc" },
-    ];
-
-    const records = await fetchAll("ShowQuestions", {
-      filterByFormula,
-      sort,
+    // Fetch ShowCategories for this show
+    const scRecords = await fetchAll("ShowCategories", {
+      filterByFormula: `FIND('${showId}', ARRAYJOIN({Show ID}))`,
+      sort: [
+        { field: "Round", direction: "asc" },
+        { field: "Category order", direction: "asc" },
+      ],
       pageSize: 100,
     });
 
-    // Normalize + group by numeric round
-    const byRound = new Map();
-
-    for (const rec of records) {
+    // Build a map of ShowCategory ID -> category data
+    const categoryMap = new Map();
+    for (const rec of scRecords) {
       const f = rec.fields || {};
+      const qTypeCell = f["Question type"];
 
-      const q = {
-        id: rec.id,
+      const showIdArray = f["Show ID"];
+      const normalizedShowId = Array.isArray(showIdArray) && showIdArray.length > 0
+        ? showIdArray[0]
+        : (showIdArray || null);
 
-        // Lookups
-        showId: f["Show ID"] || null,
-        questionId: f["Question ID"] || null,
-
-        // Ordering
-        round: typeof f["Round"] === "number" ? f["Round"] : null,
-        categoryOrder:
-          typeof f["Category order"] === "number" ? f["Category order"] : null,
-        questionOrder: f["Question order"] || "",
-        sortOrder: typeof f["Sort order"] === "number" ? f["Sort order"] : null,
-
-        // Flags / selects
+      categoryMap.set(rec.id, {
+        showCategoryId: rec.id,
+        showId: normalizedShowId,
         superSecret: !!f["Super secret"],
-        questionType: f["Question type"]?.name || f["Question type"] || null,
-
-        // Text
         categoryName: f["Category name"] || "",
         categoryDescription: f["Category description"] || "",
-        questionText: f["Question text"] || "",
-        flavorText: f["Flavor text"] || "",
-        answer: f["Answer"] || "",
-
-        // Attachments
+        categoryNotes: f["Category notes"] || "",
+        categoryPronunciationGuide: f["Category pronunciation guide"] || "",
+        questionType: qTypeCell?.name || qTypeCell || null,
         categoryImages: toAttachmentArray(f["Category image attachments"]),
         categoryAudio: toAttachmentArray(f["Category audio attachments"]),
-        questionImages: toAttachmentArray(f["Question image attachments"]),
-        questionAudio: toAttachmentArray(f["Question audio attachments"]),
-
-        // Add this property (keep the rest of your object as-is)
-        pointsPerQuestion:
-          typeof f["Points per question"] === "number"
-            ? f["Points per question"]
-            : null,
-      };
-
-      const r = q.round ?? 0;
-      if (!byRound.has(r)) byRound.set(r, []);
-      byRound.get(r).push(q);
+        imageCarousel: toAttachmentArray(f["Image carousel"]),
+        round: typeof f["Round"] === "number" ? f["Round"] : null,
+        categoryOrder: typeof f["Category order"] === "number" ? f["Category order"] : null,
+      });
     }
 
-    const rounds = Array.from(byRound.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([round, questions]) => ({ round, questions }));
+    // Fetch ShowQuestions for this show
+    const sqRecords = await fetchAll("ShowQuestions", {
+      filterByFormula: `FIND('${showId}', ARRAYJOIN({Show ID}))`,
+      sort: [
+        { field: "Round", direction: "asc" },
+        { field: "Sort order", direction: "asc" },
+      ],
+      pageSize: 100,
+    });
 
-    // ---- Attach the show's tiebreaker (if any) to the final round ----
+    // Build hierarchical structure: rounds → categories → questions
+    const byRoundCategory = new Map(); // Map<roundNumber, Map<categoryId, {category, questions}>>
+
+    for (const rec of sqRecords) {
+      const f = rec.fields || {};
+      const scIdArray = f["ShowCategory ID"];
+      const scId = Array.isArray(scIdArray) && scIdArray.length > 0
+        ? scIdArray[0]
+        : (scIdArray || null);
+
+      // Get category data from map
+      const categoryData = scId ? categoryMap.get(scId) : null;
+      const round = categoryData?.round ?? 0;
+
+      const showIdArray = f["Show ID"];
+      const normalizedShowId = Array.isArray(showIdArray) && showIdArray.length > 0
+        ? showIdArray[0]
+        : (showIdArray || null);
+
+      // Question object (only question-specific fields)
+      const q = {
+        showQuestionId: rec.id,
+        showId: normalizedShowId,
+        questionOrder: f["Question order"] || "",
+        sortOrder: typeof f["Sort order"] === "number" ? f["Sort order"] : null,
+        questionText: f["Question text"] || "",
+        questionNotes: f["Question notes"] || "",
+        questionPronunciationGuide: f["Question pronunciation guide"] || "",
+        answer: f["Answer"] || "",
+        questionImages: toAttachmentArray(f["Question image attachments"]),
+        questionAudio: toAttachmentArray(f["Question audio attachments"]),
+        pointsPerQuestion: typeof f["Points per question"] === "number" ? f["Points per question"] : null,
+      };
+
+      // Initialize round if needed
+      if (!byRoundCategory.has(round)) {
+        byRoundCategory.set(round, new Map());
+      }
+      const roundMap = byRoundCategory.get(round);
+
+      // Initialize category if needed
+      if (!roundMap.has(scId)) {
+        roundMap.set(scId, {
+          category: categoryData || {
+            showCategoryId: null,
+            showId: null,
+            superSecret: false,
+            categoryName: "",
+            categoryDescription: "",
+            categoryNotes: "",
+            categoryPronunciationGuide: "",
+            questionType: null,
+            categoryImages: [],
+            categoryAudio: [],
+            imageCarousel: [],
+            round: null,
+            categoryOrder: null,
+          },
+          questions: [],
+        });
+      }
+
+      // Add question to category
+      roundMap.get(scId).questions.push(q);
+    }
+
+    // Convert to array structure and sort
+    const rounds = Array.from(byRoundCategory.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([round, categoryMap]) => {
+        const categories = Array.from(categoryMap.values())
+          .sort((a, b) => (a.category.categoryOrder ?? 0) - (b.category.categoryOrder ?? 0))
+          .map(({ category, questions }) => ({
+            ...category,
+            questions: questions.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
+          }));
+
+        return { round, categories };
+      });
+
+    // Fetch tiebreaker (if any) and attach to final round as a category
     let tbRecord = null;
     try {
       const tbRows = await fetchAll("Tiebreakers", {
-        filterByFormula: `{Show ID} = '${showId}'`,
+        filterByFormula: `FIND('${showId}', ARRAYJOIN({Show ID}))`,
         pageSize: 1,
       });
       tbRecord = tbRows?.[0] || null;
@@ -192,57 +311,66 @@ export async function handler(event) {
     if (tbRecord?.fields && Array.isArray(rounds) && rounds.length > 0) {
       const finalRound = rounds[rounds.length - 1];
 
-      finalRound.questions.push({
-        id: `tb-${tbRecord.id}`,
+      // Add tiebreaker as a category with one question
+      finalRound.categories.push({
+        showCategoryId: null,
         showId,
-        questionId: null,
-
-        round: finalRound.round,
-        categoryOrder: 9999,
-        questionOrder: "TB",
-        sortOrder: 999999,
-
-        questionType: "Tiebreaker",
+        superSecret: false,
         categoryName: "Tiebreaker",
         categoryDescription: "",
-        questionText: tbRecord.fields["Tiebreaker question"] || "",
-        flavorText: "",
-        answer: tbRecord.fields["Tiebreaker answer"] || "",
-
-        tiebreakerNumber:
-          typeof tbRecord.fields["Tiebreaker number"] === "number"
-            ? tbRecord.fields["Tiebreaker number"]
-            : null,
-
+        categoryNotes: "",
+        categoryPronunciationGuide: "",
+        questionType: "Tiebreaker",
         categoryImages: [],
         categoryAudio: [],
-        questionImages: [],
-        questionAudio: [],
+        imageCarousel: [],
+        round: finalRound.round,
+        categoryOrder: 9999,
+        questions: [{
+          showQuestionId: `tb-${tbRecord.id}`,
+          showId,
+          questionOrder: "TB",
+          sortOrder: 999999,
+          questionText: tbRecord.fields["Tiebreaker question"] || "",
+          questionNotes: "",
+          questionPronunciationGuide: "",
+          answer: tbRecord.fields["Tiebreaker answer"] || "",
+          questionImages: [],
+          questionAudio: [],
+          pointsPerQuestion: null,
+        }],
       });
     }
 
-    // Pull preloaded ShowTeams
-    const filterByFormulaTeams = `{Show ID} = '${showId}'`;
+    // Fetch ShowTeams
     const teamRows = await fetchAll("ShowTeams", {
-      filterByFormula: filterByFormulaTeams,
+      filterByFormula: `FIND('${showId}', ARRAYJOIN({Show ID}))`,
       pageSize: 100,
     });
 
     const teams = teamRows.map((r) => {
       const f = r.fields || {};
       const teamLinked = Array.isArray(f["Team"]) ? f["Team"][0] : null;
+      const teamIdLookup = f["Team ID"] || null;
+      const showIdArray = f["Show ID"];
+      const normalizedShowId = Array.isArray(showIdArray) && showIdArray.length > 0
+        ? showIdArray[0]
+        : (showIdArray || null);
+
       return {
         showTeamId: r.id,
-        teamId: teamLinked || null,
+        showId: normalizedShowId,
+        team: teamLinked || null,
+        teamId: teamIdLookup || null,
         teamName: f["Team name"] ?? "(Unnamed team)",
         showBonus: Number(f["Show bonus"] || 0),
-        isLeague: !!f["League"], // Include the League checkbox value
+        isLeague: !!f["League"],
       };
     });
 
     const bundle = {
       showId,
-      totalQuestions: records.length,
+      totalQuestions: sqRecords.length,
       rounds,
       teams,
       config: showConfig,
@@ -260,7 +388,7 @@ export async function handler(event) {
       headers: {
         "content-type": "application/json",
         "access-control-allow-origin": "*",
-        "x-function-version": "v1-clean",
+        "x-function-version": "v2-rebuild",
       },
       body: JSON.stringify(bundle),
     };

@@ -1,6 +1,7 @@
 // src/ShowMode.js
 import React, { useMemo } from "react";
 import AudioPlayer from "react-h5-audio-player";
+import Draggable from "react-draggable";
 import { marked } from "marked";
 import {
   Button,
@@ -24,7 +25,18 @@ export default function ShowMode({
   setCurrentImageIndex,
   visibleCategoryImages,
   setVisibleCategoryImages,
+  timeLeft,
+  timerRunning,
+  handleStartPause,
+  handleReset,
+  timerDuration,
+  handleDurationChange,
+  timerRef,
+  timerPosition,
+  setTimerPosition,
   getClosestQuestionKey,
+  showTimer,
+  setShowTimer,
   scoringMode = "pub",
   pubPoints = 10,
   poolPerQuestion = 100,
@@ -43,9 +55,10 @@ export default function ShowMode({
   setHostInfo: setHostInfoProp,
   editQuestionField,
   addTiebreaker,
-  scriptOpen,
-  setScriptOpen,
+  sendToDisplay,
+  refreshBundle,
 }) {
+  const [scriptOpen, setScriptOpen] = React.useState(false);
 
   // Unified question editor modal state
   const [editingQuestion, setEditingQuestion] = React.useState(null);
@@ -65,6 +78,11 @@ export default function ShowMode({
   React.useEffect(() => {
     setHostInfo(hostInfoProp);
   }, [hostInfoProp]);
+
+  // Display Mode state
+  const [displayPreviewOpen, setDisplayPreviewOpen] = React.useState(false);
+  const [displayFontSize, setDisplayFontSize] = React.useState(100); // percentage
+  const [customMessages, setCustomMessages] = React.useState(["", "", ""]);
 
   // show name (best-effort)
   const showName =
@@ -174,12 +192,10 @@ export default function ShowMode({
     const grouped = {};
     for (const r of displayRounds || []) {
       const rNum = r?.round ?? 0;
-      const categories = r?.categories || [];
-
-      for (const cat of categories) {
-        const catName = (cat?.categoryName || "").trim();
-        const catDesc = (cat?.categoryDescription || "").trim();
-        const catOrder = cat?.categoryOrder ?? 999;
+      for (const q of r?.questions || []) {
+        const catName = (q?.categoryName || "").trim();
+        const catDesc = (q?.categoryDescription || "").trim();
+        const catOrder = q?.categoryOrder ?? 999;
         const key = `${rNum}::${catOrder}::${catName || "Uncategorized"}`;
 
         if (!grouped[key]) {
@@ -188,33 +204,48 @@ export default function ShowMode({
               "Category name": catName,
               "Category description": catDesc,
               "Category order": catOrder,
-              "Super secret": !!cat?.superSecret,
-              "Category image": Array.isArray(cat?.categoryImages)
-                ? cat.categoryImages
+              "Super secret": !!q?.superSecret,
+              "Category image": Array.isArray(q?.categoryImages)
+                ? q.categoryImages
                 : [],
               // hold category-level audio
-              "Category audio": Array.isArray(cat?.categoryAudio)
-                ? cat.categoryAudio
+              "Category audio": Array.isArray(q?.categoryAudio)
+                ? q.categoryAudio
                 : [],
             },
             questions: {},
           };
         }
 
-        const questions = cat?.questions || [];
-        for (const q of questions) {
-          grouped[key].questions[q.showQuestionId || q.id] = {
-            "Show Question ID": q.showQuestionId || q.id,
-            "Question ID": q?.questionId?.[0] || q?.id,
-            "Question order": q?.questionOrder,
-            "Question text": q?.questionText || "",
-            "Flavor text": q?.flavorText || "",
-            Answer: q?.answer || "",
-            "Question type": q?.questionType || "",
-            Images: Array.isArray(q?.questionImages) ? q.questionImages : [],
-            Audio: Array.isArray(q?.questionAudio) ? q.questionAudio : [],
-            _edited: q._edited || false, // flag if question has been edited
-          };
+        grouped[key].questions[q.id] = {
+          "Show Question ID": q.id, // needed for editing
+          "Question ID": q?.questionId?.[0] || q?.id,
+          "Question order": q?.questionOrder,
+          "Question text": q?.questionText || "",
+          "Flavor text": q?.flavorText || "",
+          Answer: q?.answer || "",
+          "Question type": q?.questionType || "",
+          Images: Array.isArray(q?.questionImages) ? q.questionImages : [],
+          Audio: Array.isArray(q?.questionAudio) ? q.questionAudio : [],
+          _edited: q._edited || false, // flag if question has been edited
+        };
+
+        // Keep first non-empty category media we see
+        if (
+          Array.isArray(q?.categoryImages) &&
+          q.categoryImages.length > 0 &&
+          Array.isArray(grouped[key].categoryInfo["Category image"]) &&
+          grouped[key].categoryInfo["Category image"].length === 0
+        ) {
+          grouped[key].categoryInfo["Category image"] = q.categoryImages;
+        }
+        if (
+          Array.isArray(q?.categoryAudio) &&
+          q.categoryAudio.length > 0 &&
+          Array.isArray(grouped[key].categoryInfo["Category audio"]) &&
+          grouped[key].categoryInfo["Category audio"].length === 0
+        ) {
+          grouped[key].categoryInfo["Category audio"] = q.categoryAudio;
         }
       }
     }
@@ -249,12 +280,12 @@ export default function ShowMode({
     return Number(selectedRoundId) === maxRound;
   }, [showBundle, selectedRoundId]);
 
-  // Calculate statistics for each question (teams correct, points per team, etc.)
+  // Calculate stats per question per round (for showing answer/points data)
   const statsByRoundAndQuestion = React.useMemo(() => {
     if (!cachedState?.teams || !cachedState?.grid) return {};
 
     const teams = cachedState.teams;
-    const grid = cachedState.grid; // Flat grid: { [teamId]: { [questionId]: {...} } }
+    const grid = cachedState.grid; // Nested grid: { [teamId]: { [questionId]: {...} } }
 
     const teamNames = new Map(
       teams.map((t) => [t.showTeamId, t.teamName || "(Unnamed team)"])
@@ -266,14 +297,7 @@ export default function ShowMode({
     const rounds = showBundle?.rounds || [];
     for (const round of rounds) {
       const roundId = String(round.round);
-
-      // Flatten questions from categories (new structure)
-      const roundQuestions = [];
-      for (const cat of round?.categories || []) {
-        for (const q of cat?.questions || []) {
-          roundQuestions.push(q);
-        }
-      }
+      const roundQuestions = round.questions || [];
 
       // For adaptive pooled mode: count only teams active in THIS round
       let activeTeamCount = teams.length;
@@ -281,7 +305,7 @@ export default function ShowMode({
         const activeTeams = new Set();
         for (const t of teams) {
           for (const q of roundQuestions) {
-            if (grid[t.showTeamId]?.[q.showQuestionId || q.id]) {
+            if (grid[t.showTeamId]?.[q.id]) {
               activeTeams.add(t.showTeamId);
               break; // Found at least one answer for this team
             }
@@ -294,7 +318,7 @@ export default function ShowMode({
       const roundStats = {};
 
       for (const q of roundQuestions) {
-        const showQuestionId = q.showQuestionId || q.id;
+        const showQuestionId = q.id;
         let correctCount = 0;
         const correctTeams = [];
 
@@ -400,14 +424,12 @@ export default function ShowMode({
   const totalQuestions = useMemo(() => {
     let count = 0;
     for (const r of allRounds) {
-      for (const cat of r?.categories || []) {
-        for (const q of cat?.questions || []) {
-          const typ = String(
-            q?.questionType || q?.["Question type"] || ""
-          ).toLowerCase();
-          if (typ.includes("tiebreaker")) continue;
-          count += 1;
-        }
+      for (const q of r?.questions || []) {
+        const typ = String(
+          q?.questionType || q?.["Question type"] || ""
+        ).toLowerCase();
+        if (typ === "tiebreaker") continue;
+        count += 1;
       }
     }
     return count;
@@ -465,107 +487,164 @@ export default function ShowMode({
   }, [showBundle?.rounds, scoringMode, pubPoints, poolPerQuestion]);
 
   const hostScript = useMemo(() => {
-    const X = totalQuestions;
+    const s = (n, a, b) => (n === 1 ? a : b);
 
-    const hName = (hostInfo.host || showBundle?.config?.hostName || "your host").trim();
-    const cName = (hostInfo.cohost || showBundle?.config?.cohostName || "your co-host").trim();
+    const X = totalQuestions;
+    const Y = defaultPer;
+    const Z = totalPointsPossible;
+    const N = specialCount;
+
+    const hName = (hostInfo.host || "your host").trim();
+    const cName = (hostInfo.cohost || "your co-host").trim();
 
     // Prefer explicit location, else show config location, else parsed venue, else fallback
     const loc = (
       hostInfo.location ||
-      showBundle?.config?.location ||
+      showBundle?.config?.locationName ||
       multiGameMeta.venue ||
       "your venue"
     ).trim();
 
-    // Get total games count from Airtable config (preferred) or fall back to host input
-    const totalGamesFromConfig = showBundle?.config?.totalGamesThisNight;
-    const totalGamesInput = Number(hostInfo.totalGames);
-    const totalGames = Number.isFinite(totalGamesFromConfig) && totalGamesFromConfig > 0
-      ? totalGamesFromConfig
-      : Number.isFinite(totalGamesInput) && totalGamesInput > 0
-        ? totalGamesInput
-        : 1;
-
-    const isMultiGame = totalGames >= 2;
-
-    // Get start times from Airtable config (preferred) or manual input
-    const configStartTimes = showBundle?.config?.allStartTimes || [];
-    const manualStartTimes = (hostInfo.startTimesText || "")
+    // Parse start times, allow commas, semicolons, or line breaks
+    const startTimes = (hostInfo.startTimesText || "")
       .split(/[,;\n]/)
       .map((t) => t.trim())
       .filter(Boolean);
 
-    const startTimes = configStartTimes.length > 0 ? configStartTimes : manualStartTimes;
+    // Total games: host entry wins; else infer from number of start times; else 1
+    const totalGamesInput = Number(hostInfo.totalGames);
+    const totalGames =
+      Number.isFinite(totalGamesInput) && totalGamesInput > 0
+        ? totalGamesInput
+        : startTimes.length > 1
+          ? startTimes.length
+          : 1;
 
-    // Determine time of day
-    const timeOfDay = "tonight"; // Could be "today" or "tonight" based on show time
+    const timesBlurb = (() => {
+      if (totalGames <= 1) return "";
 
-    // Check if template includes "tipsy"
-    const showTemplate = showBundle?.config?.showTemplate || "";
-    const isTipsy = showTemplate.toLowerCase().includes("tipsy");
+      const pluralAll = totalGames === 2 ? "both" : "all";
+      const timesNice = (arr) =>
+        arr.length <= 1
+          ? arr[0] || ""
+          : arr.slice(0, -1).join(", ") + " and " + arr[arr.length - 1];
+
+      let scheduleLine = "";
+      if (startTimes.length > 0) {
+        // “one starting right now at 7:00, then at 8:30 and 10:00”
+        const first = startTimes[0];
+        const rest = startTimes.slice(1);
+        if (rest.length) {
+          scheduleLine = `— one starting right now at ${first}, then at ${timesNice(rest)}`;
+        } else {
+          scheduleLine = `— one starting right now at ${first}`;
+        }
+      }
+
+      return (
+        `\nWe’ll be playing ${totalGames} game${s(totalGames, "", "s")} of trivia tonight ${scheduleLine} — and ${loc} is awarding prizes for ${pluralAll} game${s(totalGames, "", "s")}!\n` +
+        `The slate will be wiped clean between games; that means you can play ${totalGames === 2 ? "one or both" : `one, two, or up to ${totalGames}`} game${s(totalGames, "", "s")} tonight — how long you hang out with us is up to you!\n`
+      );
+    })();
 
     // --- Intro ---
-    const triviaType = isTipsy ? "tipsy team trivia" : "team trivia";
     let text =
-      `Hey, everybody! It's time for ${triviaType} at ${loc}!\n\n` +
-      `I'm ${hName} and this is ${cName}, and we're your hosts ${timeOfDay} as you play for trivia glory and some pretty awesome prizes.\n`;
+      `Hey, everybody! It's time for team trivia at ${loc}!\n\n` +
+      `I'm ${hName} and this is ${cName}, and we're your hosts tonight as you play for trivia glory and some pretty awesome prizes.\n`;
 
     // --- Announcements (if provided) ---
     if (hostInfo.announcements && hostInfo.announcements.trim()) {
       text += `\n${hostInfo.announcements.trim()}\n`;
     }
 
-    // --- Multi-game intro (only for multiple games) ---
-    if (isMultiGame) {
-      const time1 = startTimes[0] || "[TIME1]";
-      const time2 = startTimes[1] || "[TIME2]";
-
-      text += `\nWe'll be playing ${totalGames} games of trivia ${timeOfDay} - one starting right now at ${time1}, and the next starting right around ${time2}. The slate will be wiped clean after the first game; that means you can play one OR both games with us. How long you choose to hang out with us ${timeOfDay} is up to you.\n`;
-    }
-
-    // --- Question count ---
-    if (isMultiGame) {
-      text += `\nWe'll be asking you ${X} questions in each game ${timeOfDay}.\n`;
-    } else {
-      text += `\nWe'll be asking you ${X} questions ${timeOfDay}.\n`;
+    // Insert multi-game blurb only when we truly have multiple games
+    if (multiGameMeta.isMultiNight || totalGames > 1) {
+      text += `\n${timesBlurb}`;
     }
 
     // --- Prizes ---
     if (prizeList.length > 0) {
-      text += `\n${loc} is awarding prizes for the top ${prizeList.length} team${prizeList.length === 1 ? "" : "s"}:\n`;
+      text += `\n${loc} is awarding prizes for the top ${fmtNum(prizeList.length)} team${s(prizeList.length, "", "s")}:\n`;
       prizeList.forEach((p, i) => {
         text += `  • ${ordinal(i + 1)}: ${p}\n`;
       });
     }
 
-    // --- Rules (exact wording from PDFs) ---
+    // --- Stats (per-show) ---
+    // Keep your four paths, but phrase as "in each show" when multi-game
+    const perShowSuffix =
+      multiGameMeta.isMultiNight || totalGames > 1 ? " in each show" : "";
+
+    if (scoringMode === "pooled-adaptive") {
+      // Adaptive pooled scoring
+      if (N > 0) {
+        text +=
+          `\n• Tonight's show has ${fmtNum(X)} question${X === 1 ? "" : "s"}${perShowSuffix}.\n` +
+          `• Each question has a point pool that contains ${fmtNum(poolContribution)} point${poolContribution === 1 ? "" : "s"} for each team playing. The pool will be divided evenly among teams that answer correctly — in other words, you'll be rewarded if you know stuff that nobody else knows.\n` +
+          `• We do have ${fmtNum(N)} special ${s(N, "question", "questions")} with ${s(N, "a different point value", "different point values")} — we'll explain in more detail when we get to ${s(N, "that question", "those questions")}.\n` +
+          `• That gives us a total of ${fmtNum(Z)} points in the pool${perShowSuffix}.\n`;
+      } else {
+        text +=
+          `\n• Tonight's show has ${fmtNum(X)} question${X === 1 ? "" : "s"}${perShowSuffix}.\n` +
+          `• Each question has a point pool that contains ${fmtNum(poolContribution)} point${poolContribution === 1 ? "" : "s"} for each team playing. The pool will be divided evenly among teams that answer correctly — in other words, you'll be rewarded if you know stuff that nobody else knows.\n`;
+      }
+    } else if (scoringMode === "pooled") {
+      // Static pooled scoring
+      if (N > 0) {
+        text +=
+          `\n• Tonight's show has ${fmtNum(X)} question${X === 1 ? "" : "s"}${perShowSuffix}.\n` +
+          `• Each question has a pool of ${fmtNum(Y)} point${Y === 1 ? "" : "s"} that will be split evenly among the teams that answer correctly${perShowSuffix}.\n` +
+          `• We do have ${fmtNum(N)} special ${s(N, "question", "questions")} with ${s(N, "a different point value", "different point values")} — we'll explain in more detail when we get to ${s(N, "that question", "those questions")}.\n` +
+          `• That gives us a total of ${fmtNum(Z)} points in the pool${perShowSuffix}.\n`;
+      } else {
+        text +=
+          `\n• Tonight's show has ${fmtNum(X)} question${X === 1 ? "" : "s"}${perShowSuffix}.\n` +
+          `• Each question has a pool of ${fmtNum(Y)} point${Y === 1 ? "" : "s"} that will be split evenly among teams that answer correctly, for a total of ${fmtNum(Z)} points in the pool${perShowSuffix}.\n`;
+      }
+    } else {
+      // Pub scoring
+      if (N > 0) {
+        text +=
+          `\n• Tonight's show has ${fmtNum(X)} question${X === 1 ? "" : "s"}${perShowSuffix}.\n` +
+          `• Most questions are worth ${fmtNum(Y)} point${Y === 1 ? "" : "s"}, except for ${fmtNum(N)} special ${s(N, "question", "questions")} with ${s(N, "a different point value", "different point values")} — we'll explain in more detail when we get to ${s(N, "that question", "those questions")}.\n` +
+          `• That gives us a total of ${fmtNum(Z)} possible points${perShowSuffix}.\n`;
+      } else {
+        text +=
+          `\n• Tonight's show has ${fmtNum(X)} question${X === 1 ? "" : "s"}${perShowSuffix}.\n` +
+          `• Each question is worth ${fmtNum(Y)} point${Y === 1 ? "" : "s"}, for a total of ${fmtNum(Z)} possible points${perShowSuffix}.\n`;
+      }
+    }
+
+    // --- Rules (always on) ---
     text +=
-      `\nNow before we get going with the game, here are the rules.\n` +
-      `● To keep things fair, no electronic devices may be out during the round. And that's not just when you're with your team at your table. If you have to step away from your table for any reason, please return with only your charming personality, and NOT with answers that you looked up while you were away. Because there are prizes at stake, if it looks like cheating, we have to treat it like cheating.\n` +
-      `● Don't shout out the answers; you might accidentally give answers away to other teams. Use those handy dandy notepads to share ideas with your team instead.\n` +
-      `● Spelling doesn't count unless we say it does.\n` +
-      `● Unless we say otherwise, when we ask for someone's name, we want their last name. Give us the first name, too, if you like, but just remember that if any part of your answer is wrong, the whole thing is wrong. It's always safest to just give us last names.\n` +
-      `● For fictional characters, either the first or last name is okay unless we say otherwise.\n` +
-      `● Our answer is the correct answer. Dispute if you like and we'll consider it, but our decisions are final.\n` +
-      `● Finally, be generous to the staff; they're working hard to ensure you have a great time. Don't be afraid to ask them for answers to our questions; they may know some that you don't.`;
+      `\n` +
+      `Before we get going, here are the rules.\n` +
+      `• To keep things fair, no electronic devices may be out during the round. If you step away from your table, please return with only your charming personality, not with answers you looked up while you were gone. If it looks like cheating, we have to treat it like cheating.\n` +
+      `• Don't shout out the answers. You might accidentally give answers away to other teams. Use your handy dandy note pads to share ideas with your team instead.\n` +
+      `• Spelling doesn't count unless we say it does.\n` +
+      `• Unless we say otherwise, when we ask for someone’s name, we want their last name. Give us their first name too, if you'd like, but just remember that if any part of your answer is wrong, the whole thing is wrong. For fictional characters, either their first or last name is okay unless we say otherwise.\n` +
+      `• Our answer is the correct answer. Dispute if you like and we’ll consider it, but our decisions are final.\n` +
+      `• Finally, be generous to the staff—they're working hard to ensure you have a great night.\n` +
+      `• ${cName} will be coming around with tonight's visual round. That’s your signal to put those phones away because the contest starts now. Good luck!`;
 
     return text;
   }, [
+    scoringMode,
     totalQuestions,
+    defaultPer,
+    specialCount,
+    totalPointsPossible,
     prizeList,
+    poolContribution,
     hostInfo.host,
     hostInfo.cohost,
     hostInfo.location,
     hostInfo.totalGames,
     hostInfo.startTimesText,
     hostInfo.announcements,
+    multiGameMeta.isMultiNight,
     multiGameMeta.venue,
-    showBundle?.config?.location,
-    showBundle?.config?.hostName,
-    showBundle?.config?.cohostName,
-    showBundle?.config?.totalGamesThisNight,
-    showBundle?.config?.showTemplate,
+    showBundle?.config?.locationName,
   ]);
 
   return (
@@ -583,6 +662,38 @@ export default function ShowMode({
           }}
         >
           <ButtonPrimary
+            onClick={() => {
+              const key = getClosestQuestionKey();
+              setshowDetails((prev) => !prev);
+              setTimeout(() => {
+                const ref = questionRefs.current[key];
+                if (ref?.current) {
+                  ref.current.scrollIntoView({
+                    behavior: "auto",
+                    block: "center",
+                  });
+                }
+              }, 100);
+            }}
+          >
+            {showDetails ? "Hide all answers" : "Show all answers"}
+          </ButtonPrimary>
+
+          <ButtonPrimary
+            onClick={() => setShowTimer((v) => !v)}
+            title={showTimer ? "Hide timer" : "Show timer"}
+          >
+            {showTimer ? "Hide timer" : "Show timer"}
+          </ButtonPrimary>
+
+          <ButtonPrimary
+            onClick={() => setScriptOpen(true)}
+            title="Show a host-ready script with tonight's details"
+          >
+            Show script
+          </ButtonPrimary>
+
+          <ButtonPrimary
             onClick={() => setHostModalOpen(true)}
             title="Set your names & location"
           >
@@ -597,6 +708,221 @@ export default function ShowMode({
               + Add Tiebreaker
             </ButtonPrimary>
           )}
+        </div>
+      )}
+
+      {/* Display Mode Controls */}
+      {sendToDisplay && Object.keys(groupedQuestions).length > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            right: "1rem",
+            top: "1rem",
+            zIndex: 1000,
+            pointerEvents: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: ".5rem",
+            maxWidth: "200px",
+          }}
+        >
+          <ButtonPrimary
+            onClick={() => {
+              const newWindow = window.open(
+                window.location.origin + "?display",
+                "displayMode",
+                "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no"
+              );
+              if (newWindow) {
+                newWindow.focus();
+              }
+            }}
+            title="Open Display Mode in new window"
+            style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
+          >
+            Open Display
+          </ButtonPrimary>
+
+          <ButtonPrimary
+            onClick={() => setDisplayPreviewOpen((v) => !v)}
+            title="Toggle preview of what's showing on display"
+            style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
+          >
+            {displayPreviewOpen ? "Hide Preview" : "Show Preview"}
+          </ButtonPrimary>
+
+          <Button
+            onClick={() => {
+              sendToDisplay("standby", null);
+            }}
+            title="Clear the display (standby screen)"
+            style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
+          >
+            Clear Display
+          </Button>
+
+          <Button
+            onClick={() => {
+              sendToDisplay("closeImageOverlay", null);
+            }}
+            title="Close any image overlay on the display"
+            style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
+          >
+            Close Image
+          </Button>
+
+          {refreshBundle && (
+            <Button
+              onClick={refreshBundle}
+              title="Re-fetch questions from Airtable to get fresh audio/image URLs (does not affect scoring)"
+              style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
+            >
+              Refresh Questions
+            </Button>
+          )}
+
+          {/* Font size controls */}
+          <div
+            style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}
+          >
+            <Button
+              onClick={() => {
+                const newSize = Math.max(50, displayFontSize - 10);
+                setDisplayFontSize(newSize);
+                sendToDisplay("fontSize", { size: newSize });
+              }}
+              title="Decrease display text size"
+              style={{ fontSize: "0.9rem", padding: "0.5rem 0.5rem", flex: 1 }}
+            >
+              A-
+            </Button>
+            <Button
+              onClick={() => {
+                const newSize = Math.min(400, displayFontSize + 10);
+                setDisplayFontSize(newSize);
+                sendToDisplay("fontSize", { size: newSize });
+              }}
+              title="Increase display text size"
+              style={{ fontSize: "0.9rem", padding: "0.5rem 0.5rem", flex: 1 }}
+            >
+              A+
+            </Button>
+          </div>
+
+          {/* Custom messages */}
+          <div style={{ marginTop: "0.5rem" }}>
+            <div
+              style={{
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                marginBottom: "0.25rem",
+                color: theme.dark,
+              }}
+            >
+              Custom Messages:
+            </div>
+            {customMessages.map((msg, idx) => (
+              <div
+                key={idx}
+                style={{
+                  marginBottom: "0.25rem",
+                  display: "flex",
+                  gap: "0.25rem",
+                }}
+              >
+                <input
+                  type="text"
+                  value={msg}
+                  onChange={(e) => {
+                    const newMessages = [...customMessages];
+                    newMessages[idx] = e.target.value;
+                    setCustomMessages(newMessages);
+                  }}
+                  placeholder={`Message ${idx + 1}`}
+                  style={{
+                    flex: 1,
+                    fontSize: "0.8rem",
+                    padding: "0.3rem",
+                    border: `1px solid ${theme.gray.border}`,
+                    borderRadius: "4px",
+                  }}
+                />
+                <Button
+                  onClick={() => {
+                    if (msg.trim()) {
+                      sendToDisplay("message", { text: msg });
+                    }
+                  }}
+                  disabled={!msg.trim()}
+                  title="Push this message to display"
+                  style={{
+                    fontSize: "0.7rem",
+                    padding: "0.3rem 0.5rem",
+                    opacity: msg.trim() ? 1 : 0.5,
+                  }}
+                >
+                  📺
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Display Preview Panel */}
+      {displayPreviewOpen && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "1rem",
+            right: "1rem",
+            width: "400px",
+            height: "225px",
+            backgroundColor: "#000",
+            border: `3px solid ${theme.accent}`,
+            borderRadius: "8px",
+            zIndex: 2000,
+            overflow: "hidden",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: theme.accent,
+              color: "#fff",
+              padding: "0.5rem",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span>Display Preview (16:9)</span>
+            <button
+              onClick={() => setDisplayPreviewOpen(false)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#fff",
+                fontSize: "1.2rem",
+                cursor: "pointer",
+                padding: "0 0.5rem",
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <iframe
+            src={window.location.origin + "?display"}
+            title="Display Preview"
+            style={{
+              width: "100%",
+              height: "calc(100% - 35px)",
+              border: "none",
+              backgroundColor: "#000",
+            }}
+          />
         </div>
       )}
 
@@ -664,6 +990,27 @@ export default function ShowMode({
               }}
             />
 
+            {/* Push category to display button */}
+            {sendToDisplay && (
+              <div style={{ marginLeft: "1rem", marginBottom: "0.5rem" }}>
+                <Button
+                  onClick={() => {
+                    sendToDisplay("category", {
+                      categoryName: categoryName,
+                      categoryDescription: categoryDescription,
+                    });
+                  }}
+                  style={{
+                    fontSize: tokens.font.size,
+                    fontFamily: tokens.font.body,
+                  }}
+                  title="Push category name and description to display"
+                >
+                  Push category to display
+                </Button>
+              </div>
+            )}
+
             {/* Category images (optional) */}
             {catImagesArr.length > 0 && (
               <div style={{ marginTop: "0.25rem", marginLeft: "1rem" }}>
@@ -682,6 +1029,25 @@ export default function ShowMode({
                 >
                   Show category image{catImagesArr.length > 1 ? "s" : ""}
                 </Button>
+                {sendToDisplay && (
+                  <Button
+                    onClick={() => {
+                      sendToDisplay("imageOverlay", {
+                        images: catImagesArr.map((img) => ({ url: img.url })),
+                        currentIndex: 0,
+                      });
+                    }}
+                    style={{
+                      fontSize: tokens.font.size,
+                      fontFamily: tokens.font.body,
+                      marginBottom: "0.25rem",
+                      marginLeft: "0.5rem",
+                    }}
+                    title="Push category image to display"
+                  >
+                    Push image to display
+                  </Button>
+                )}
 
                 {visibleCategoryImages[groupKey] && (
                   <div
@@ -751,7 +1117,7 @@ export default function ShowMode({
                           }}
                         >
                           🎵{" "}
-                          {(audioObj.filename || "").replace(/\.[^/.]+$/, "")}
+                          {showDetails && (audioObj.filename || "").replace(/\.[^/.]+$/, "")}
                         </div>
                       </div>
                     )
@@ -851,7 +1217,7 @@ export default function ShowMode({
                   <React.Fragment key={q["Question ID"] || q["Question order"]}>
                     <div ref={questionRefs.current[questionKey]}>
                       {/* QUESTION TEXT */}
-                      <div
+                      <p
                         style={{
                           fontFamily: tokens.font.body,
                           fontSize: "1.125rem",
@@ -899,6 +1265,28 @@ export default function ShowMode({
                             <>Question {q["Question order"]}:</>
                           )}
                         </strong>
+                        {sendToDisplay && (
+                          <Button
+                            onClick={() => {
+                              // Never automatically push images - user must explicitly use "Push image to display"
+                              sendToDisplay("question", {
+                                questionNumber: q["Question order"],
+                                questionText: q["Question text"] || "",
+                                categoryName: categoryName,
+                                images: [],
+                              });
+                            }}
+                            style={{
+                              marginLeft: ".5rem",
+                              fontSize: ".75rem",
+                              padding: ".25rem .5rem",
+                              verticalAlign: "middle",
+                            }}
+                            title="Push this question to the display"
+                          >
+                            Push to display
+                          </Button>
+                        )}
                         {q._edited && (
                           <span
                             style={{
@@ -935,7 +1323,7 @@ export default function ShowMode({
                             }}
                           />
                         </div>
-                      </div>
+                      </p>
 
                       {/* FLAVOR TEXT */}
                       {q["Flavor text"]?.trim() && showDetails && (
@@ -1010,6 +1398,27 @@ export default function ShowMode({
                           >
                             Show image
                           </Button>
+                          {sendToDisplay && (
+                            <Button
+                              onClick={() => {
+                                const idx =
+                                  currentImageIndex[q["Question ID"]] || 0;
+                                sendToDisplay("imageOverlay", {
+                                  images: q.Images.map((img) => ({
+                                    url: img.url,
+                                  })),
+                                  currentIndex: idx,
+                                });
+                              }}
+                              style={{
+                                marginBottom: "0.25rem",
+                                marginLeft: "0.5rem",
+                              }}
+                              title="Push image to display"
+                            >
+                              Push image to display
+                            </Button>
+                          )}
 
                           {visibleImages[q["Question ID"]] && (
                             <div
@@ -1131,7 +1540,7 @@ export default function ShowMode({
                                     }}
                                   >
                                     🎵{" "}
-                                    {(audioObj.filename || "").replace(
+                                    {showDetails && (audioObj.filename || "").replace(
                                       /\.[^/.]+$/,
                                       ""
                                     )}
@@ -1141,6 +1550,35 @@ export default function ShowMode({
                           )}
                         </div>
                       )}
+
+                      {/* Calculate stats once for use in answer button and stats pill */}
+                      {(() => {
+                        const m = /^(\d+)/.exec(String(categoryId));
+                        const roundNum = m ? Number(m[1]) : 0;
+                        const qStats =
+                          statsByRoundAndQuestion[roundNum]?.[
+                            q["Show Question ID"]
+                          ];
+
+                        // Calculate points for pooled scoring modes (not pub)
+                        const qPointsPerTeam =
+                          qStats &&
+                          (scoringMode === "pooled" || scoringMode === "pooled-adaptive") &&
+                          qStats.correctCount > 0
+                            ? scoringMode === "pooled-adaptive"
+                              ? Math.round(
+                                  (Number(poolContribution) * qStats.activeTeamCount) /
+                                    qStats.correctCount
+                                )
+                              : Math.round(Number(poolPerQuestion) / qStats.correctCount)
+                            : null;
+
+                        // Store these in a way the button can access them
+                        // Stats are available for pub, pooled, and pooled-adaptive
+                        q._calculatedStats = qStats;
+                        q._calculatedPoints = qPointsPerTeam; // Only set for pooled modes
+                        return null;
+                      })()}
 
                       {/* ANSWER */}
                       {showDetails && (
@@ -1189,36 +1627,44 @@ export default function ShowMode({
                               ),
                             }}
                           />
+                          {sendToDisplay && (
+                            <Button
+                              onClick={() => {
+                                // Push question with answer and stats
+                                sendToDisplay("questionWithAnswer", {
+                                  questionNumber: q["Question order"],
+                                  questionText: q["Question text"] || "",
+                                  categoryName: categoryName,
+                                  images: [],
+                                  answer: q["Answer"] || "",
+                                  pointsPerTeam: q._calculatedPoints,
+                                  correctCount: q._calculatedStats?.correctCount || null,
+                                  totalTeams: q._calculatedStats?.totalTeams || null,
+                                });
+                              }}
+                              style={{
+                                marginLeft: ".5rem",
+                                fontSize: ".75rem",
+                                padding: ".25rem .5rem",
+                                verticalAlign: "middle",
+                              }}
+                              title="Push this question with answer to the display"
+                            >
+                              Push answer to display
+                            </Button>
+                          )}
                         </p>
                       )}
 
-                      {/* STATS PILL (teams correct, points) */}
+                      {/* STATS PILL (teams correct, points, SOLO) */}
                       {(() => {
-                        // Extract round number from categoryId
-                        const m = /^(\d+)/.exec(String(categoryId));
-                        const roundNum = m ? Number(m[1]) : 0;
-                        const qStats =
-                          statsByRoundAndQuestion[roundNum]?.[
-                            q["Show Question ID"]
-                          ];
-
-                        // Calculate points for pooled scoring modes (not pub)
-                        const qPointsPerTeam =
-                          qStats &&
-                          (scoringMode === "pooled" || scoringMode === "pooled-adaptive") &&
-                          qStats.correctCount > 0
-                            ? scoringMode === "pooled-adaptive"
-                              ? Math.round(
-                                  (Number(poolContribution) * qStats.activeTeamCount) /
-                                    qStats.correctCount
-                                )
-                              : Math.round(Number(poolPerQuestion) / qStats.correctCount)
-                            : null;
-
+                        // Use pre-calculated stats from above
                         const isTiebreaker =
                           (q["Question type"] || "") === "Tiebreaker";
+                        const stats = q._calculatedStats;
+                        const pointsPerTeam = q._calculatedPoints;
 
-                        if (!qStats || isTiebreaker) return null;
+                        if (!stats || isTiebreaker) return null;
 
                         return (
                           <div
@@ -1238,30 +1684,30 @@ export default function ShowMode({
                                 fontFamily: tokens.font.body,
                               }}
                             >
-                              {qStats.correctCount} / {qStats.totalTeams} teams correct
+                              {stats.correctCount} / {stats.totalTeams} teams correct
                             </span>
 
-                            {qPointsPerTeam !== null && (
-                              <span
-                                style={{
-                                  marginLeft: ".6rem",
-                                  fontSize: "1rem",
-                                }}
-                              >
+                            {pointsPerTeam !== null && (
                                 <span
                                   style={{
-                                    color: theme.accent,
-                                    fontWeight: 700,
+                                    marginLeft: ".6rem",
+                                    fontSize: "1rem",
                                   }}
                                 >
-                                  {qPointsPerTeam}
-                                </span>{" "}
-                                points per team
-                              </span>
-                            )}
+                                  <span
+                                    style={{
+                                      color: theme.accent,
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    {pointsPerTeam}
+                                  </span>{" "}
+                                  points per team
+                                </span>
+                              )}
 
-                            {qStats.correctCount === 1 &&
-                              qStats.correctTeams[0] && (
+                            {stats.correctCount === 1 &&
+                              stats.correctTeams[0] && (
                                 <span style={{ marginLeft: ".6rem" }}>
                                   <span
                                     style={{
@@ -1271,7 +1717,7 @@ export default function ShowMode({
                                   >
                                     SOLO:
                                   </span>{" "}
-                                  <strong>{qStats.correctTeams[0]}</strong>
+                                  <strong>{stats.correctTeams[0]}</strong>
                                 </span>
                               )}
                           </div>
@@ -1306,19 +1752,16 @@ export default function ShowMode({
           <div
             onMouseDown={(e) => e.stopPropagation()}
             style={{
-              width: "75vw",
-              height: "75vh",
-              maxWidth: "100vw",
-              maxHeight: "100vh",
+              width: "min(92vw, 720px)",
               background: "#fff",
               borderRadius: ".6rem",
               border: `1px solid ${theme.accent}`,
-              overflow: "auto",
-              resize: "both",
+              overflow: "hidden",
               boxShadow: "0 10px 30px rgba(0,0,0,.25)",
               fontFamily: tokens.font.body,
               display: "flex",
               flexDirection: "column",
+              maxHeight: "85vh",
             }}
           >
             <div
@@ -1340,12 +1783,11 @@ export default function ShowMode({
               value={hostScript}
               style={{
                 width: "100%",
-                flex: 1,
-                resize: "none",
+                minHeight: "40vh",
+                resize: "vertical",
                 padding: "1rem",
-                border: "none",
-                borderTop: "1px solid #ddd",
-                borderBottom: "1px solid #ddd",
+                border: "1px solid #ddd",
+                borderRadius: ".35rem",
                 fontFamily: tokens.font.body,
                 lineHeight: 1.35,
                 fontSize: "1.25rem",
@@ -1647,6 +2089,96 @@ export default function ShowMode({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Countdown Timer Floating Box */}
+      {showTimer && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+            zIndex: 999,
+          }}
+        >
+          <Draggable
+            nodeRef={timerRef}
+            defaultPosition={timerPosition}
+            onStop={(e, data) => {
+              const newPos = { x: data.x, y: data.y };
+              setTimerPosition(newPos);
+              localStorage.setItem("timerPosition", JSON.stringify(newPos));
+            }}
+          >
+            <div
+              ref={timerRef}
+              style={{
+                position: "absolute",
+                backgroundColor: theme.dark,
+                color: "#fff",
+                padding: "1rem",
+                borderRadius: "0.5rem",
+                border: `1px solid ${theme.accent}`,
+                boxShadow: "0 0 10px rgba(0,0,0,0.3)",
+                fontFamily: tokens.font.body,
+                width: "180px",
+                textAlign: "center",
+                pointerEvents: "auto",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "2rem",
+                  fontWeight: "bold",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                {timeLeft}s
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                <ButtonPrimary
+                  onClick={handleStartPause}
+                  style={{ width: "70px" }}
+                >
+                  {timerRunning ? "Pause" : "Start"}
+                </ButtonPrimary>
+                <Button onClick={handleReset} style={{ width: "70px" }}>
+                  Reset
+                </Button>
+              </div>
+
+              <input
+                type="number"
+                value={timerDuration}
+                onChange={handleDurationChange}
+                style={{
+                  width: "80px",
+                  padding: "0.25rem",
+                  borderRadius: "0.25rem",
+                  border: "1px solid #ccc",
+                  fontSize: "0.9rem",
+                  textAlign: "center",
+                }}
+                min={5}
+                max={300}
+              />
+            </div>
+          </Draggable>
         </div>
       )}
 

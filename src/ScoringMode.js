@@ -83,7 +83,7 @@ export default function ScoringMode({
     });
 
     return bySort.map((q) => ({
-      showQuestionId: q.id,
+      showQuestionId: q.showQuestionId || q.id, // prefer showQuestionId, fall back to id
       questionId: (Array.isArray(q.questionId) && q.questionId[0]) || null,
       order: q.questionOrder,
       text: q.questionText || "",
@@ -583,9 +583,7 @@ export default function ScoringMode({
 
   const toggleLeague = (showTeamId, isLeague) => {
     setTeams((prev) =>
-      prev.map((t) =>
-        t.showTeamId === showTeamId ? { ...t, isLeague } : t
-      )
+      prev.map((t) => (t.showTeamId === showTeamId ? { ...t, isLeague } : t))
     );
     try {
       window.sendLeagueToggle?.({
@@ -609,8 +607,10 @@ export default function ScoringMode({
   const toggleCell = useCallback(
     (showTeamId, showQuestionId) => {
       // Find team and question by ID instead of index to avoid stale closure issues
-      const t = teams.find(team => team.showTeamId === showTeamId);
-      const q = questions.find(question => question.showQuestionId === showQuestionId);
+      const t = teams.find((team) => team.showTeamId === showTeamId);
+      const q = questions.find(
+        (question) => question.showQuestionId === showQuestionId
+      );
       if (!t || !q) return;
 
       setGrid((prev) => {
@@ -659,7 +659,11 @@ export default function ScoringMode({
 
       if (e.key === "1" || e.key === " ") {
         e.preventDefault();
-        toggleCell(teamMode ? 0 : teamIdx, qIdx);
+        const team = teamMode ? renderTeams[0] : renderTeams[teamIdx];
+        const question = questions[qIdx];
+        if (team && question) {
+          toggleCell(team.showTeamId, question.showQuestionId);
+        }
       } else if (e.key === "Tab" && !e.shiftKey) {
         e.preventDefault();
         // If we're on the last grid row and there's a TB row, focus its input

@@ -52,7 +52,7 @@ export default function Sidebar({ children }) {
 
         {/* Menu content - only visible when open */}
         {isOpen && (
-          <div style={{ padding: "3rem 1rem 1rem 1rem" }}>{children}</div>
+          <div style={{ padding: "3.5rem 1rem 1rem 1rem" }}>{children}</div>
         )}
       </div>
 

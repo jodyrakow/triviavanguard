@@ -24,7 +24,7 @@ export default function ResultsMode({
   showBundle, // { rounds:[{round, questions:[...] }], showId? }
   selectedRoundId, // e.g. "1" (still used for UI text & fallback mode)
   cachedState, // { teams, grid, entryOrder } for current round (fallback)
-  cachedByRound = null, // NEW: { [roundId]: {teams, grid, entryOrder} } for all rounds (enables cumulative)
+  cachedByRound = null, // NEW: flat structure { teams, grid, entryOrder, ... } for all rounds
   scoringMode, // "pub" | "pooled"
   setScoringMode,
   pubPoints,
@@ -37,29 +37,32 @@ export default function ResultsMode({
   questionEdits = {}, // { [showQuestionId]: { question?, flavorText?, answer? } }
 }) {
   const roundNumber = Number(selectedRoundId);
-  const usingCumulative =
-    !!cachedByRound && Object.keys(cachedByRound).length > 0;
+  // New architecture is ALWAYS cumulative (all data in one flat structure)
+  const usingCumulative = true;
 
-  // ---- Build ALL questions across the whole show (used in cumulative mode) ----
+  // ---- Build ALL questions across the whole show ----
   const allQuestions = useMemo(() => {
     const rounds = Array.isArray(showBundle?.rounds) ? showBundle.rounds : [];
     const flat = [];
     for (const r of rounds) {
-      for (const q of r?.questions || []) {
-        flat.push({
-          round: r.round,
-          showQuestionId: q.id,
-          questionId: Array.isArray(q.questionId)
-            ? q.questionId[0]
-            : (q.questionId ?? null),
-          pubPerQuestion:
-            typeof q.pointsPerQuestion === "number"
-              ? q.pointsPerQuestion
-              : null,
-          questionType: q.questionType || null,
-          sortOrder: Number(q.sortOrder ?? 9999),
-          questionOrder: q.questionOrder,
-        });
+      // Questions are nested under categories
+      for (const cat of r?.categories || []) {
+        for (const q of cat?.questions || []) {
+          flat.push({
+            round: r.round,
+            showQuestionId: q.showQuestionId || q.id,
+            questionId: Array.isArray(q.questionId)
+              ? q.questionId[0]
+              : (q.questionId ?? null),
+            pubPerQuestion:
+              typeof q.pointsPerQuestion === "number"
+                ? q.pointsPerQuestion
+                : null,
+            questionType: q.questionType || null,
+            sortOrder: Number(q.sortOrder ?? 9999),
+            questionOrder: q.questionOrder,
+          });
+        }
       }
     }
     // same sort you use elsewhere: Sort Order, then alpha/num Question Order
@@ -77,85 +80,30 @@ export default function ResultsMode({
     return flat;
   }, [showBundle]);
 
-  // ---- Fallback: current round only (when not cumulative) ----
-  const roundObj = useMemo(() => {
-    if (usingCumulative) return null;
-    const rounds = Array.isArray(showBundle?.rounds) ? showBundle.rounds : [];
-    return rounds.find((r) => Number(r.round) === roundNumber) || null;
-  }, [usingCumulative, showBundle, roundNumber]);
-
+  // ---- Questions: Always use all questions (cumulative) ----
   const questions = useMemo(() => {
-    if (usingCumulative) return allQuestions; // we’ll skip TBs in scoring below
-    const raw = roundObj?.questions || [];
-    const bySort = [...raw].sort((a, b) => {
-      const sa = Number(a.sortOrder ?? 9999);
-      const sb = Number(b.sortOrder ?? 9999);
-      if (sa !== sb) return sa - sb;
-      const cvt = (val) => {
-        if (typeof val === "string" && /^[A-Z]$/i.test(val)) {
-          return val.toUpperCase().charCodeAt(0) - 64;
-        }
-        const n = parseInt(val, 10);
-        return isNaN(n) ? 9999 : 100 + n;
-      };
-      return cvt(a.questionOrder) - cvt(b.questionOrder);
-    });
-    return bySort.map((q) => ({
-      showQuestionId: q.id,
-      questionId: Array.isArray(q.questionId)
-        ? q.questionId[0]
-        : (q.questionId ?? null),
-      pubPerQuestion:
-        typeof q.pointsPerQuestion === "number" ? q.pointsPerQuestion : null,
-      questionType: q.questionType || null,
-    }));
-  }, [usingCumulative, allQuestions, roundObj]);
+    console.log('🔍 ResultsMode - allQuestions:', allQuestions);
+    console.log('🔍 ResultsMode - allQuestions.length:', allQuestions.length);
+    return allQuestions; // All questions from all rounds
+  }, [allQuestions]);
 
-  // ---- Teams (merge across rounds in cumulative mode; otherwise just current) ----
+  // ---- Teams (always use flat structure from cachedByRound) ----
   const teams = useMemo(() => {
-    if (!usingCumulative) {
-      const incoming = cachedState?.teams || [];
-      return incoming.map(normalizeTeam);
-    }
-    const byId = new Map();
-    for (const rid of Object.keys(cachedByRound)) {
-      const arr = cachedByRound[rid]?.teams || [];
-      for (const t of arr) {
-        const norm = normalizeTeam(t);
-        const prev = byId.get(norm.showTeamId);
-        if (!prev) {
-          byId.set(norm.showTeamId, norm);
-        } else {
-          // keep latest non-null bonus, name, teamId, and isLeague
-          byId.set(norm.showTeamId, {
-            ...prev,
-            teamName: norm.teamName || prev.teamName,
-            teamId: norm.teamId ?? prev.teamId,
-            showBonus:
-              typeof norm.showBonus === "number"
-                ? norm.showBonus
-                : prev.showBonus,
-            isLeague: norm.isLeague ?? prev.isLeague,
-          });
-        }
-      }
-    }
-    return [...byId.values()];
-  }, [usingCumulative, cachedState, cachedByRound]);
+    // Flat structure: teams are at top level
+    const incoming = cachedByRound?.teams || [];
+    console.log('🔍 ResultsMode - cachedByRound:', cachedByRound);
+    console.log('🔍 ResultsMode - incoming teams:', incoming);
+    console.log('🔍 ResultsMode - incoming.length:', incoming.length);
+    return incoming.map(normalizeTeam);
+  }, [cachedByRound]);
 
-  // ---- Cell accessor: reads from one grid (fallback) or all grids (cumulative) ----
+  // ---- Cell accessor: reads from grid (flat structure has single grid for all rounds) ----
   const getCell = useCallback(
     (showTeamId, showQuestionId) => {
-      if (!usingCumulative) {
-        return cachedState?.grid?.[showTeamId]?.[showQuestionId] || null;
-      }
-      for (const rid of Object.keys(cachedByRound)) {
-        const cell = cachedByRound[rid]?.grid?.[showTeamId]?.[showQuestionId];
-        if (cell) return cell;
-      }
-      return null;
+      // Flat structure: single grid at top level contains all questions from all rounds
+      return cachedByRound?.grid?.[showTeamId]?.[showQuestionId] || null;
     },
-    [usingCumulative, cachedState, cachedByRound]
+    [cachedByRound]
   );
 
   // ---- Show-wide TB detection (one per show) ----
@@ -164,14 +112,17 @@ export default function ResultsMode({
       ? showBundle.rounds
       : [];
     for (const r of allRounds) {
-      for (const q of r?.questions || []) {
-        const type = (q.questionType || "").toLowerCase();
-        if (
-          type === "tiebreaker" ||
-          String(q.questionOrder).toUpperCase() === "TB" ||
-          String(q.id || "").startsWith("tb-")
-        ) {
-          return q;
+      // Questions are nested under categories
+      for (const cat of r?.categories || []) {
+        for (const q of cat?.questions || []) {
+          const type = (q.questionType || "").toLowerCase();
+          if (
+            type === "tiebreaker" ||
+            String(q.questionOrder).toUpperCase() === "TB" ||
+            String(q.id || "").startsWith("tb-")
+          ) {
+            return q;
+          }
         }
       }
     }
@@ -615,7 +566,7 @@ export default function ResultsMode({
   const exportJSON = () => {
     const showName =
       showBundle?.showName ||
-      showBundle?.rounds?.[0]?.questions?.[0]?.showName ||
+      showBundle?.rounds?.[0]?.categories?.[0]?.questions?.[0]?.showName ||
       "show";
     const showDate =
       showBundle?.showDate || new Date().toISOString().split("T")[0];
@@ -756,7 +707,7 @@ export default function ResultsMode({
 
     const showName =
       showBundle?.showName ||
-      showBundle?.rounds?.[0]?.questions?.[0]?.showName ||
+      showBundle?.rounds?.[0]?.categories?.[0]?.questions?.[0]?.showName ||
       "Unknown Show";
     const showDate =
       showBundle?.showDate || new Date().toISOString().split("T")[0];
@@ -1039,8 +990,8 @@ export default function ResultsMode({
     }
   };
 
-  // --------- Guard rails (per-round only shows guidance; cumulative ignores it) ---------
-  const noRound = !usingCumulative && !roundObj;
+  // --------- Guard rails ---------
+  const noRound = false; // Always false since we're always in cumulative mode
   const noData = !teams.length && !questions.length;
 
   const finalStandingsRef = useRef(null);
