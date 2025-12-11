@@ -14,6 +14,8 @@ export default function SidebarMenu({
   setScriptOpen,
   hostInfo,
   setHostInfo,
+  displayControlsOpen,
+  setDisplayControlsOpen,
 }) {
   const [expandedSections, setExpandedSections] = useState({
     hostTools: false,
@@ -106,6 +108,129 @@ export default function SidebarMenu({
         </div>
         {expandedSections.hostTools && (
           <div style={contentStyle}>
+            {/* Host details (editable) */}
+            <div style={{ ...itemStyle, borderBottom: "none", paddingBottom: 0 }}>
+              <strong>👤 Host Details</strong>
+            </div>
+            <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>Host name:</span>
+                <input
+                  type="text"
+                  value={hostInfo?.host || ""}
+                  onChange={(e) => setHostInfo({ ...hostInfo, host: e.target.value })}
+                  placeholder="From show config"
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    fontFamily: tokens.font.body,
+                  }}
+                />
+              </label>
+              <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>Co-host name:</span>
+                <input
+                  type="text"
+                  value={hostInfo?.cohost || ""}
+                  onChange={(e) => setHostInfo({ ...hostInfo, cohost: e.target.value })}
+                  placeholder="From show config"
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    fontFamily: tokens.font.body,
+                  }}
+                />
+              </label>
+              <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>Location:</span>
+                <input
+                  type="text"
+                  value={hostInfo?.location || ""}
+                  onChange={(e) => setHostInfo({ ...hostInfo, location: e.target.value })}
+                  placeholder="From show config"
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    fontFamily: tokens.font.body,
+                  }}
+                />
+              </label>
+              <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>Total games tonight:</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={hostInfo?.totalGames || ""}
+                  onChange={(e) => setHostInfo({ ...hostInfo, totalGames: e.target.value })}
+                  placeholder="1"
+                  style={{
+                    width: "80px",
+                    padding: "0.35rem",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    fontFamily: tokens.font.body,
+                  }}
+                />
+              </label>
+              <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>Start times:</span>
+                <input
+                  type="text"
+                  value={hostInfo?.startTimesText || ""}
+                  onChange={(e) => setHostInfo({ ...hostInfo, startTimesText: e.target.value })}
+                  placeholder="7:00, 8:30"
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    fontFamily: tokens.font.body,
+                  }}
+                />
+              </label>
+              <label style={{ display: "block", marginBottom: "0.75rem" }}>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>Announcements:</span>
+                <textarea
+                  value={hostInfo?.announcements || ""}
+                  onChange={(e) => setHostInfo({ ...hostInfo, announcements: e.target.value })}
+                  placeholder="Specials, birthdays, upcoming events, etc."
+                  rows={2}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    fontFamily: tokens.font.body,
+                    resize: "vertical",
+                  }}
+                />
+              </label>
+            </div>
+
             {/* Timer controls */}
             <div style={{ ...itemStyle, borderBottom: "none", paddingBottom: 0 }}>
               <strong>⏱️ Timer</strong>
@@ -156,9 +281,12 @@ export default function SidebarMenu({
               📜 Show script
             </div>
 
-            {/* Display - placeholder for now */}
-            <div style={{ ...itemStyle, opacity: 0.5, cursor: "not-allowed" }}>
-              🖥️ Display (coming soon)
+            {/* Display controls toggle */}
+            <div
+              style={itemStyle}
+              onClick={() => setDisplayControlsOpen((prev) => !prev)}
+            >
+              🖥️ {displayControlsOpen ? "Hide display controls" : "Show display controls"}
             </div>
 
             {/* Show/hide all answers */}
@@ -253,30 +381,6 @@ export default function SidebarMenu({
               }}>
                 {showBundle?.config?.startTime || "Not set"}
               </div>
-            </div>
-
-            {/* Announcements */}
-            <div style={{ marginBottom: "0.75rem" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
-                📢 Announcements
-              </label>
-              <textarea
-                value={hostInfo?.announcements || ""}
-                onChange={(e) => setHostInfo({ ...hostInfo, announcements: e.target.value })}
-                placeholder="From Airtable"
-                rows={3}
-                style={{
-                  width: "100%",
-                  padding: "0.35rem",
-                  border: "1px solid rgba(255,255,255,0.3)",
-                  borderRadius: "4px",
-                  backgroundColor: "rgba(255,255,255,0.1)",
-                  color: "#fff",
-                  fontSize: "0.85rem",
-                  fontFamily: tokens.font.body,
-                  resize: "vertical",
-                }}
-              />
             </div>
           </div>
         )}

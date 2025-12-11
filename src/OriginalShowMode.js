@@ -1117,7 +1117,8 @@ export default function ShowMode({
                           }}
                         >
                           🎵{" "}
-                          {showDetails && (audioObj.filename || "").replace(/\.[^/.]+$/, "")}
+                          {showDetails &&
+                            (audioObj.filename || "").replace(/\.[^/.]+$/, "")}
                         </div>
                       </div>
                     )
@@ -1540,10 +1541,11 @@ export default function ShowMode({
                                     }}
                                   >
                                     🎵{" "}
-                                    {showDetails && (audioObj.filename || "").replace(
-                                      /\.[^/.]+$/,
-                                      ""
-                                    )}
+                                    {showDetails &&
+                                      (audioObj.filename || "").replace(
+                                        /\.[^/.]+$/,
+                                        ""
+                                      )}
                                   </div>
                                 </div>
                               )
@@ -1563,14 +1565,18 @@ export default function ShowMode({
                         // Calculate points for pooled scoring modes (not pub)
                         const qPointsPerTeam =
                           qStats &&
-                          (scoringMode === "pooled" || scoringMode === "pooled-adaptive") &&
+                          (scoringMode === "pooled" ||
+                            scoringMode === "pooled-adaptive") &&
                           qStats.correctCount > 0
                             ? scoringMode === "pooled-adaptive"
                               ? Math.round(
-                                  (Number(poolContribution) * qStats.activeTeamCount) /
+                                  (Number(poolContribution) *
+                                    qStats.activeTeamCount) /
                                     qStats.correctCount
                                 )
-                              : Math.round(Number(poolPerQuestion) / qStats.correctCount)
+                              : Math.round(
+                                  Number(poolPerQuestion) / qStats.correctCount
+                                )
                             : null;
 
                         // Store these in a way the button can access them
@@ -1638,8 +1644,10 @@ export default function ShowMode({
                                   images: [],
                                   answer: q["Answer"] || "",
                                   pointsPerTeam: q._calculatedPoints,
-                                  correctCount: q._calculatedStats?.correctCount || null,
-                                  totalTeams: q._calculatedStats?.totalTeams || null,
+                                  correctCount:
+                                    q._calculatedStats?.correctCount || null,
+                                  totalTeams:
+                                    q._calculatedStats?.totalTeams || null,
                                 });
                               }}
                               style={{
@@ -1684,27 +1692,28 @@ export default function ShowMode({
                                 fontFamily: tokens.font.body,
                               }}
                             >
-                              {stats.correctCount} / {stats.totalTeams} teams correct
+                              {stats.correctCount} / {stats.totalTeams} teams
+                              correct
                             </span>
 
                             {pointsPerTeam !== null && (
+                              <span
+                                style={{
+                                  marginLeft: ".6rem",
+                                  fontSize: "1rem",
+                                }}
+                              >
                                 <span
                                   style={{
-                                    marginLeft: ".6rem",
-                                    fontSize: "1rem",
+                                    color: theme.accent,
+                                    fontWeight: 700,
                                   }}
                                 >
-                                  <span
-                                    style={{
-                                      color: theme.accent,
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    {pointsPerTeam}
-                                  </span>{" "}
-                                  points per team
-                                </span>
-                              )}
+                                  {pointsPerTeam}
+                                </span>{" "}
+                                points per team
+                              </span>
+                            )}
 
                             {stats.correctCount === 1 &&
                               stats.correctTeams[0] && (

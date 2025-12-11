@@ -45,8 +45,9 @@ export default function ShowMode({
   addTiebreaker,
   scriptOpen,
   setScriptOpen,
+  sendToDisplay,
+  refreshBundle,
 }) {
-
   // Unified question editor modal state
   const [editingQuestion, setEditingQuestion] = React.useState(null);
   // { showQuestionId, questionText, flavorText, answer }
@@ -467,8 +468,16 @@ export default function ShowMode({
   const hostScript = useMemo(() => {
     const X = totalQuestions;
 
-    const hName = (hostInfo.host || showBundle?.config?.hostName || "your host").trim();
-    const cName = (hostInfo.cohost || showBundle?.config?.cohostName || "your co-host").trim();
+    const hName = (
+      hostInfo.host ||
+      showBundle?.config?.hostName ||
+      "your host"
+    ).trim();
+    const cName = (
+      hostInfo.cohost ||
+      showBundle?.config?.cohostName ||
+      "your co-host"
+    ).trim();
 
     // Prefer explicit location, else show config location, else parsed venue, else fallback
     const loc = (
@@ -481,11 +490,12 @@ export default function ShowMode({
     // Get total games count from Airtable config (preferred) or fall back to host input
     const totalGamesFromConfig = showBundle?.config?.totalGamesThisNight;
     const totalGamesInput = Number(hostInfo.totalGames);
-    const totalGames = Number.isFinite(totalGamesFromConfig) && totalGamesFromConfig > 0
-      ? totalGamesFromConfig
-      : Number.isFinite(totalGamesInput) && totalGamesInput > 0
-        ? totalGamesInput
-        : 1;
+    const totalGames =
+      Number.isFinite(totalGamesFromConfig) && totalGamesFromConfig > 0
+        ? totalGamesFromConfig
+        : Number.isFinite(totalGamesInput) && totalGamesInput > 0
+          ? totalGamesInput
+          : 1;
 
     const isMultiGame = totalGames >= 2;
 
@@ -496,7 +506,8 @@ export default function ShowMode({
       .map((t) => t.trim())
       .filter(Boolean);
 
-    const startTimes = configStartTimes.length > 0 ? configStartTimes : manualStartTimes;
+    const startTimes =
+      configStartTimes.length > 0 ? configStartTimes : manualStartTimes;
 
     // Determine time of day
     const timeOfDay = "tonight"; // Could be "today" or "tonight" based on show time
@@ -570,7 +581,8 @@ export default function ShowMode({
 
   return (
     <>
-      {Object.keys(groupedQuestions).length > 0 && (
+      {/* Add Tiebreaker button (if applicable) */}
+      {Object.keys(groupedQuestions).length > 0 && !hasTiebreaker && isFinalRound && addTiebreaker && (
         <div
           style={{
             position: "fixed",
@@ -578,25 +590,14 @@ export default function ShowMode({
             top: "1rem",
             zIndex: 1000,
             pointerEvents: "auto",
-            display: "flex",
-            gap: ".5rem",
           }}
         >
           <ButtonPrimary
-            onClick={() => setHostModalOpen(true)}
-            title="Set your names & location"
+            onClick={() => setAddingTiebreaker(true)}
+            title="Add a tiebreaker question to the final round"
           >
-            Set show details
+            + Add Tiebreaker
           </ButtonPrimary>
-
-          {!hasTiebreaker && isFinalRound && addTiebreaker && (
-            <ButtonPrimary
-              onClick={() => setAddingTiebreaker(true)}
-              title="Add a tiebreaker question to the final round"
-            >
-              + Add Tiebreaker
-            </ButtonPrimary>
-          )}
         </div>
       )}
 
@@ -664,6 +665,27 @@ export default function ShowMode({
               }}
             />
 
+            {/* Push category to display button */}
+            {sendToDisplay && (
+              <div style={{ marginLeft: "1rem", marginBottom: "0.5rem" }}>
+                <Button
+                  onClick={() => {
+                    sendToDisplay("category", {
+                      categoryName: categoryName,
+                      categoryDescription: categoryDescription,
+                    });
+                  }}
+                  style={{
+                    fontSize: tokens.font.size,
+                    fontFamily: tokens.font.body,
+                  }}
+                  title="Push category name and description to display"
+                >
+                  Push category to display
+                </Button>
+              </div>
+            )}
+
             {/* Category images (optional) */}
             {catImagesArr.length > 0 && (
               <div style={{ marginTop: "0.25rem", marginLeft: "1rem" }}>
@@ -682,6 +704,25 @@ export default function ShowMode({
                 >
                   Show category image{catImagesArr.length > 1 ? "s" : ""}
                 </Button>
+                {sendToDisplay && (
+                  <Button
+                    onClick={() => {
+                      sendToDisplay("imageOverlay", {
+                        images: catImagesArr.map((img) => ({ url: img.url })),
+                        currentIndex: 0,
+                      });
+                    }}
+                    style={{
+                      fontSize: tokens.font.size,
+                      fontFamily: tokens.font.body,
+                      marginBottom: "0.25rem",
+                      marginLeft: "0.5rem",
+                    }}
+                    title="Push category image to display"
+                  >
+                    Push image to display
+                  </Button>
+                )}
 
                 {visibleCategoryImages[groupKey] && (
                   <div
@@ -899,6 +940,28 @@ export default function ShowMode({
                             <>Question {q["Question order"]}:</>
                           )}
                         </strong>
+                        {sendToDisplay && (
+                          <Button
+                            onClick={() => {
+                              // Never automatically push images - user must explicitly use "Push image to display"
+                              sendToDisplay("question", {
+                                questionNumber: q["Question order"],
+                                questionText: q["Question text"] || "",
+                                categoryName: categoryName,
+                                images: [],
+                              });
+                            }}
+                            style={{
+                              marginLeft: ".5rem",
+                              fontSize: ".75rem",
+                              padding: ".25rem .5rem",
+                              verticalAlign: "middle",
+                            }}
+                            title="Push this question to the display"
+                          >
+                            Push to display
+                          </Button>
+                        )}
                         {q._edited && (
                           <span
                             style={{
@@ -1010,6 +1073,27 @@ export default function ShowMode({
                           >
                             Show image
                           </Button>
+                          {sendToDisplay && (
+                            <Button
+                              onClick={() => {
+                                const idx =
+                                  currentImageIndex[q["Question ID"]] || 0;
+                                sendToDisplay("imageOverlay", {
+                                  images: q.Images.map((img) => ({
+                                    url: img.url,
+                                  })),
+                                  currentIndex: idx,
+                                });
+                              }}
+                              style={{
+                                marginBottom: "0.25rem",
+                                marginLeft: "0.5rem",
+                              }}
+                              title="Push image to display"
+                            >
+                              Push image to display
+                            </Button>
+                          )}
 
                           {visibleImages[q["Question ID"]] && (
                             <div
@@ -1189,6 +1273,34 @@ export default function ShowMode({
                               ),
                             }}
                           />
+                          {sendToDisplay && (
+                            <Button
+                              onClick={() => {
+                                // Push question with answer and stats
+                                sendToDisplay("questionWithAnswer", {
+                                  questionNumber: q["Question order"],
+                                  questionText: q["Question text"] || "",
+                                  categoryName: categoryName,
+                                  images: [],
+                                  answer: q["Answer"] || "",
+                                  pointsPerTeam: q._calculatedPoints,
+                                  correctCount:
+                                    q._calculatedStats?.correctCount || null,
+                                  totalTeams:
+                                    q._calculatedStats?.totalTeams || null,
+                                });
+                              }}
+                              style={{
+                                marginLeft: ".5rem",
+                                fontSize: ".75rem",
+                                padding: ".25rem .5rem",
+                                verticalAlign: "middle",
+                              }}
+                              title="Push this question with answer to the display"
+                            >
+                              Push answer to display
+                            </Button>
+                          )}
                         </p>
                       )}
 
@@ -1205,14 +1317,18 @@ export default function ShowMode({
                         // Calculate points for pooled scoring modes (not pub)
                         const qPointsPerTeam =
                           qStats &&
-                          (scoringMode === "pooled" || scoringMode === "pooled-adaptive") &&
+                          (scoringMode === "pooled" ||
+                            scoringMode === "pooled-adaptive") &&
                           qStats.correctCount > 0
                             ? scoringMode === "pooled-adaptive"
                               ? Math.round(
-                                  (Number(poolContribution) * qStats.activeTeamCount) /
+                                  (Number(poolContribution) *
+                                    qStats.activeTeamCount) /
                                     qStats.correctCount
                                 )
-                              : Math.round(Number(poolPerQuestion) / qStats.correctCount)
+                              : Math.round(
+                                  Number(poolPerQuestion) / qStats.correctCount
+                                )
                             : null;
 
                         const isTiebreaker =
@@ -1238,7 +1354,8 @@ export default function ShowMode({
                                 fontFamily: tokens.font.body,
                               }}
                             >
-                              {qStats.correctCount} / {qStats.totalTeams} teams correct
+                              {qStats.correctCount} / {qStats.totalTeams} teams
+                              correct
                             </span>
 
                             {qPointsPerTeam !== null && (
