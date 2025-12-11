@@ -222,9 +222,11 @@ export default function ShowMode({
     return grouped;
   }, [displayRounds]);
 
-  const isTB = (q) =>
-    String(q?.questionType || q?.["Question type"] || "").toLowerCase() ===
-    "tiebreaker";
+  const isTB = (q) => {
+    const questionType = String(q?.questionType || q?.["Question type"] || "").toLowerCase();
+    const questionOrder = String(q?.questionOrder || q?.["Question order"] || "").toUpperCase();
+    return questionType === "tiebreaker" || questionOrder === "TB";
+  };
 
   // Prefer upstream if provided
   const groupedQuestions =
@@ -582,24 +584,27 @@ export default function ShowMode({
   return (
     <>
       {/* Add Tiebreaker button (if applicable) */}
-      {Object.keys(groupedQuestions).length > 0 && !hasTiebreaker && isFinalRound && addTiebreaker && (
-        <div
-          style={{
-            position: "fixed",
-            left: "1rem",
-            top: "1rem",
-            zIndex: 1000,
-            pointerEvents: "auto",
-          }}
-        >
-          <ButtonPrimary
-            onClick={() => setAddingTiebreaker(true)}
-            title="Add a tiebreaker question to the final round"
+      {Object.keys(groupedQuestions).length > 0 &&
+        !hasTiebreaker &&
+        isFinalRound &&
+        addTiebreaker && (
+          <div
+            style={{
+              position: "fixed",
+              left: "1rem",
+              top: "1rem",
+              zIndex: 1000,
+              pointerEvents: "auto",
+            }}
           >
-            + Add Tiebreaker
-          </ButtonPrimary>
-        </div>
-      )}
+            <ButtonPrimary
+              onClick={() => setAddingTiebreaker(true)}
+              title="Add a tiebreaker question to the final round"
+            >
+              + Add Tiebreaker
+            </ButtonPrimary>
+          </div>
+        )}
 
       {sortedGroupedEntries.map(([categoryId, catData], index) => {
         const { categoryInfo, questions } = catData;
@@ -923,7 +928,7 @@ export default function ShowMode({
                         }}
                       >
                         <strong>
-                          {(q["Question type"] || "") === "Tiebreaker" ? (
+                          {isTB(q) ? (
                             <>
                               <span
                                 aria-hidden="true"
@@ -934,7 +939,7 @@ export default function ShowMode({
                               >
                                 🎯
                               </span>{" "}
-                              Tiebreaker question:
+                              Question:
                             </>
                           ) : (
                             <>Question {q["Question order"]}:</>

@@ -82,8 +82,8 @@ export default function ResultsMode({
 
   // ---- Questions: Always use all questions (cumulative) ----
   const questions = useMemo(() => {
-    console.log('🔍 ResultsMode - allQuestions:', allQuestions);
-    console.log('🔍 ResultsMode - allQuestions.length:', allQuestions.length);
+    console.log("🔍 ResultsMode - allQuestions:", allQuestions);
+    console.log("🔍 ResultsMode - allQuestions.length:", allQuestions.length);
     return allQuestions; // All questions from all rounds
   }, [allQuestions]);
 
@@ -91,9 +91,9 @@ export default function ResultsMode({
   const teams = useMemo(() => {
     // Flat structure: teams are at top level
     const incoming = cachedByRound?.teams || [];
-    console.log('🔍 ResultsMode - cachedByRound:', cachedByRound);
-    console.log('🔍 ResultsMode - incoming teams:', incoming);
-    console.log('🔍 ResultsMode - incoming.length:', incoming.length);
+    console.log("🔍 ResultsMode - cachedByRound:", cachedByRound);
+    console.log("🔍 ResultsMode - incoming teams:", incoming);
+    console.log("🔍 ResultsMode - incoming.length:", incoming.length);
     return incoming.map(normalizeTeam);
   }, [cachedByRound]);
 
@@ -111,8 +111,22 @@ export default function ResultsMode({
     const allRounds = Array.isArray(showBundle?.rounds)
       ? showBundle.rounds
       : [];
+    console.log("🔍 ResultsMode - Searching for tiebreaker in rounds:", allRounds);
     for (const r of allRounds) {
-      // Questions are nested under categories
+      console.log("🔍 ResultsMode - Round", r.round, "questions array:", r?.questions);
+      // Check flat questions array (where host-added tiebreakers are stored)
+      for (const q of r?.questions || []) {
+        const type = (q.questionType || "").toLowerCase();
+        if (
+          type === "tiebreaker" ||
+          String(q.questionOrder).toUpperCase() === "TB" ||
+          String(q.id || "").startsWith("tb-")
+        ) {
+          console.log("🎯 ResultsMode - FOUND TIEBREAKER in flat questions:", q);
+          return q;
+        }
+      }
+      // Also check nested categories structure (for Airtable tiebreakers)
       for (const cat of r?.categories || []) {
         for (const q of cat?.questions || []) {
           const type = (q.questionType || "").toLowerCase();
@@ -121,42 +135,66 @@ export default function ResultsMode({
             String(q.questionOrder).toUpperCase() === "TB" ||
             String(q.id || "").startsWith("tb-")
           ) {
+            console.log("🎯 ResultsMode - FOUND TIEBREAKER in categories:", q);
             return q;
           }
         }
       }
     }
+    console.log("❌ ResultsMode - NO TIEBREAKER FOUND");
     return null;
   }, [showBundle]);
 
   const tbNumber = React.useMemo(() => {
-    if (!tbQ) return null;
+    console.log("🔍 ResultsMode - tbNumber extraction - tbQ:", tbQ);
+    if (!tbQ) {
+      console.log("❌ ResultsMode - tbNumber is null because tbQ is null");
+      return null;
+    }
+
+    console.log("🔍 ResultsMode - tbQ.tiebreakerNumber:", tbQ.tiebreakerNumber);
+    console.log("🔍 ResultsMode - tbQ.answer:", tbQ.answer);
+    console.log("🔍 ResultsMode - tbQ.answerText:", tbQ.answerText);
+    console.log("🔍 ResultsMode - tbQ.correctAnswer:", tbQ.correctAnswer);
 
     // 1) explicit numeric wins
     if (
       typeof tbQ.tiebreakerNumber === "number" &&
       Number.isFinite(tbQ.tiebreakerNumber)
     ) {
+      console.log("✅ ResultsMode - Using tiebreakerNumber (numeric):", tbQ.tiebreakerNumber);
       return tbQ.tiebreakerNumber;
     }
 
     // 2) try common string-ish fields (handle arrays too)
     const pick = (v) => (Array.isArray(v) ? v[0] : v);
+    // Filter out empty strings, not just null/undefined
     const raw =
-      pick(tbQ.tiebreakerNumber) ??
-      pick(tbQ.answer) ??
-      tbQ.answerText ??
-      tbQ.correctAnswer ??
+      pick(tbQ.tiebreakerNumber)?.trim() ||
+      pick(tbQ.answer)?.trim() ||
+      tbQ.answerText?.trim() ||
+      tbQ.correctAnswer?.trim() ||
       null;
 
-    if (raw == null) return null;
+    console.log("🔍 ResultsMode - raw value after pick:", raw);
+
+    if (!raw) {
+      console.log("❌ ResultsMode - raw is falsy, returning null");
+      return null;
+    }
 
     // 💡 key fix: remove thousands separators/spaces before matching the number
     const cleaned = String(raw).replace(/[\s,]/g, "");
+    console.log("🔍 ResultsMode - cleaned value:", cleaned);
     const m = cleaned.match(/-?\d+(?:\.\d+)?/);
-    if (!m) return null;
+    console.log("🔍 ResultsMode - regex match:", m);
+    if (!m) {
+      console.log("❌ ResultsMode - No number found in cleaned string");
+      return null;
+    }
 
     const n = Number(m[0]);
+    console.log("✅ ResultsMode - Extracted number:", n);
     return Number.isFinite(n) ? n : null;
   }, [tbQ]);
 
@@ -174,7 +212,10 @@ export default function ResultsMode({
   // Convert shared prizes string to array
   const prizes = useMemo(() => {
     if (!prizesString) return [];
-    return prizesString.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    return prizesString
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
   }, [prizesString]);
 
   const prizeCount = prizes.length;
@@ -947,7 +988,10 @@ export default function ResultsMode({
             editsUpdated = editsJson.updatedCount || 0;
             console.log("Question edits updated:", editsJson);
           } else {
-            console.error("Failed to update question edits:", await editsRes.text());
+            console.error(
+              "Failed to update question edits:",
+              await editsRes.text()
+            );
           }
         } catch (e) {
           console.error("Error updating question edits:", e);
@@ -1340,35 +1384,35 @@ export default function ResultsMode({
               !archiveStatus.isFinalized && !isArchiving
                 ? colors.gray.border
                 : isPublishing
-                ? "#ffe8d8"
-                : theme.accent,
+                  ? "#ffe8d8"
+                  : theme.accent,
             color:
               !archiveStatus.isFinalized && !isArchiving
                 ? colors.gray.text
                 : isPublishing
-                ? theme.accent
-                : colors.white,
+                  ? theme.accent
+                  : colors.white,
             borderRadius: ".35rem",
             cursor:
               !archiveStatus.isFinalized && !isArchiving
                 ? "not-allowed"
                 : isPublishing
-                ? "not-allowed"
-                : "pointer",
+                  ? "not-allowed"
+                  : "pointer",
             fontFamily: tokens.font.body,
             opacity:
               !archiveStatus.isFinalized && !isArchiving
                 ? 0.6
                 : isPublishing
-                ? 0.9
-                : 1,
+                  ? 0.9
+                  : 1,
           }}
           title={
             !archiveStatus.isFinalized && !isArchiving
               ? "⚠️ You must archive the show first (click 'Archive Show' button above)"
               : isPublishing
-              ? "Publishing in progress… please wait"
-              : "Create ShowTeams as needed and write all Scores for this show"
+                ? "Publishing in progress… please wait"
+                : "Create ShowTeams as needed and write all Scores for this show"
           }
         >
           {isPublishing ? "⏳ Publishing…" : "Publish results to Airtable"}

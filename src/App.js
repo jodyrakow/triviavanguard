@@ -9,6 +9,7 @@ import ScoringMode from "./ScoringMode";
 import ResultsMode from "./ResultsMode";
 import Sidebar from "./Sidebar";
 import SidebarMenu from "./SidebarMenu";
+import AnswerKeyPanel from "./AnswerKeyPanel";
 import logo from "./trivia-logo.png";
 import {
   ButtonTab,
@@ -143,11 +144,14 @@ export default function App() {
   const [displayFontSize, setDisplayFontSize] = useState(100);
   const [customMessages, setCustomMessages] = useState(["", "", ""]);
 
+  // Answer Key state
+  const [showAnswerKey, setShowAnswerKey] = useState(false);
+
   // BroadcastChannel for sending to display window
   const displayChannelRef = useRef(null);
   useEffect(() => {
     if (typeof BroadcastChannel !== "undefined") {
-      displayChannelRef.current = new BroadcastChannel("trivia-display");
+      displayChannelRef.current = new BroadcastChannel("tv:display");
     }
     return () => {
       displayChannelRef.current?.close();
@@ -156,7 +160,8 @@ export default function App() {
 
   // Send message to display window
   const sendToDisplay = (type, data) => {
-    displayChannelRef.current?.postMessage({ type, data });
+    if (!displayChannelRef.current) return;
+    displayChannelRef.current.postMessage({ type, content: data });
   };
 
   // Global scoring settings
@@ -185,7 +190,13 @@ export default function App() {
     setScoringCache((prev) => {
       const show = prev[selectedShowId] || DEFAULT_SHOW_STATE;
 
-      const nextShow = { ...show, scoringMode, pubPoints, poolPerQuestion, poolContribution };
+      const nextShow = {
+        ...show,
+        scoringMode,
+        pubPoints,
+        poolPerQuestion,
+        poolContribution,
+      };
 
       const next = {
         ...prev,
@@ -233,7 +244,13 @@ export default function App() {
       } catch {}
       return next;
     });
-  }, [scoringMode, selectedShowId, poolPerQuestion, pubPoints, poolContribution]);
+  }, [
+    scoringMode,
+    selectedShowId,
+    poolPerQuestion,
+    pubPoints,
+    poolContribution,
+  ]);
 
   useEffect(() => {
     const savedPosition = localStorage.getItem("timerPosition");
@@ -493,9 +510,7 @@ export default function App() {
         const nextTeams = (show.teams || []).filter(
           (t) => t.showTeamId !== teamId
         );
-        const nextEntry = (show.entryOrder || []).filter(
-          (id) => id !== teamId
-        );
+        const nextEntry = (show.entryOrder || []).filter((id) => id !== teamId);
 
         const next = {
           ...prev,
@@ -636,7 +651,8 @@ export default function App() {
     // QUESTION EDIT
     ch.on("broadcast", { event: "questionEdit" }, (msg) => {
       const data = msg?.payload ?? msg;
-      const { showId, showQuestionId, question, flavorText, answer } = data || {};
+      const { showId, showQuestionId, question, flavorText, answer } =
+        data || {};
       if (!showId || !showQuestionId) return;
       if (showId !== currentShowIdRef.current) return;
 
@@ -660,7 +676,10 @@ export default function App() {
         };
 
         try {
-          localStorage.setItem("trivia.questionEdits.backup", JSON.stringify(next));
+          localStorage.setItem(
+            "trivia.questionEdits.backup",
+            JSON.stringify(next)
+          );
         } catch {}
         return next;
       });
@@ -707,8 +726,10 @@ export default function App() {
     window.sendTeamAdd = (payload) => window.tvSend("teamAdd", payload);
     window.sendTeamRename = (payload) => window.tvSend("teamRename", payload);
     window.sendTeamRemove = (payload) => window.tvSend("teamRemove", payload);
-    window.sendQuestionEdit = (payload) => window.tvSend("questionEdit", payload);
-    window.sendTiebreakerAdded = (payload) => window.tvSend("tiebreakerAdded", payload);
+    window.sendQuestionEdit = (payload) =>
+      window.tvSend("questionEdit", payload);
+    window.sendTiebreakerAdded = (payload) =>
+      window.tvSend("tiebreakerAdded", payload);
 
     setRtStatus("SUBSCRIBING");
     ch.subscribe((status) => {
@@ -781,13 +802,13 @@ export default function App() {
           const loadedData = json.payload ?? prevShow;
 
           // Only override scoring settings if the show has actual scoring data saved
-          const gridHasData = loadedData?.grid && Object.keys(loadedData.grid).length > 0;
+          const gridHasData =
+            loadedData?.grid && Object.keys(loadedData.grid).length > 0;
           const showHasBeenStarted = gridHasData && !!json.payload;
 
           if (showHasBeenStarted) {
             // Update local scoring state from loaded Supabase data (show in progress)
-            if (loadedData.scoringMode)
-              setScoringMode(loadedData.scoringMode);
+            if (loadedData.scoringMode) setScoringMode(loadedData.scoringMode);
             if (loadedData.pubPoints !== undefined)
               setPubPoints(Number(loadedData.pubPoints));
             if (loadedData.poolPerQuestion !== undefined)
@@ -891,52 +912,66 @@ export default function App() {
 
           // Only set scoring mode if it's provided and valid
           if (config.scoringMode) {
-            const mode = config.scoringMode.toLowerCase().replace(/\s*\(.*?\)\s*/g, '');
-            if (mode === 'pub') {
-              setScoringMode('pub');
-            } else if (mode === 'pooled' || mode === 'pooledstatic') {
-              setScoringMode('pooled');
-            } else if (mode === 'adaptive' || mode === 'pooledadaptive') {
-              setScoringMode('pooled-adaptive');
+            const mode = config.scoringMode
+              .toLowerCase()
+              .replace(/\s*\(.*?\)\s*/g, "");
+            if (mode === "pub") {
+              setScoringMode("pub");
+            } else if (mode === "pooled" || mode === "pooledstatic") {
+              setScoringMode("pooled");
+            } else if (mode === "adaptive" || mode === "pooledadaptive") {
+              setScoringMode("pooled-adaptive");
             }
           }
 
           // Set pub points if provided
-          if (typeof config.pubPoints === 'number') {
+          if (typeof config.pubPoints === "number") {
             setPubPoints(config.pubPoints);
           }
 
           // Set pool per question if provided
-          if (typeof config.poolPerQuestion === 'number') {
+          if (typeof config.poolPerQuestion === "number") {
             setPoolPerQuestion(config.poolPerQuestion);
           }
 
           // Set pool contribution if provided
-          if (typeof config.poolContribution === 'number') {
+          if (typeof config.poolContribution === "number") {
             setPoolContribution(config.poolContribution);
           }
 
           // Set timer default if provided
-          if (typeof config.timerDefault === 'number') {
+          if (typeof config.timerDefault === "number") {
             setTimerDuration(config.timerDefault);
             setTimeLeft(config.timerDefault);
           }
 
           // Pre-populate hostInfo from Airtable (always sync from show config)
-          const currentHostInfo = composedCachedState?.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
+          const currentHostInfo =
+            composedCachedState?.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
           const updatedHostInfo = { ...currentHostInfo };
           let hasChanges = false;
 
           // Update if we have a value and it's different (including empty -> filled)
-          if (config.hostName && (!currentHostInfo.host || config.hostName !== currentHostInfo.host)) {
+          if (
+            config.hostName &&
+            (!currentHostInfo.host || config.hostName !== currentHostInfo.host)
+          ) {
             updatedHostInfo.host = config.hostName;
             hasChanges = true;
           }
-          if (config.cohostName && (!currentHostInfo.cohost || config.cohostName !== currentHostInfo.cohost)) {
+          if (
+            config.cohostName &&
+            (!currentHostInfo.cohost ||
+              config.cohostName !== currentHostInfo.cohost)
+          ) {
             updatedHostInfo.cohost = config.cohostName;
             hasChanges = true;
           }
-          if (config.startTime && (!currentHostInfo.startTimesText || config.startTime !== currentHostInfo.startTimesText)) {
+          if (
+            config.startTime &&
+            (!currentHostInfo.startTimesText ||
+              config.startTime !== currentHostInfo.startTimesText)
+          ) {
             updatedHostInfo.startTimesText = config.startTime;
             hasChanges = true;
           }
@@ -1084,7 +1119,9 @@ export default function App() {
           return {
             ...q,
             ...(edit.question !== undefined && { questionText: edit.question }),
-            ...(edit.flavorText !== undefined && { flavorText: edit.flavorText }),
+            ...(edit.flavorText !== undefined && {
+              flavorText: edit.flavorText,
+            }),
             ...(edit.answer !== undefined && { answer: edit.answer }),
             _edited: true, // flag for UI to show indicator
           };
@@ -1129,7 +1166,10 @@ export default function App() {
       };
 
       try {
-        localStorage.setItem("trivia.questionEdits.backup", JSON.stringify(next));
+        localStorage.setItem(
+          "trivia.questionEdits.backup",
+          JSON.stringify(next)
+        );
       } catch {}
 
       // Broadcast to other hosts
@@ -1265,10 +1305,14 @@ export default function App() {
           timerDuration={timerDuration}
           setTimerDuration={setTimerDuration}
           setScriptOpen={setScriptOpen}
-          hostInfo={composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo}
+          hostInfo={
+            composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo
+          }
           setHostInfo={(val) => patchShared({ hostInfo: val })}
           displayControlsOpen={displayControlsOpen}
           setDisplayControlsOpen={setDisplayControlsOpen}
+          setShowAnswerKey={setShowAnswerKey}
+          refreshBundle={refreshBundle}
         />
       </Sidebar>
 
@@ -1289,15 +1333,11 @@ export default function App() {
           boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
         }}
       >
-        <img
-          src={logo}
-          alt="TriviaVanguard"
-          style={{ height: "68px" }}
-        />
+        <img src={logo} alt="TriviaVanguard" style={{ height: "68px" }} />
       </div>
 
       {/* Display Controls Panel (app-level, available in all modes) */}
-      {displayControlsOpen && selectedShowId && (
+      {displayControlsOpen && (
         <div
           style={{
             position: "fixed",
@@ -1316,7 +1356,14 @@ export default function App() {
             border: `2px solid ${colors.accent}`,
           }}
         >
-          <div style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.5rem", color: colors.dark }}>
+          <div
+            style={{
+              fontSize: "1rem",
+              fontWeight: 600,
+              marginBottom: "0.5rem",
+              color: colors.dark,
+            }}
+          >
             Display Controls
           </div>
 
@@ -1365,16 +1412,10 @@ export default function App() {
             Close Image
           </Button>
 
-          <Button
-            onClick={refreshBundle}
-            title="Re-fetch questions from Airtable to get fresh audio/image URLs (does not affect scoring)"
-            style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
-          >
-            Refresh Questions
-          </Button>
-
           {/* Font size controls */}
-          <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+          <div
+            style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}
+          >
             <Button
               onClick={() => {
                 const newSize = Math.max(50, displayFontSize - 10);
@@ -1516,6 +1557,41 @@ export default function App() {
         </div>
       )}
 
+      {/* Answer Key Modal (app-level) */}
+      {showAnswerKey && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            zIndex: 10000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+          onClick={() => setShowAnswerKey(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "600px",
+              width: "100%",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
+            <AnswerKeyPanel
+              showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
+              onClose={() => setShowAnswerKey(false)}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Main content area */}
       <div
         style={{
@@ -1526,126 +1602,69 @@ export default function App() {
           marginLeft: "50px", // Offset for sidebar
         }}
       >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "left",
-          gap: tokens.spacing.sm,
-          marginBottom: tokens.spacing.sm,
-        }}
-      >
-        <ButtonTab
-          active={activeMode === "show"}
-          onClick={() => setActiveMode("show")}
-        >
-          Questions & answers
-        </ButtonTab>
-
-        <ButtonTab
-          active={activeMode === "score"}
-          onClick={() => setActiveMode("score")}
-        >
-          Scores
-        </ButtonTab>
-
-        <ButtonTab
-          active={activeMode === "results"}
-          onClick={() => setActiveMode("results")}
-        >
-          Results
-        </ButtonTab>
-      </div>
-      <div style={{ fontSize: ".9rem", opacity: 0.85, display: "flex", alignItems: "center", gap: "0.35rem", marginLeft: "0.25rem" }}>
-        <span
+        <div
           style={{
-            display: "inline-block",
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            backgroundColor: rtStatus === "SUBSCRIBED" ? "#22c55e" : rtStatus === "SUBSCRIBING" ? "#eab308" : "#ef4444",
-          }}
-        />
-        Multi-host sync: <strong>{rtStatus === "SUBSCRIBED" ? "Active" : rtStatus === "SUBSCRIBING" ? "Connecting..." : "Offline"}</strong>
-      </div>
-
-      <div>
-        <label
-          style={{
-            fontSize: "1.25rem",
-            color: colors.dark,
-            marginRight: tokens.spacing.md,
+            display: "flex",
+            justifyContent: "left",
+            gap: tokens.spacing.sm,
+            marginBottom: tokens.spacing.sm,
           }}
         >
-          Select Show:
-          <select
-            value={selectedShowId}
-            onChange={(e) => {
-              const newId = e.target.value;
-
-              // Special case: "View older shows" option
-              if (newId === "__OLDER__") {
-                setOlderShowsOpen(true);
-                return;
-              }
-
-              if (!selectedShowId || selectedShowId === newId) {
-                setSelectedShowId(newId);
-                setSelectedRoundId("");
-                return;
-              }
-
-              const ok = window.confirm(
-                "Switch shows? This will delete all scores and data you've entered for the current show."
-              );
-              if (!ok) return;
-
-              // Clear cache for the OLD show to prevent data leakage
-              const oldShowId = selectedShowId;
-              setScoringCache((prev) => {
-                const next = { ...prev };
-                // Remove the old show's data completely
-                delete next[oldShowId];
-                // Update localStorage immediately
-                localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
-                return next;
-              });
-
-              // Clear in-memory, per-show UI bits
-              setSelectedRoundId("");
-              setVisibleImages({});
-              setVisibleCategoryImages({});
-              setCurrentImageIndex({});
-
-              setSelectedShowId(newId);
-            }}
-            style={{
-              fontSize: "1.25rem",
-              fontFamily: tokens.font.body,
-              marginLeft: tokens.spacing.sm,
-              verticalAlign: "middle",
-            }}
+          <ButtonTab
+            active={activeMode === "show"}
+            onClick={() => setActiveMode("show")}
           >
-            <option value="">-- Select a Show --</option>
-            {shows.map((s) => (
-              <option
-                key={s.id}
-                value={s.id}
-                style={{ fontFamily: tokens.font.body }}
-              >
-                {s.Show?.Show}
-              </option>
-            ))}
-            <option
-              value="__OLDER__"
-              style={{ fontFamily: tokens.font.body, fontStyle: "italic" }}
-            >
-              📚 View older shows...
-            </option>
-          </select>
-        </label>
-      </div>
+            Questions & answers
+          </ButtonTab>
 
-      {roundNumbers.length > 1 && (
+          <ButtonTab
+            active={activeMode === "score"}
+            onClick={() => setActiveMode("score")}
+          >
+            Scores
+          </ButtonTab>
+
+          <ButtonTab
+            active={activeMode === "results"}
+            onClick={() => setActiveMode("results")}
+          >
+            Results
+          </ButtonTab>
+        </div>
+        <div
+          style={{
+            fontSize: ".9rem",
+            opacity: 0.85,
+            display: "flex",
+            alignItems: "center",
+            gap: "0.35rem",
+            marginLeft: "0.25rem",
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              backgroundColor:
+                rtStatus === "SUBSCRIBED"
+                  ? "#22c55e"
+                  : rtStatus === "SUBSCRIBING"
+                    ? "#eab308"
+                    : "#ef4444",
+            }}
+          />
+          Multi-host sync:{" "}
+          <strong>
+            {rtStatus === "SUBSCRIBED"
+              ? "Active"
+              : rtStatus === "SUBSCRIBING"
+                ? "Connecting..."
+                : "Offline"}
+          </strong>
+        </div>
+
         <div>
           <label
             style={{
@@ -1654,10 +1673,51 @@ export default function App() {
               marginRight: tokens.spacing.md,
             }}
           >
-            Select Round:
+            Select Show:
             <select
-              value={selectedRoundId}
-              onChange={(e) => setSelectedRoundId(e.target.value)}
+              value={selectedShowId}
+              onChange={(e) => {
+                const newId = e.target.value;
+
+                // Special case: "View older shows" option
+                if (newId === "__OLDER__") {
+                  setOlderShowsOpen(true);
+                  return;
+                }
+
+                if (!selectedShowId || selectedShowId === newId) {
+                  setSelectedShowId(newId);
+                  setSelectedRoundId("");
+                  return;
+                }
+
+                const ok = window.confirm(
+                  "Switch shows? This will delete all scores and data you've entered for the current show."
+                );
+                if (!ok) return;
+
+                // Clear cache for the OLD show to prevent data leakage
+                const oldShowId = selectedShowId;
+                setScoringCache((prev) => {
+                  const next = { ...prev };
+                  // Remove the old show's data completely
+                  delete next[oldShowId];
+                  // Update localStorage immediately
+                  localStorage.setItem(
+                    "trivia.scoring.backup",
+                    JSON.stringify(next)
+                  );
+                  return next;
+                });
+
+                // Clear in-memory, per-show UI bits
+                setSelectedRoundId("");
+                setVisibleImages({});
+                setVisibleCategoryImages({});
+                setCurrentImageIndex({});
+
+                setSelectedShowId(newId);
+              }}
               style={{
                 fontSize: "1.25rem",
                 fontFamily: tokens.font.body,
@@ -1665,349 +1725,395 @@ export default function App() {
                 verticalAlign: "middle",
               }}
             >
-              {roundNumbers.map((n) => (
-                <option key={n} value={String(n)}>
-                  {`Round ${n}`}
+              <option value="">-- Select a Show --</option>
+              {shows.map((s) => (
+                <option
+                  key={s.id}
+                  value={s.id}
+                  style={{ fontFamily: tokens.font.body }}
+                >
+                  {s.Show?.Show}
                 </option>
               ))}
+              <option
+                value="__OLDER__"
+                style={{ fontFamily: tokens.font.body, fontStyle: "italic" }}
+              >
+                📚 View older shows...
+              </option>
             </select>
           </label>
         </div>
-      )}
 
-      {bundleLoading && (
-        <div style={{ padding: tokens.spacing.md }}>Loading show…</div>
-      )}
-      {bundleError && (
-        <div style={{ padding: tokens.spacing.md, color: colors.error }}>
-          Error loading show: {String(bundleError)}
-        </div>
-      )}
-
-      {activeMode === "show" && (
-        <ShowMode
-          showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
-          selectedRoundId={selectedRoundId}
-          showDetails={showDetails}
-          setshowDetails={setshowDetails}
-          questionRefs={questionRefs}
-          visibleImages={visibleImages}
-          setVisibleImages={setVisibleImages}
-          currentImageIndex={currentImageIndex}
-          setCurrentImageIndex={setCurrentImageIndex}
-          visibleCategoryImages={visibleCategoryImages}
-          setVisibleCategoryImages={setVisibleCategoryImages}
-          getClosestQuestionKey={getClosestQuestionKey}
-          numberToLetter={numberToLetter}
-          scoringMode={scoringMode}
-          pubPoints={pubPoints}
-          poolPerQuestion={poolPerQuestion}
-          poolContribution={poolContribution}
-          prizes={composedCachedState?.prizes ?? ""}
-          cachedState={composedCachedState}
-          hostInfo={composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo}
-          setPrizes={(val) => patchShared({ prizes: String(val || "") })}
-          setHostInfo={(val) => patchShared({ hostInfo: val })}
-          editQuestionField={editQuestionField}
-          addTiebreaker={addTiebreaker}
-          scriptOpen={scriptOpen}
-          setScriptOpen={setScriptOpen}
-          sendToDisplay={sendToDisplay}
-          refreshBundle={refreshBundle}
-        />
-      )}
-
-      {activeMode === "score" && (
-        <ScoringMode
-          showBundle={
-            showBundle
-              ? {
-                  ...showBundle,
-                  rounds: (showBundle.rounds || []).filter(
-                    (r) => Number(r.round) === Number(selectedRoundId)
-                  ),
-                }
-              : { rounds: [], teams: [] }
-          }
-          selectedShowId={selectedShowId}
-          selectedRoundId={selectedRoundId}
-          preloadedTeams={showBundle?.teams ?? []}
-          cachedState={composedCachedState}
-          onChangeState={(payload) => {
-            setScoringCache((prev) => {
-              const { teams = [], entryOrder = [], grid = {} } = payload;
-              const prevShow = prev[selectedShowId] || DEFAULT_SHOW_STATE;
-
-              const nextShow = {
-                ...prevShow,
-                teams,
-                entryOrder,
-                grid,
-              };
-
-              const next = {
-                ...prev,
-                [selectedShowId]: nextShow,
-              };
-
-              // Persist to Supabase with round_id="all" - save COMPLETE show state
-              saveDebounced("all", () => {
-                fetch("/.netlify/functions/supaSaveScoring", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    showId: selectedShowId,
-                    roundId: "all",
-                    payload: {
-                      teams: nextShow.teams ?? [],
-                      entryOrder: nextShow.entryOrder ?? [],
-                      prizes: nextShow.prizes ?? "",
-                      scoringMode: nextShow.scoringMode ?? "pub",
-                      pubPoints: nextShow.pubPoints ?? 10,
-                      poolPerQuestion: nextShow.poolPerQuestion ?? 500,
-                      poolContribution: nextShow.poolContribution ?? 10,
-                      hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
-                      tiebreakers: nextShow.tiebreakers ?? {},
-                      grid: nextShow.grid ?? {},
-                    },
-                  }),
-                }).catch(() => {});
-              });
-
-              // keep your localStorage backup
-              try {
-                localStorage.setItem(
-                  "trivia.scoring.backup",
-                  JSON.stringify(next)
-                );
-              } catch {}
-
-              return next;
-            });
-          }}
-          scoringMode={scoringMode}
-          setScoringMode={setScoringMode}
-          pubPoints={pubPoints}
-          setPubPoints={setPubPoints}
-          poolPerQuestion={poolPerQuestion}
-          setPoolPerQuestion={setPoolPerQuestion}
-          poolContribution={poolContribution}
-          setPoolContribution={setPoolContribution}
-        />
-      )}
-
-      {activeMode === "results" && (
-        <ResultsMode
-          showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
-          selectedShowId={selectedShowId}
-          selectedRoundId={selectedRoundId}
-          cachedState={composedCachedState}
-          cachedByRound={scoringCache[selectedShowId] ?? {}}
-          scoringMode={scoringMode}
-          setScoringMode={setScoringMode}
-          pubPoints={pubPoints}
-          setPubPoints={setPubPoints}
-          poolPerQuestion={poolPerQuestion}
-          setPoolPerQuestion={setPoolPerQuestion}
-          prizes={composedCachedState?.prizes ?? ""}
-          setPrizes={(val) => patchShared({ prizes: String(val || "") })}
-          questionEdits={questionEdits[selectedShowId] ?? {}}
-        />
-      )}
-
-      <ButtonPrimary
-        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        style={{ margin: `${tokens.spacing.xl} auto`, display: "block" }}
-      >
-        ↑ Back to Top
-      </ButtonPrimary>
-
-      {/* Older Shows Modal */}
-      <ui.Modal
-        isOpen={olderShowsOpen}
-        onClose={() => setOlderShowsOpen(false)}
-        title="Browse Older Shows"
-        subtitle="Select a show from the past 50 shows"
-        style={{ width: "min(92vw, 600px)", maxHeight: "80vh" }}
-      >
-        {olderShows.length === 0 ? (
-          <div style={{ textAlign: "center", padding: tokens.spacing.md }}>
-            <Button
-              onClick={async () => {
-                try {
-                  const res = await axios.get(
-                    "/.netlify/functions/fetchOlderShows"
-                  );
-                  setOlderShows(res.data?.Shows || []);
-                } catch (err) {
-                  console.error("Error fetching older shows:", err);
-                  alert("Failed to load older shows");
-                }
+        {roundNumbers.length > 1 && (
+          <div>
+            <label
+              style={{
+                fontSize: "1.25rem",
+                color: colors.dark,
+                marginRight: tokens.spacing.md,
               }}
             >
-              Load Older Shows
-            </Button>
-          </div>
-        ) : (
-          <div style={{ maxHeight: "50vh", overflowY: "auto" }}>
-            {olderShows.map((s) => (
-              <div
-                key={s.id}
-                onClick={() => {
-                  const ok = selectedShowId
-                    ? window.confirm(
-                        "Switch to this show? This will delete all scores and data you've entered for the current show."
-                      )
-                    : true;
-                  if (!ok) return;
-
-                  // Clear cache for the OLD show to prevent data leakage
-                  if (selectedShowId) {
-                    const oldShowId = selectedShowId;
-                    setScoringCache((prev) => {
-                      const next = { ...prev };
-                      // Remove the old show's data completely
-                      delete next[oldShowId];
-                      // Update localStorage immediately
-                      localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
-                      return next;
-                    });
-                  }
-
-                  setSelectedShowId(s.id);
-                  setSelectedRoundId("");
-                  setVisibleImages({});
-                  setVisibleCategoryImages({});
-                  setCurrentImageIndex({});
-                  setOlderShowsOpen(false);
-                }}
+              Select Round:
+              <select
+                value={selectedRoundId}
+                onChange={(e) => setSelectedRoundId(e.target.value)}
                 style={{
-                  padding: tokens.spacing.sm,
-                  borderBottom: `${tokens.borders.thin} ${colors.gray.borderLight}`,
-                  cursor: "pointer",
+                  fontSize: "1.25rem",
                   fontFamily: tokens.font.body,
+                  marginLeft: tokens.spacing.sm,
+                  verticalAlign: "middle",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor =
-                    colors.gray.bgLightest)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = colors.white)
-                }
               >
-                <strong>{s.Show?.Show}</strong>
-                {s.Show?.Date && (
-                  <div style={{ fontSize: ".9rem", opacity: 0.7 }}>
-                    {new Date(s.Show.Date).toLocaleDateString()}
-                  </div>
-                )}
-              </div>
-            ))}
+                {roundNumbers.map((n) => (
+                  <option key={n} value={String(n)}>
+                    {`Round ${n}`}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         )}
-        <div
-          style={{
-            display: "flex",
-            gap: tokens.spacing.sm,
-            justifyContent: "flex-end",
-            padding: `${tokens.spacing.sm} 0`,
-            borderTop: `${tokens.borders.thin} ${colors.gray.borderLighter}`,
-            marginTop: tokens.spacing.sm,
-          }}
-        >
-          <Button onClick={() => setOlderShowsOpen(false)}>Close</Button>
-        </div>
-      </ui.Modal>
 
-      {/* Countdown Timer - Always available across all modes */}
-      {showTimer && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-            zIndex: 999,
-          }}
+        {bundleLoading && (
+          <div style={{ padding: tokens.spacing.md }}>Loading show…</div>
+        )}
+        {bundleError && (
+          <div style={{ padding: tokens.spacing.md, color: colors.error }}>
+            Error loading show: {String(bundleError)}
+          </div>
+        )}
+
+        {activeMode === "show" && (
+          <ShowMode
+            showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
+            selectedRoundId={selectedRoundId}
+            showDetails={showDetails}
+            setshowDetails={setshowDetails}
+            questionRefs={questionRefs}
+            visibleImages={visibleImages}
+            setVisibleImages={setVisibleImages}
+            currentImageIndex={currentImageIndex}
+            setCurrentImageIndex={setCurrentImageIndex}
+            visibleCategoryImages={visibleCategoryImages}
+            setVisibleCategoryImages={setVisibleCategoryImages}
+            getClosestQuestionKey={getClosestQuestionKey}
+            numberToLetter={numberToLetter}
+            scoringMode={scoringMode}
+            pubPoints={pubPoints}
+            poolPerQuestion={poolPerQuestion}
+            poolContribution={poolContribution}
+            prizes={composedCachedState?.prizes ?? ""}
+            cachedState={composedCachedState}
+            hostInfo={
+              composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo
+            }
+            setPrizes={(val) => patchShared({ prizes: String(val || "") })}
+            setHostInfo={(val) => patchShared({ hostInfo: val })}
+            editQuestionField={editQuestionField}
+            addTiebreaker={addTiebreaker}
+            scriptOpen={scriptOpen}
+            setScriptOpen={setScriptOpen}
+            sendToDisplay={sendToDisplay}
+            refreshBundle={refreshBundle}
+          />
+        )}
+
+        {activeMode === "score" && (
+          <ScoringMode
+            showBundle={
+              showBundle
+                ? {
+                    ...showBundle,
+                    rounds: (showBundle.rounds || []).filter(
+                      (r) => Number(r.round) === Number(selectedRoundId)
+                    ),
+                  }
+                : { rounds: [], teams: [] }
+            }
+            selectedShowId={selectedShowId}
+            selectedRoundId={selectedRoundId}
+            preloadedTeams={showBundle?.teams ?? []}
+            cachedState={composedCachedState}
+            onChangeState={(payload) => {
+              setScoringCache((prev) => {
+                const { teams = [], entryOrder = [], grid = {} } = payload;
+                const prevShow = prev[selectedShowId] || DEFAULT_SHOW_STATE;
+
+                const nextShow = {
+                  ...prevShow,
+                  teams,
+                  entryOrder,
+                  grid,
+                };
+
+                const next = {
+                  ...prev,
+                  [selectedShowId]: nextShow,
+                };
+
+                // Persist to Supabase with round_id="all" - save COMPLETE show state
+                saveDebounced("all", () => {
+                  fetch("/.netlify/functions/supaSaveScoring", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      showId: selectedShowId,
+                      roundId: "all",
+                      payload: {
+                        teams: nextShow.teams ?? [],
+                        entryOrder: nextShow.entryOrder ?? [],
+                        prizes: nextShow.prizes ?? "",
+                        scoringMode: nextShow.scoringMode ?? "pub",
+                        pubPoints: nextShow.pubPoints ?? 10,
+                        poolPerQuestion: nextShow.poolPerQuestion ?? 500,
+                        poolContribution: nextShow.poolContribution ?? 10,
+                        hostInfo:
+                          nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
+                        tiebreakers: nextShow.tiebreakers ?? {},
+                        grid: nextShow.grid ?? {},
+                      },
+                    }),
+                  }).catch(() => {});
+                });
+
+                // keep your localStorage backup
+                try {
+                  localStorage.setItem(
+                    "trivia.scoring.backup",
+                    JSON.stringify(next)
+                  );
+                } catch {}
+
+                return next;
+              });
+            }}
+            scoringMode={scoringMode}
+            setScoringMode={setScoringMode}
+            pubPoints={pubPoints}
+            setPubPoints={setPubPoints}
+            poolPerQuestion={poolPerQuestion}
+            setPoolPerQuestion={setPoolPerQuestion}
+            poolContribution={poolContribution}
+            setPoolContribution={setPoolContribution}
+          />
+        )}
+
+        {activeMode === "results" && (
+          <ResultsMode
+            showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
+            selectedShowId={selectedShowId}
+            selectedRoundId={selectedRoundId}
+            cachedState={composedCachedState}
+            cachedByRound={scoringCache[selectedShowId] ?? {}}
+            scoringMode={scoringMode}
+            setScoringMode={setScoringMode}
+            pubPoints={pubPoints}
+            setPubPoints={setPubPoints}
+            poolPerQuestion={poolPerQuestion}
+            setPoolPerQuestion={setPoolPerQuestion}
+            prizes={composedCachedState?.prizes ?? ""}
+            setPrizes={(val) => patchShared({ prizes: String(val || "") })}
+            questionEdits={questionEdits[selectedShowId] ?? {}}
+          />
+        )}
+
+        <ButtonPrimary
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          style={{ margin: `${tokens.spacing.xl} auto`, display: "block" }}
         >
-          <Draggable
-            nodeRef={timerRef}
-            defaultPosition={timerPosition}
-            onStop={(e, data) => {
-              const newPos = { x: data.x, y: data.y };
-              setTimerPosition(newPos);
-              localStorage.setItem("timerPosition", JSON.stringify(newPos));
+          ↑ Back to Top
+        </ButtonPrimary>
+
+        {/* Older Shows Modal */}
+        <ui.Modal
+          isOpen={olderShowsOpen}
+          onClose={() => setOlderShowsOpen(false)}
+          title="Browse Older Shows"
+          subtitle="Select a show from the past 50 shows"
+          style={{ width: "min(92vw, 600px)", maxHeight: "80vh" }}
+        >
+          {olderShows.length === 0 ? (
+            <div style={{ textAlign: "center", padding: tokens.spacing.md }}>
+              <Button
+                onClick={async () => {
+                  try {
+                    const res = await axios.get(
+                      "/.netlify/functions/fetchOlderShows"
+                    );
+                    setOlderShows(res.data?.Shows || []);
+                  } catch (err) {
+                    console.error("Error fetching older shows:", err);
+                    alert("Failed to load older shows");
+                  }
+                }}
+              >
+                Load Older Shows
+              </Button>
+            </div>
+          ) : (
+            <div style={{ maxHeight: "50vh", overflowY: "auto" }}>
+              {olderShows.map((s) => (
+                <div
+                  key={s.id}
+                  onClick={() => {
+                    const ok = selectedShowId
+                      ? window.confirm(
+                          "Switch to this show? This will delete all scores and data you've entered for the current show."
+                        )
+                      : true;
+                    if (!ok) return;
+
+                    // Clear cache for the OLD show to prevent data leakage
+                    if (selectedShowId) {
+                      const oldShowId = selectedShowId;
+                      setScoringCache((prev) => {
+                        const next = { ...prev };
+                        // Remove the old show's data completely
+                        delete next[oldShowId];
+                        // Update localStorage immediately
+                        localStorage.setItem(
+                          "trivia.scoring.backup",
+                          JSON.stringify(next)
+                        );
+                        return next;
+                      });
+                    }
+
+                    setSelectedShowId(s.id);
+                    setSelectedRoundId("");
+                    setVisibleImages({});
+                    setVisibleCategoryImages({});
+                    setCurrentImageIndex({});
+                    setOlderShowsOpen(false);
+                  }}
+                  style={{
+                    padding: tokens.spacing.sm,
+                    borderBottom: `${tokens.borders.thin} ${colors.gray.borderLight}`,
+                    cursor: "pointer",
+                    fontFamily: tokens.font.body,
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor =
+                      colors.gray.bgLightest)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = colors.white)
+                  }
+                >
+                  <strong>{s.Show?.Show}</strong>
+                  {s.Show?.Date && (
+                    <div style={{ fontSize: ".9rem", opacity: 0.7 }}>
+                      {new Date(s.Show.Date).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <div
+            style={{
+              display: "flex",
+              gap: tokens.spacing.sm,
+              justifyContent: "flex-end",
+              padding: `${tokens.spacing.sm} 0`,
+              borderTop: `${tokens.borders.thin} ${colors.gray.borderLighter}`,
+              marginTop: tokens.spacing.sm,
             }}
           >
-            <div
-              ref={timerRef}
-              style={{
-                position: "absolute",
-                backgroundColor: colors.dark,
-                color: "#fff",
-                padding: "1rem",
-                borderRadius: "0.5rem",
-                border: `1px solid ${colors.accent}`,
-                boxShadow: "0 0 10px rgba(0,0,0,0.3)",
-                fontFamily: tokens.font.body,
-                width: "180px",
-                textAlign: "center",
-                pointerEvents: "auto",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
+            <Button onClick={() => setOlderShowsOpen(false)}>Close</Button>
+          </div>
+        </ui.Modal>
+
+        {/* Countdown Timer - Always available across all modes */}
+        {showTimer && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              zIndex: 999,
+            }}
+          >
+            <Draggable
+              nodeRef={timerRef}
+              defaultPosition={timerPosition}
+              onStop={(e, data) => {
+                const newPos = { x: data.x, y: data.y };
+                setTimerPosition(newPos);
+                localStorage.setItem("timerPosition", JSON.stringify(newPos));
               }}
             >
               <div
+                ref={timerRef}
                 style={{
-                  fontSize: "2rem",
-                  fontWeight: "bold",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                {timeLeft}s
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  gap: "0.5rem",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                <ButtonPrimary
-                  onClick={handleStartPause}
-                  style={{ width: "70px" }}
-                >
-                  {timerRunning ? "Pause" : "Start"}
-                </ButtonPrimary>
-                <Button onClick={handleReset} style={{ width: "70px" }}>
-                  Reset
-                </Button>
-              </div>
-
-              <input
-                type="number"
-                value={timerDuration}
-                onChange={handleDurationChange}
-                style={{
-                  width: "80px",
-                  padding: "0.25rem",
-                  borderRadius: "0.25rem",
-                  border: "1px solid #ccc",
-                  fontSize: "0.9rem",
+                  position: "absolute",
+                  backgroundColor: colors.dark,
+                  color: "#fff",
+                  padding: "1rem",
+                  borderRadius: "0.5rem",
+                  border: `1px solid ${colors.accent}`,
+                  boxShadow: "0 0 10px rgba(0,0,0,0.3)",
+                  fontFamily: tokens.font.body,
+                  width: "180px",
                   textAlign: "center",
+                  pointerEvents: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
                 }}
-                min={5}
-                max={300}
-              />
-            </div>
-          </Draggable>
-        </div>
-      )}
+              >
+                <div
+                  style={{
+                    fontSize: "2rem",
+                    fontWeight: "bold",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  {timeLeft}s
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    gap: "0.5rem",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  <ButtonPrimary
+                    onClick={handleStartPause}
+                    style={{ width: "70px" }}
+                  >
+                    {timerRunning ? "Pause" : "Start"}
+                  </ButtonPrimary>
+                  <Button onClick={handleReset} style={{ width: "70px" }}>
+                    Reset
+                  </Button>
+                </div>
+
+                <input
+                  type="number"
+                  value={timerDuration}
+                  onChange={handleDurationChange}
+                  style={{
+                    width: "80px",
+                    padding: "0.25rem",
+                    borderRadius: "0.25rem",
+                    border: "1px solid #ccc",
+                    fontSize: "0.9rem",
+                    textAlign: "center",
+                  }}
+                  min={5}
+                  max={300}
+                />
+              </div>
+            </Draggable>
+          </div>
+        )}
       </div>
     </>
   );

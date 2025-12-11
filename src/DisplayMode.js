@@ -12,6 +12,75 @@ export default function DisplayMode() {
   const [fontSize, setFontSize] = useState(100); // percentage
   const [imageOverlay, setImageOverlay] = useState(null); // { images: [], currentIndex: 0 }
 
+  // Choose a design resolution for the display canvas
+  const DESIGN_WIDTH = 1920;
+  const DESIGN_HEIGHT = 1080;
+
+  // How much to scale the canvas to fit the actual window
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const updateScale = () => {
+      const { innerWidth, innerHeight } = window;
+      const scaleX = innerWidth / DESIGN_WIDTH;
+      const scaleY = innerHeight / DESIGN_HEIGHT;
+      setScale(Math.min(scaleX, scaleY)); // fit within both width & height
+    };
+
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
+
+  // Helper to request browser fullscreen
+  const enterFullscreen = () => {
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
+    else if (el.msRequestFullscreen) el.msRequestFullscreen();
+  };
+
+  const exitFullscreen = () => {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+    else if (document.msExitFullscreen) document.msExitFullscreen();
+  };
+
+  const [isFullscreen, setIsFullscreen] = useState(
+    !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement
+    )
+  );
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      const fsEl =
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement;
+
+      setIsFullscreen(!!fsEl);
+    };
+
+    document.addEventListener("fullscreenchange", handleFsChange);
+    document.addEventListener("webkitfullscreenchange", handleFsChange);
+    document.addEventListener("mozfullscreenchange", handleFsChange);
+    document.addEventListener("MSFullscreenChange", handleFsChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFsChange);
+      document.removeEventListener("webkitfullscreenchange", handleFsChange);
+      document.removeEventListener("mozfullscreenchange", handleFsChange);
+      document.removeEventListener("MSFullscreenChange", handleFsChange);
+    };
+  }, []);
+
   // Listen for display updates via BroadcastChannel
   useEffect(() => {
     const channel = new BroadcastChannel("tv:display");
@@ -35,73 +104,116 @@ export default function DisplayMode() {
   }, []);
 
   return (
+    // Outer viewport wrapper – fills the browser window / TV
     <div
       style={{
         width: "100vw",
         height: "100vh",
-        backgroundColor: theme.bg,
+        backgroundColor: "#000", // black bars if aspect ratios don't match
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
         alignItems: "center",
-        fontFamily: tokens.font.body,
-        color: theme.dark,
-        position: "relative",
+        justifyContent: "center",
         overflow: "hidden",
+        position: "relative",
       }}
     >
-      {/* Logo - top right, centered in 100px gray bar */}
-      <img
-        src={triviaVanguardLogo}
-        alt="Trivia Vanguard"
-        style={{
-          position: "absolute",
-          top: "10px",
-          right: "20px",
-          height: "80px",
-          zIndex: 100,
-        }}
-      />
-
-      {/* Main content area */}
+      {/* Inner 16:9 canvas that auto-scales */}
       <div
         style={{
-          width: "90%",
-          maxWidth: "1400px",
-          textAlign: "center",
+          width: "100%",
+          height: "100%",
+          maxWidth: "100vw",
+          maxHeight: "100vh",
+          aspectRatio: "16 / 9",
+          backgroundColor: theme.bg,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          fontFamily: tokens.font.body,
+          color: theme.dark,
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        {displayState.type === "standby" && <StandbyScreen />}
-        {displayState.type === "question" && (
-          <QuestionDisplay content={displayState.content} fontSize={fontSize} />
-        )}
-        {displayState.type === "questionWithAnswer" && (
-          <QuestionDisplay content={displayState.content} fontSize={fontSize} />
-        )}
-        {displayState.type === "category" && (
-          <CategoryDisplay content={displayState.content} fontSize={fontSize} />
-        )}
-        {displayState.type === "message" && (
-          <MessageDisplay content={displayState.content} fontSize={fontSize} />
-        )}
-        {displayState.type === "standings" && (
-          <StandingsDisplay content={displayState.content} />
-        )}
-        {displayState.type === "results" && (
-          <ResultsDisplay content={displayState.content} fontSize={fontSize} />
-        )}
-      </div>
+        {/* Logo - top right */}
+        <img
+          src={triviaVanguardLogo}
+          alt="Trivia Vanguard"
+          title={isFullscreen ? "Exit full screen" : "Go full screen"}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isFullscreen) {
+              exitFullscreen();
+            } else {
+              enterFullscreen();
+            }
+          }}
+          style={{
+            position: "absolute",
+            top: "10px",
+            right: "20px",
+            height: "80px",
+            zIndex: 100,
+            cursor: "pointer",
+          }}
+        />
 
-      {/* Image overlay */}
-      {imageOverlay &&
-        imageOverlay.images &&
-        imageOverlay.images.length > 0 && (
-          <ImageOverlay
-            images={imageOverlay.images}
-            currentIndex={imageOverlay.currentIndex || 0}
-            onClose={() => setImageOverlay(null)}
-          />
-        )}
+        {/* Main content area */}
+        <div
+          style={{
+            width: "90%",
+            maxWidth: "1400px",
+            textAlign: "center",
+          }}
+        >
+          {displayState.type === "standby" && <StandbyScreen />}
+          {displayState.type === "question" && (
+            <QuestionDisplay
+              content={displayState.content}
+              fontSize={fontSize}
+            />
+          )}
+          {displayState.type === "questionWithAnswer" && (
+            <QuestionDisplay
+              content={displayState.content}
+              fontSize={fontSize}
+            />
+          )}
+          {displayState.type === "category" && (
+            <CategoryDisplay
+              content={displayState.content}
+              fontSize={fontSize}
+            />
+          )}
+          {displayState.type === "message" && (
+            <MessageDisplay
+              content={displayState.content}
+              fontSize={fontSize}
+            />
+          )}
+          {displayState.type === "standings" && (
+            <StandingsDisplay content={displayState.content} />
+          )}
+          {displayState.type === "results" && (
+            <ResultsDisplay
+              content={displayState.content}
+              fontSize={fontSize}
+            />
+          )}
+        </div>
+
+        {/* Image overlay */}
+        {imageOverlay &&
+          imageOverlay.images &&
+          imageOverlay.images.length > 0 && (
+            <ImageOverlay
+              images={imageOverlay.images}
+              currentIndex={imageOverlay.currentIndex || 0}
+              onClose={() => setImageOverlay(null)}
+            />
+          )}
+      </div>
     </div>
   );
 }
@@ -113,7 +225,7 @@ function StandbyScreen() {
       alt="Trivia Vanguard"
       style={{
         maxWidth: "60%",
-        maxHeight: "60vh",
+        maxHeight: "60%",
         objectFit: "contain",
       }}
     />
@@ -185,7 +297,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
       {categoryName && (
         <div
           style={{
-            position: "fixed",
+            position: "absolute",
             top: 0,
             left: 0,
             right: 0,
@@ -231,15 +343,22 @@ function QuestionDisplay({ content, fontSize = 100 }) {
 
       {/* Images */}
       {images && images.length > 0 && (
-        <div style={{ marginBottom: "2rem" }}>
+        <div
+          style={{
+            marginBottom: "1rem", // less extra space under the image
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
           <img
             src={images[currentImageIndex].url}
             alt={`Question ${currentImageIndex + 1}`}
             style={{
               maxWidth: "90%",
-              maxHeight: "500px",
+              maxHeight: "65vh",
               borderRadius: "12px",
               boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+              objectFit: "contain",
             }}
           />
           {/* Image indicators */}
@@ -440,11 +559,13 @@ function ImageOverlay({ images, currentIndex, onClose }) {
     <div
       onClick={onClose}
       style={{
-        position: "fixed",
+        position: "absolute",
         top: 0,
         left: 0,
-        width: "100vw",
-        height: "100vh",
+        right: 0,
+        bottom: 0,
+        width: "100%",
+        height: "100%",
         backgroundColor: "rgba(43, 57, 74, 0.7)",
         backdropFilter: "blur(10px)",
         WebkitBackdropFilter: "blur(8px)",
@@ -461,7 +582,7 @@ function ImageOverlay({ images, currentIndex, onClose }) {
         alt={`${idx + 1} of ${images.length}`}
         style={{
           maxWidth: "90vw",
-          maxHeight: "80vh",
+          maxHeight: "90vh",
           objectFit: "contain",
           border: `4px solid ${theme.white}`,
           boxShadow: "0 0 20px rgba(0,0,0,0.5)",

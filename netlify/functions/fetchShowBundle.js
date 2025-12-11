@@ -96,14 +96,19 @@ export async function handler(event) {
         const f = showData.fields || {};
 
         // Debug: log all field names to see what Airtable is actually returning
-        console.log(`[fetchShowBundle] All field names in Show record:`, Object.keys(f));
+        console.log(
+          `[fetchShowBundle] All field names in Show record:`,
+          Object.keys(f)
+        );
 
         const locationName = f["Location name"] || null;
         const scoringModeCell = f["Scoring mode"];
         const showDate = f["Date"] || null;
         const showTemplate = f["ShowTemplate"] || "";
 
-        console.log(`[fetchShowBundle] Show fields - Date: ${showDate}, Location name: "${locationName}", Host: "${f["Host name"]}", Cohost: "${f["Cohost name"]}", Start: "${f["Start time"]}", Template: "${showTemplate}"`);
+        console.log(
+          `[fetchShowBundle] Show fields - Date: ${showDate}, Location name: "${locationName}", Host: "${f["Host name"]}", Cohost: "${f["Cohost name"]}", Start: "${f["Start time"]}", Template: "${showTemplate}"`
+        );
 
         // Count shows with same date and location
         let totalGamesThisNight = 1; // default to 1 (just this show)
@@ -115,13 +120,16 @@ export async function handler(event) {
               filterByFormula: `IS_SAME({Date}, '${showDate}', 'day')`,
             });
 
-            console.log(`[fetchShowBundle] Shows on ${showDate}:`, showsOnDate.map(s => ({
-              id: s.id,
-              locationName: s.fields?.["Location name"],
-            })));
+            console.log(
+              `[fetchShowBundle] Shows on ${showDate}:`,
+              showsOnDate.map((s) => ({
+                id: s.id,
+                locationName: s.fields?.["Location name"],
+              }))
+            );
 
             // Filter by location name in JavaScript
-            const matchingShows = showsOnDate.filter(s => {
+            const matchingShows = showsOnDate.filter((s) => {
               const loc = s.fields?.["Location name"];
               return loc && loc.trim() === locationName.trim();
             });
@@ -130,11 +138,14 @@ export async function handler(event) {
 
             // Extract start times from all matching shows and sort them
             allStartTimes = matchingShows
-              .map(s => s.fields?.["Start time"])
+              .map((s) => s.fields?.["Start time"])
               .filter(Boolean)
               .sort(); // Sort chronologically
 
-            console.log(`[fetchShowBundle] Found ${totalGamesThisNight} show(s) on ${showDate} at location "${locationName}" with start times:`, allStartTimes);
+            console.log(
+              `[fetchShowBundle] Found ${totalGamesThisNight} show(s) on ${showDate} at location "${locationName}" with start times:`,
+              allStartTimes
+            );
           } catch (err) {
             console.error("Could not count matching shows:", err);
           }
@@ -144,12 +155,20 @@ export async function handler(event) {
           showId,
           location: locationName || null,
           scoringMode: scoringModeCell?.name || scoringModeCell || null,
-          pubPoints: typeof f["Pub points"] === "number" ? f["Pub points"] : null,
-          poolPerQuestion: typeof f["Pool per question"] === "number" ? f["Pool per question"] : null,
-          poolContribution: typeof f["Pool contribution"] === "number" ? f["Pool contribution"] : null,
+          pubPoints:
+            typeof f["Pub points"] === "number" ? f["Pub points"] : null,
+          poolPerQuestion:
+            typeof f["Pool per question"] === "number"
+              ? f["Pool per question"]
+              : null,
+          poolContribution:
+            typeof f["Pool contribution"] === "number"
+              ? f["Pool contribution"]
+              : null,
           announcements: f["Announcements"] || "",
           prizeDonor: f["Prize donor"] || "",
-          timerDefault: typeof f["Timer default"] === "number" ? f["Timer default"] : null,
+          timerDefault:
+            typeof f["Timer default"] === "number" ? f["Timer default"] : null,
           hostName: f["Host name"] || "",
           cohostName: f["Cohost name"] || "",
           startTime: f["Start time"] || "",
@@ -157,11 +176,17 @@ export async function handler(event) {
           totalGamesThisNight,
           allStartTimes, // Array of all start times for multi-game nights
         };
-        console.log(`[fetchShowBundle] Successfully fetched Show config:`, JSON.stringify(showConfig, null, 2));
+        console.log(
+          `[fetchShowBundle] Successfully fetched Show config:`,
+          JSON.stringify(showConfig, null, 2)
+        );
       } else {
         // Log when Show record fetch fails
         const errorText = await showRes.text();
-        console.error(`[fetchShowBundle] Failed to fetch Show record: ${showRes.status} ${showRes.statusText}`, errorText);
+        console.error(
+          `[fetchShowBundle] Failed to fetch Show record: ${showRes.status} ${showRes.statusText}`,
+          errorText
+        );
       }
     } catch (err) {
       // Non-fatal: if we can't fetch Show config, continue without it
@@ -185,9 +210,10 @@ export async function handler(event) {
       const qTypeCell = f["Question type"];
 
       const showIdArray = f["Show ID"];
-      const normalizedShowId = Array.isArray(showIdArray) && showIdArray.length > 0
-        ? showIdArray[0]
-        : (showIdArray || null);
+      const normalizedShowId =
+        Array.isArray(showIdArray) && showIdArray.length > 0
+          ? showIdArray[0]
+          : showIdArray || null;
 
       categoryMap.set(rec.id, {
         showCategoryId: rec.id,
@@ -202,7 +228,8 @@ export async function handler(event) {
         categoryAudio: toAttachmentArray(f["Category audio attachments"]),
         imageCarousel: toAttachmentArray(f["Image carousel"]),
         round: typeof f["Round"] === "number" ? f["Round"] : null,
-        categoryOrder: typeof f["Category order"] === "number" ? f["Category order"] : null,
+        categoryOrder:
+          typeof f["Category order"] === "number" ? f["Category order"] : null,
       });
     }
 
@@ -222,18 +249,20 @@ export async function handler(event) {
     for (const rec of sqRecords) {
       const f = rec.fields || {};
       const scIdArray = f["ShowCategory ID"];
-      const scId = Array.isArray(scIdArray) && scIdArray.length > 0
-        ? scIdArray[0]
-        : (scIdArray || null);
+      const scId =
+        Array.isArray(scIdArray) && scIdArray.length > 0
+          ? scIdArray[0]
+          : scIdArray || null;
 
       // Get category data from map
       const categoryData = scId ? categoryMap.get(scId) : null;
       const round = categoryData?.round ?? 0;
 
       const showIdArray = f["Show ID"];
-      const normalizedShowId = Array.isArray(showIdArray) && showIdArray.length > 0
-        ? showIdArray[0]
-        : (showIdArray || null);
+      const normalizedShowId =
+        Array.isArray(showIdArray) && showIdArray.length > 0
+          ? showIdArray[0]
+          : showIdArray || null;
 
       // Question object (only question-specific fields)
       const q = {
@@ -245,9 +274,13 @@ export async function handler(event) {
         questionNotes: f["Question notes"] || "",
         questionPronunciationGuide: f["Question pronunciation guide"] || "",
         answer: f["Answer"] || "",
+        tiebreakerNumber: f["Tiebreaker number"] || "",
         questionImages: toAttachmentArray(f["Question image attachments"]),
         questionAudio: toAttachmentArray(f["Question audio attachments"]),
-        pointsPerQuestion: typeof f["Points per question"] === "number" ? f["Points per question"] : null,
+        pointsPerQuestion:
+          typeof f["Points per question"] === "number"
+            ? f["Points per question"]
+            : null,
       };
 
       // Initialize round if needed
@@ -287,60 +320,19 @@ export async function handler(event) {
       .sort((a, b) => a[0] - b[0])
       .map(([round, categoryMap]) => {
         const categories = Array.from(categoryMap.values())
-          .sort((a, b) => (a.category.categoryOrder ?? 0) - (b.category.categoryOrder ?? 0))
+          .sort(
+            (a, b) =>
+              (a.category.categoryOrder ?? 0) - (b.category.categoryOrder ?? 0)
+          )
           .map(({ category, questions }) => ({
             ...category,
-            questions: questions.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
+            questions: questions.sort(
+              (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+            ),
           }));
 
         return { round, categories };
       });
-
-    // Fetch tiebreaker (if any) and attach to final round as a category
-    let tbRecord = null;
-    try {
-      const tbRows = await fetchAll("Tiebreakers", {
-        filterByFormula: `FIND('${showId}', ARRAYJOIN({Show ID}))`,
-        pageSize: 1,
-      });
-      tbRecord = tbRows?.[0] || null;
-    } catch (_) {
-      // Non-fatal: if Airtable Tiebreakers table isn't ready, we still return the bundle.
-    }
-
-    if (tbRecord?.fields && Array.isArray(rounds) && rounds.length > 0) {
-      const finalRound = rounds[rounds.length - 1];
-
-      // Add tiebreaker as a category with one question
-      finalRound.categories.push({
-        showCategoryId: null,
-        showId,
-        superSecret: false,
-        categoryName: "Tiebreaker",
-        categoryDescription: "",
-        categoryNotes: "",
-        categoryPronunciationGuide: "",
-        questionType: "Tiebreaker",
-        categoryImages: [],
-        categoryAudio: [],
-        imageCarousel: [],
-        round: finalRound.round,
-        categoryOrder: 9999,
-        questions: [{
-          showQuestionId: `tb-${tbRecord.id}`,
-          showId,
-          questionOrder: "TB",
-          sortOrder: 999999,
-          questionText: tbRecord.fields["Tiebreaker question"] || "",
-          questionNotes: "",
-          questionPronunciationGuide: "",
-          answer: tbRecord.fields["Tiebreaker answer"] || "",
-          questionImages: [],
-          questionAudio: [],
-          pointsPerQuestion: null,
-        }],
-      });
-    }
 
     // Fetch ShowTeams
     const teamRows = await fetchAll("ShowTeams", {
@@ -353,9 +345,10 @@ export async function handler(event) {
       const teamLinked = Array.isArray(f["Team"]) ? f["Team"][0] : null;
       const teamIdLookup = f["Team ID"] || null;
       const showIdArray = f["Show ID"];
-      const normalizedShowId = Array.isArray(showIdArray) && showIdArray.length > 0
-        ? showIdArray[0]
-        : (showIdArray || null);
+      const normalizedShowId =
+        Array.isArray(showIdArray) && showIdArray.length > 0
+          ? showIdArray[0]
+          : showIdArray || null;
 
       return {
         showTeamId: r.id,
@@ -381,7 +374,10 @@ export async function handler(event) {
       },
     };
 
-    console.log(`[fetchShowBundle] Returning bundle with config:`, JSON.stringify(bundle.config));
+    console.log(
+      `[fetchShowBundle] Returning bundle with config:`,
+      JSON.stringify(bundle.config)
+    );
 
     return {
       statusCode: 200,

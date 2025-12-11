@@ -740,7 +740,7 @@ export default function ShowMode({
             title="Open Display Mode in new window"
             style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
           >
-            Open Display
+            Open display
           </ButtonPrimary>
 
           <ButtonPrimary
@@ -748,7 +748,7 @@ export default function ShowMode({
             title="Toggle preview of what's showing on display"
             style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
           >
-            {displayPreviewOpen ? "Hide Preview" : "Show Preview"}
+            {displayPreviewOpen ? "Hide preview" : "Show preview"}
           </ButtonPrimary>
 
           <Button
@@ -758,7 +758,7 @@ export default function ShowMode({
             title="Clear the display (standby screen)"
             style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
           >
-            Clear Display
+            Clear display
           </Button>
 
           <Button
@@ -768,7 +768,7 @@ export default function ShowMode({
             title="Close any image overlay on the display"
             style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
           >
-            Close Image
+            Close image
           </Button>
 
           {refreshBundle && (
@@ -777,7 +777,7 @@ export default function ShowMode({
               title="Re-fetch questions from Airtable to get fresh audio/image URLs (does not affect scoring)"
               style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
             >
-              Refresh Questions
+              Refresh questions
             </Button>
           )}
 

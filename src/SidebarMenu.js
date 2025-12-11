@@ -1,7 +1,6 @@
 // SidebarMenu.js - Menu contents for the sidebar drawer
-import React, { useState } from "react";
+import { useState } from "react";
 import { tokens } from "./styles/index.js";
-import AnswerKeyPanel from "./AnswerKeyPanel.js";
 
 export default function SidebarMenu({
   showBundle,
@@ -16,6 +15,8 @@ export default function SidebarMenu({
   setHostInfo,
   displayControlsOpen,
   setDisplayControlsOpen,
+  setShowAnswerKey,
+  refreshBundle,
 }) {
   const [expandedSections, setExpandedSections] = useState({
     hostTools: false,
@@ -23,8 +24,6 @@ export default function SidebarMenu({
     scoringOptions: false,
     prizes: false,
   });
-
-  const [showAnswerKey, setShowAnswerKey] = useState(false);
 
   const toggleSection = (section) => {
     setExpandedSections((prev) => ({
@@ -65,41 +64,6 @@ export default function SidebarMenu({
 
   return (
     <div style={{ color: "#fff" }}>
-      {/* Answer Key Panel (modal-style) */}
-      {showAnswerKey && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            zIndex: 10000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem",
-          }}
-          onClick={() => setShowAnswerKey(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: "600px",
-              width: "100%",
-              maxHeight: "80vh",
-              overflowY: "auto",
-            }}
-          >
-            <AnswerKeyPanel
-              showBundle={showBundle}
-              onClose={() => setShowAnswerKey(false)}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Host tools */}
       <div style={sectionStyle}>
         <div style={headerStyle} onClick={() => toggleSection("hostTools")}>
@@ -280,6 +244,16 @@ export default function SidebarMenu({
             >
               📜 Show script
             </div>
+
+            {/* Refresh questions */}
+            {refreshBundle && (
+              <div
+                style={itemStyle}
+                onClick={refreshBundle}
+              >
+                🔄 Refresh questions
+              </div>
+            )}
 
             {/* Display controls toggle */}
             <div
