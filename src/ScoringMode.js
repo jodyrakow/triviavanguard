@@ -607,39 +607,40 @@ export default function ScoringMode({
   }, [renderTeams, questions.length]);
 
   const toggleCell = useCallback(
-    (renderTeamIdx, qIdx) => {
-      const t = renderTeams[renderTeamIdx];
-      const q = questions[qIdx];
+    (showTeamId, showQuestionId) => {
+      // Find team and question by ID instead of index to avoid stale closure issues
+      const t = teams.find(team => team.showTeamId === showTeamId);
+      const q = questions.find(question => question.showQuestionId === showQuestionId);
       if (!t || !q) return;
 
       setGrid((prev) => {
-        const byTeam = prev[t.showTeamId] ? { ...prev[t.showTeamId] } : {};
-        const cell = byTeam[q.showQuestionId] || {
+        const byTeam = prev[showTeamId] ? { ...prev[showTeamId] } : {};
+        const cell = byTeam[showQuestionId] || {
           isCorrect: false,
           questionBonus: 0,
           overridePoints: null,
         };
-        const nextOn = !cell.isCorrect; // ✅ computed from *prev*, no stale closure
-        byTeam[q.showQuestionId] = { ...cell, isCorrect: nextOn };
+        const nextOn = !cell.isCorrect;
+        byTeam[showQuestionId] = { ...cell, isCorrect: nextOn };
 
         // Broadcast inside the same scope so it sees the correct nextOn value:
         try {
           window.sendMark?.({
             showId: selectedShowId,
             roundId: selectedRoundId,
-            teamId: t.showTeamId,
+            teamId: showTeamId,
             teamName: t.teamName,
-            showQuestionId: q.showQuestionId,
+            showQuestionId: showQuestionId,
             questionOrder: q.order,
             nowCorrect: nextOn,
             ts: Date.now(),
           });
         } catch {}
 
-        return { ...prev, [t.showTeamId]: byTeam };
+        return { ...prev, [showTeamId]: byTeam };
       });
     },
-    [renderTeams, questions, selectedShowId, selectedRoundId]
+    [teams, questions, selectedShowId, selectedRoundId]
   );
 
   useEffect(() => {
@@ -1567,7 +1568,7 @@ export default function ScoringMode({
                         <span
                           onClick={(e) => {
                             e.stopPropagation();
-                            toggleCell(renderIndex, qi);
+                            toggleCell(t.showTeamId, q.showQuestionId);
                           }}
                           style={{ cursor: "pointer", display: "block" }}
                         >
