@@ -468,7 +468,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
           <div
             style={{
               minHeight: STATS_H,
-              display: "flex",
+
               flexDirection: "column",
               justifyContent: "center",
               fontSize: `${2.3 * scale}rem`,
