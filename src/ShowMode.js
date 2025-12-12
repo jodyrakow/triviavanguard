@@ -998,7 +998,7 @@ export default function ShowMode({
                       </div>
 
                       {/* NOTES */}
-                      {q["Notes"]?.trim() && showDetails && (
+                      {q["Notes"]?.trim() && (
                         <p
                           style={{
                             fontFamily: tokens.font.flavor,
@@ -1054,7 +1054,7 @@ export default function ShowMode({
                       )}
 
                       {/* PRONUNCIATION GUIDE */}
-                      {q["Pronunciation guide"]?.trim() && showDetails && (
+                      {q["Pronunciation guide"]?.trim() && (
                         <p
                           style={{
                             fontFamily: tokens.font.flavor,
