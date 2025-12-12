@@ -1,11 +1,6 @@
 // src/ResultsMode.js
 import React, { useMemo, useRef, useState, useCallback } from "react";
-import {
-  tokens,
-  colors as theme,
-  Button,
-  ButtonPrimary,
-} from "./styles/index.js";
+import { tokens, colors as theme, Button } from "./styles/index.js";
 import { colors } from "./styles/ui.js";
 
 // Normalize team shapes coming from cache (same as ScoringMode)
@@ -588,11 +583,6 @@ export default function ResultsMode({
     reopenedAt: null,
   });
   const [isArchiving, setIsArchiving] = useState(false);
-
-  // Display Mode state
-  const [displayPreviewOpen, setDisplayPreviewOpen] = useState(false);
-  const [displayFontSize, setDisplayFontSize] = useState(100); // percentage
-  const [customMessages, setCustomMessages] = useState(["", "", ""]);
 
   const hideTimerRef = React.useRef(null);
   React.useEffect(() => () => clearTimeout(hideTimerRef.current), []);
