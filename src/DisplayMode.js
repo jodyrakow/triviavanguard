@@ -302,11 +302,6 @@ function QuestionDisplay({ content, fontSize = 100 }) {
 
   const ANSWER_BOTTOM = "10vh";
 
-  // Reserve a bottom "safe area" so question text can never overlap answer/stats
-  const STATS_H = `${6.5 * scale}rem`; // your existing stats reserve
-  const ANSWER_H = `${4.0 * scale}rem`; // reserve ~1–2 lines for answer
-  const BOTTOM_PAD = `calc(${ANSWER_H} + ${STATS_H} + ${ANSWER_BOTTOM})`;
-
   const showStats =
     (correctCount != null && totalTeams != null) || pointsPerTeam != null;
 
@@ -356,9 +351,9 @@ function QuestionDisplay({ content, fontSize = 100 }) {
         width: "100%",
         height: STAGE_H,
         maxHeight: STAGE_H,
-        overflow: "hidden",
+        overflow: "visible", // Changed from "hidden" to allow answer/stats to show
         paddingTop: categoryName ? `${TOP_BAR_H}px` : "0px",
-        paddingBottom: BOTTOM_PAD, // ✅ add this back
+        // paddingBottom removed - using absolute positioning for answer/stats instead
       }}
     >
       {/* Category bar at top - gray bar behind logo */}
@@ -431,7 +426,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
             lineHeight: 1.35,
             color: theme.dark,
             zIndex: 10,
-            maxHeight: `max(140px, calc(${STAGE_H} - ${TOP_BAR_H}px - ${BOTTOM_PAD} - 140px))`,
+            maxHeight: "50vh", // Simplified - give question text plenty of room
             wordBreak: "break-word",
             overflowWrap: "anywhere",
           }}
@@ -474,20 +469,16 @@ function QuestionDisplay({ content, fontSize = 100 }) {
           )}
           {console.log("[QuestionDisplay] answer block rendered:", !!answer)}
 
-          {/* Stats area — ALWAYS takes space, even when empty */}
+          {/* Stats area */}
           <div
             style={{
-              minHeight: STATS_H,
-              display: "flex",
+              display: showStats ? "flex" : "none",
               flexDirection: "column",
               justifyContent: "center",
               fontSize: `${2.3 * scale}rem`,
               color: theme.dark,
               fontFamily: tokens.font.body,
               lineHeight: 1.2,
-
-              // hide when not showing, but keep reserved space:
-              visibility: showStats ? "visible" : "hidden",
             }}
           >
             {correctCount != null && totalTeams != null && (
