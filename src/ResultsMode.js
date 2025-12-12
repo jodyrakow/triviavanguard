@@ -900,7 +900,7 @@ export default function ResultsMode({
 
       const scoresPayload = [];
       for (const t of teams) {
-        for (const q of nonTBQuestions) {
+        for (const q of questionsWithIds) {  // ✅ Use filtered list (only questions with questionId)
           const cell = getCell(t.showTeamId, q.showQuestionId);
           const isCorrect = !!cell?.isCorrect;
           const qb = Number(cell?.questionBonus || 0);
