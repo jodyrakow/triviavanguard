@@ -1,11 +1,6 @@
 // src/ResultsMode.js
 import React, { useMemo, useRef, useState, useCallback } from "react";
-import {
-  tokens,
-  colors as theme,
-  Button,
-  ButtonPrimary,
-} from "./styles/index.js";
+import { tokens, colors as theme, Button, ButtonPrimary } from "./styles/index.js";
 import { colors } from "./styles/ui.js";
 
 // Normalize team shapes coming from cache (same as ScoringMode)
@@ -29,42 +24,43 @@ export default function ResultsMode({
   showBundle, // { rounds:[{round, questions:[...] }], showId? }
   selectedRoundId, // e.g. "1" (still used for UI text & fallback mode)
   cachedState, // { teams, grid, entryOrder } for current round (fallback)
-  cachedByRound = null, // NEW: flat structure { teams, grid, entryOrder, ... } for all rounds
-  scoringMode, // "pub" | "pooled" | "pooled-adaptive"
+  cachedByRound = null, // NEW: { [roundId]: {teams, grid, entryOrder} } for all rounds (enables cumulative)
+  scoringMode, // "pub" | "pooled"
+  setScoringMode,
   pubPoints,
+  setPubPoints,
   poolPerQuestion,
+  setPoolPerQuestion,
   selectedShowId,
   prizes: prizesString = "", // NEW: prizes from shared state (newline-separated string)
   setPrizes: setPrizesString, // NEW: setter for shared prizes
   questionEdits = {}, // { [showQuestionId]: { question?, flavorText?, answer? } }
   sendToDisplay, // Function to send content to display mode
 }) {
-  // New architecture is ALWAYS cumulative (all data in one flat structure)
-  const usingCumulative = true;
+  const roundNumber = Number(selectedRoundId);
+  const usingCumulative =
+    !!cachedByRound && Object.keys(cachedByRound).length > 0;
 
-  // ---- Build ALL questions across the whole show ----
+  // ---- Build ALL questions across the whole show (used in cumulative mode) ----
   const allQuestions = useMemo(() => {
     const rounds = Array.isArray(showBundle?.rounds) ? showBundle.rounds : [];
     const flat = [];
     for (const r of rounds) {
-      // Questions are nested under categories
-      for (const cat of r?.categories || []) {
-        for (const q of cat?.questions || []) {
-          flat.push({
-            round: r.round,
-            showQuestionId: q.showQuestionId || q.id,
-            questionId: Array.isArray(q.questionId)
-              ? q.questionId[0]
-              : (q.questionId ?? null),
-            pubPerQuestion:
-              typeof q.pointsPerQuestion === "number"
-                ? q.pointsPerQuestion
-                : null,
-            questionType: q.questionType || null,
-            sortOrder: Number(q.sortOrder ?? 9999),
-            questionOrder: q.questionOrder,
-          });
-        }
+      for (const q of r?.questions || []) {
+        flat.push({
+          round: r.round,
+          showQuestionId: q.id,
+          questionId: Array.isArray(q.questionId)
+            ? q.questionId[0]
+            : (q.questionId ?? null),
+          pubPerQuestion:
+            typeof q.pointsPerQuestion === "number"
+              ? q.pointsPerQuestion
+              : null,
+          questionType: q.questionType || null,
+          sortOrder: Number(q.sortOrder ?? 9999),
+          questionOrder: q.questionOrder,
+        });
       }
     }
     // same sort you use elsewhere: Sort Order, then alpha/num Question Order
@@ -82,30 +78,85 @@ export default function ResultsMode({
     return flat;
   }, [showBundle]);
 
-  // ---- Questions: Always use all questions (cumulative) ----
+  // ---- Fallback: current round only (when not cumulative) ----
+  const roundObj = useMemo(() => {
+    if (usingCumulative) return null;
+    const rounds = Array.isArray(showBundle?.rounds) ? showBundle.rounds : [];
+    return rounds.find((r) => Number(r.round) === roundNumber) || null;
+  }, [usingCumulative, showBundle, roundNumber]);
+
   const questions = useMemo(() => {
-    console.log("🔍 ResultsMode - allQuestions:", allQuestions);
-    console.log("🔍 ResultsMode - allQuestions.length:", allQuestions.length);
-    return allQuestions; // All questions from all rounds
-  }, [allQuestions]);
+    if (usingCumulative) return allQuestions; // we’ll skip TBs in scoring below
+    const raw = roundObj?.questions || [];
+    const bySort = [...raw].sort((a, b) => {
+      const sa = Number(a.sortOrder ?? 9999);
+      const sb = Number(b.sortOrder ?? 9999);
+      if (sa !== sb) return sa - sb;
+      const cvt = (val) => {
+        if (typeof val === "string" && /^[A-Z]$/i.test(val)) {
+          return val.toUpperCase().charCodeAt(0) - 64;
+        }
+        const n = parseInt(val, 10);
+        return isNaN(n) ? 9999 : 100 + n;
+      };
+      return cvt(a.questionOrder) - cvt(b.questionOrder);
+    });
+    return bySort.map((q) => ({
+      showQuestionId: q.id,
+      questionId: Array.isArray(q.questionId)
+        ? q.questionId[0]
+        : (q.questionId ?? null),
+      pubPerQuestion:
+        typeof q.pointsPerQuestion === "number" ? q.pointsPerQuestion : null,
+      questionType: q.questionType || null,
+    }));
+  }, [usingCumulative, allQuestions, roundObj]);
 
-  // ---- Teams (always use flat structure from cachedByRound) ----
+  // ---- Teams (merge across rounds in cumulative mode; otherwise just current) ----
   const teams = useMemo(() => {
-    // Flat structure: teams are at top level
-    const incoming = cachedByRound?.teams || [];
-    console.log("🔍 ResultsMode - cachedByRound:", cachedByRound);
-    console.log("🔍 ResultsMode - incoming teams:", incoming);
-    console.log("🔍 ResultsMode - incoming.length:", incoming.length);
-    return incoming.map(normalizeTeam);
-  }, [cachedByRound]);
+    if (!usingCumulative) {
+      const incoming = cachedState?.teams || [];
+      return incoming.map(normalizeTeam);
+    }
+    const byId = new Map();
+    for (const rid of Object.keys(cachedByRound)) {
+      const arr = cachedByRound[rid]?.teams || [];
+      for (const t of arr) {
+        const norm = normalizeTeam(t);
+        const prev = byId.get(norm.showTeamId);
+        if (!prev) {
+          byId.set(norm.showTeamId, norm);
+        } else {
+          // keep latest non-null bonus, name, teamId, and isLeague
+          byId.set(norm.showTeamId, {
+            ...prev,
+            teamName: norm.teamName || prev.teamName,
+            teamId: norm.teamId ?? prev.teamId,
+            showBonus:
+              typeof norm.showBonus === "number"
+                ? norm.showBonus
+                : prev.showBonus,
+            isLeague: norm.isLeague ?? prev.isLeague,
+          });
+        }
+      }
+    }
+    return [...byId.values()];
+  }, [usingCumulative, cachedState, cachedByRound]);
 
-  // ---- Cell accessor: reads from grid (flat structure has single grid for all rounds) ----
+  // ---- Cell accessor: reads from one grid (fallback) or all grids (cumulative) ----
   const getCell = useCallback(
     (showTeamId, showQuestionId) => {
-      // Flat structure: single grid at top level contains all questions from all rounds
-      return cachedByRound?.grid?.[showTeamId]?.[showQuestionId] || null;
+      if (!usingCumulative) {
+        return cachedState?.grid?.[showTeamId]?.[showQuestionId] || null;
+      }
+      for (const rid of Object.keys(cachedByRound)) {
+        const cell = cachedByRound[rid]?.grid?.[showTeamId]?.[showQuestionId];
+        if (cell) return cell;
+      }
+      return null;
     },
-    [cachedByRound]
+    [usingCumulative, cachedState, cachedByRound]
   );
 
   // ---- Show-wide TB detection (one per show) ----
@@ -113,18 +164,7 @@ export default function ResultsMode({
     const allRounds = Array.isArray(showBundle?.rounds)
       ? showBundle.rounds
       : [];
-    console.log(
-      "🔍 ResultsMode - Searching for tiebreaker in rounds:",
-      allRounds
-    );
     for (const r of allRounds) {
-      console.log(
-        "🔍 ResultsMode - Round",
-        r.round,
-        "questions array:",
-        r?.questions
-      );
-      // Check flat questions array (where host-added tiebreakers are stored)
       for (const q of r?.questions || []) {
         const type = (q.questionType || "").toLowerCase();
         if (
@@ -132,85 +172,41 @@ export default function ResultsMode({
           String(q.questionOrder).toUpperCase() === "TB" ||
           String(q.id || "").startsWith("tb-")
         ) {
-          console.log(
-            "🎯 ResultsMode - FOUND TIEBREAKER in flat questions:",
-            q
-          );
           return q;
         }
       }
-      // Also check nested categories structure (for Airtable tiebreakers)
-      for (const cat of r?.categories || []) {
-        for (const q of cat?.questions || []) {
-          const type = (q.questionType || "").toLowerCase();
-          if (
-            type === "tiebreaker" ||
-            String(q.questionOrder).toUpperCase() === "TB" ||
-            String(q.id || "").startsWith("tb-")
-          ) {
-            console.log("🎯 ResultsMode - FOUND TIEBREAKER in categories:", q);
-            return q;
-          }
-        }
-      }
     }
-    console.log("❌ ResultsMode - NO TIEBREAKER FOUND");
     return null;
   }, [showBundle]);
 
   const tbNumber = React.useMemo(() => {
-    console.log("🔍 ResultsMode - tbNumber extraction - tbQ:", tbQ);
-    if (!tbQ) {
-      console.log("❌ ResultsMode - tbNumber is null because tbQ is null");
-      return null;
-    }
-
-    console.log("🔍 ResultsMode - tbQ.tiebreakerNumber:", tbQ.tiebreakerNumber);
-    console.log("🔍 ResultsMode - tbQ.answer:", tbQ.answer);
-    console.log("🔍 ResultsMode - tbQ.answerText:", tbQ.answerText);
-    console.log("🔍 ResultsMode - tbQ.correctAnswer:", tbQ.correctAnswer);
+    if (!tbQ) return null;
 
     // 1) explicit numeric wins
     if (
       typeof tbQ.tiebreakerNumber === "number" &&
       Number.isFinite(tbQ.tiebreakerNumber)
     ) {
-      console.log(
-        "✅ ResultsMode - Using tiebreakerNumber (numeric):",
-        tbQ.tiebreakerNumber
-      );
       return tbQ.tiebreakerNumber;
     }
 
     // 2) try common string-ish fields (handle arrays too)
     const pick = (v) => (Array.isArray(v) ? v[0] : v);
-    // Filter out empty strings, not just null/undefined
     const raw =
-      pick(tbQ.tiebreakerNumber)?.trim() ||
-      pick(tbQ.answer)?.trim() ||
-      tbQ.answerText?.trim() ||
-      tbQ.correctAnswer?.trim() ||
+      pick(tbQ.tiebreakerNumber) ??
+      pick(tbQ.answer) ??
+      tbQ.answerText ??
+      tbQ.correctAnswer ??
       null;
 
-    console.log("🔍 ResultsMode - raw value after pick:", raw);
-
-    if (!raw) {
-      console.log("❌ ResultsMode - raw is falsy, returning null");
-      return null;
-    }
+    if (raw == null) return null;
 
     // 💡 key fix: remove thousands separators/spaces before matching the number
     const cleaned = String(raw).replace(/[\s,]/g, "");
-    console.log("🔍 ResultsMode - cleaned value:", cleaned);
     const m = cleaned.match(/-?\d+(?:\.\d+)?/);
-    console.log("🔍 ResultsMode - regex match:", m);
-    if (!m) {
-      console.log("❌ ResultsMode - No number found in cleaned string");
-      return null;
-    }
+    if (!m) return null;
 
     const n = Number(m[0]);
-    console.log("✅ ResultsMode - Extracted number:", n);
     return Number.isFinite(n) ? n : null;
   }, [tbQ]);
 
@@ -228,10 +224,7 @@ export default function ResultsMode({
   // Convert shared prizes string to array
   const prizes = useMemo(() => {
     if (!prizesString) return [];
-    return prizesString
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter(Boolean);
+    return prizesString.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   }, [prizesString]);
 
   const prizeCount = prizes.length;
@@ -628,7 +621,7 @@ export default function ResultsMode({
   const exportJSON = () => {
     const showName =
       showBundle?.showName ||
-      showBundle?.rounds?.[0]?.categories?.[0]?.questions?.[0]?.showName ||
+      showBundle?.rounds?.[0]?.questions?.[0]?.showName ||
       "show";
     const showDate =
       showBundle?.showDate || new Date().toISOString().split("T")[0];
@@ -769,7 +762,7 @@ export default function ResultsMode({
 
     const showName =
       showBundle?.showName ||
-      showBundle?.rounds?.[0]?.categories?.[0]?.questions?.[0]?.showName ||
+      showBundle?.rounds?.[0]?.questions?.[0]?.showName ||
       "Unknown Show";
     const showDate =
       showBundle?.showDate || new Date().toISOString().split("T")[0];
@@ -878,28 +871,21 @@ export default function ResultsMode({
         (q) => !(tbQ && q.showQuestionId === tbQ.id)
       );
 
-      // Filter out questions without questionId (host-added or edited questions)
-      // These will be skipped during publish
-      const questionsWithIds = nonTBQuestions.filter((q) => q.questionId);
+      // Validate every non-TB question has a Questions record id
       const missingQids = nonTBQuestions
         .filter((q) => !q.questionId)
         .map((q) => q.showQuestionId);
-
       if (missingQids.length) {
-        console.warn(
-          `⚠️ Skipping ${missingQids.length} questions without questionId links:`,
-          missingQids
+        throw new Error(
+          `Some ShowQuestions are missing a linked Questions record (questionId).\n` +
+            `Please open Airtable and link these ShowQuestions to a Question:\n` +
+            missingQids.join(", ")
         );
-        setPublishDetail(
-          `Note: Skipping ${missingQids.length} host-added/edited questions (no Airtable link)`
-        );
-        // Wait a moment so user can see the message
-        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      // Precompute nCorrect per Q for pooled (only for questions with IDs)
+      // Precompute nCorrect per Q for pooled
       const nCorrectByQ = {};
-      for (const q of questionsWithIds) {
+      for (const q of nonTBQuestions) {
         let n = 0;
         for (const t of teams) {
           if (getCell(t.showTeamId, q.showQuestionId)?.isCorrect) n++;
@@ -925,8 +911,7 @@ export default function ResultsMode({
 
       const scoresPayload = [];
       for (const t of teams) {
-        for (const q of questionsWithIds) {
-          // ✅ Use filtered list (only questions with questionId)
+        for (const q of nonTBQuestions) {
           const cell = getCell(t.showTeamId, q.showQuestionId);
           const isCorrect = !!cell?.isCorrect;
           const qb = Number(cell?.questionBonus || 0);
@@ -1017,10 +1002,7 @@ export default function ResultsMode({
             editsUpdated = editsJson.updatedCount || 0;
             console.log("Question edits updated:", editsJson);
           } else {
-            console.error(
-              "Failed to update question edits:",
-              await editsRes.text()
-            );
+            console.error("Failed to update question edits:", await editsRes.text());
           }
         } catch (e) {
           console.error("Error updating question edits:", e);
@@ -1063,8 +1045,8 @@ export default function ResultsMode({
     }
   };
 
-  // --------- Guard rails ---------
-  const noRound = false; // Always false since we're always in cumulative mode
+  // --------- Guard rails (per-round only shows guidance; cumulative ignores it) ---------
+  const noRound = !usingCumulative && !roundObj;
   const noData = !teams.length && !questions.length;
 
   const finalStandingsRef = useRef(null);
@@ -1428,6 +1410,112 @@ export default function ResultsMode({
         </div>
       )}
 
+      {/* Controls */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr auto",
+          alignItems: "center",
+          gap: ".75rem",
+          padding: "0 12px",
+          marginBottom: tokens.spacing.md,
+        }}
+      >
+        <div
+          style={{ display: "flex", flexWrap: "wrap", gap: tokens.spacing.sm }}
+        >
+          <div
+            style={{
+              display: "inline-flex",
+              border: `${tokens.borders.thin} ${colors.gray.border}`,
+              borderRadius: 999,
+              overflow: "hidden",
+              background: colors.white,
+            }}
+            title="Choose scoring type"
+          >
+            <button
+              type="button"
+              onClick={() => setScoringMode("pub")}
+              style={{
+                padding: ".35rem .6rem",
+                border: "none",
+                background:
+                  scoringMode === "pub" ? theme.accent : "transparent",
+                color: scoringMode === "pub" ? colors.white : theme.dark,
+                cursor: "pointer",
+              }}
+            >
+              Pub scoring
+            </button>
+            <button
+              type="button"
+              onClick={() => setScoringMode("pooled")}
+              style={{
+                padding: ".35rem .6rem",
+                border: "none",
+                background:
+                  scoringMode === "pooled" ? theme.accent : "transparent",
+                color: scoringMode === "pooled" ? colors.white : theme.dark,
+                cursor: "pointer",
+              }}
+            >
+              Pooled scoring
+            </button>
+          </div>
+
+          {scoringMode === "pub" ? (
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: ".4rem",
+              }}
+            >
+              <span>Points per question:</span>
+              <input
+                type="number"
+                value={pubPoints}
+                min={0}
+                step={1}
+                onChange={(e) => setPubPoints(Number(e.target.value || 0))}
+                style={{
+                  width: 80,
+                  padding: ".35rem .5rem",
+                  border: `${tokens.borders.thin} ${colors.gray.border}`,
+                  borderRadius: ".35rem",
+                }}
+              />
+            </label>
+          ) : (
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: ".4rem",
+              }}
+            >
+              <span>Pooled points per question:</span>
+              <input
+                type="number"
+                value={poolPerQuestion}
+                min={0}
+                step={10}
+                onChange={(e) =>
+                  setPoolPerQuestion(Number(e.target.value || 0))
+                }
+                style={{
+                  width: 120,
+                  padding: ".35rem .5rem",
+                  border: `${tokens.borders.thin} ${colors.gray.border}`,
+                  borderRadius: ".35rem",
+                }}
+              />
+            </label>
+          )}
+        </div>
+      </div>
+
       {/* Prizes control */}
       <div
         style={{
@@ -1524,35 +1612,35 @@ export default function ResultsMode({
               !archiveStatus.isFinalized && !isArchiving
                 ? colors.gray.border
                 : isPublishing
-                  ? "#ffe8d8"
-                  : theme.accent,
+                ? "#ffe8d8"
+                : theme.accent,
             color:
               !archiveStatus.isFinalized && !isArchiving
                 ? colors.gray.text
                 : isPublishing
-                  ? theme.accent
-                  : colors.white,
+                ? theme.accent
+                : colors.white,
             borderRadius: ".35rem",
             cursor:
               !archiveStatus.isFinalized && !isArchiving
                 ? "not-allowed"
                 : isPublishing
-                  ? "not-allowed"
-                  : "pointer",
+                ? "not-allowed"
+                : "pointer",
             fontFamily: tokens.font.body,
             opacity:
               !archiveStatus.isFinalized && !isArchiving
                 ? 0.6
                 : isPublishing
-                  ? 0.9
-                  : 1,
+                ? 0.9
+                : 1,
           }}
           title={
             !archiveStatus.isFinalized && !isArchiving
               ? "⚠️ You must archive the show first (click 'Archive Show' button above)"
               : isPublishing
-                ? "Publishing in progress… please wait"
-                : "Create ShowTeams as needed and write all Scores for this show"
+              ? "Publishing in progress… please wait"
+              : "Create ShowTeams as needed and write all Scores for this show"
           }
         >
           {isPublishing ? "⏳ Publishing…" : "Publish results to Airtable"}
@@ -2117,139 +2205,126 @@ export default function ResultsMode({
                               verticalAlign: "middle",
                             }}
                           >
-                            {!sameAsPrev &&
-                              (() => {
-                                // First row of this tie group (by score) - show ALL buttons for entire group
-                                const allTiedByScore = arr.filter(
-                                  (row) => row.total === r.total
-                                );
-                                const isTiedByScore = allTiedByScore.length > 1;
+                            {!sameAsPrev && (() => {
+                              // First row of this tie group (by score) - show ALL buttons for entire group
+                              const allTiedByScore = arr.filter(
+                                (row) => row.total === r.total
+                              );
+                              const isTiedByScore = allTiedByScore.length > 1;
 
-                                // Get unique places within this tie group
-                                const uniquePlaces = [
-                                  ...new Set(
-                                    allTiedByScore.map((t) => t.place)
-                                  ),
-                                ].sort((a, b) => a - b);
+                              // Get unique places within this tie group
+                              const uniquePlaces = [...new Set(allTiedByScore.map(t => t.place))].sort((a, b) => a - b);
 
-                                // For randomize button: get the highest place in the tie group
-                                const highestPlaceInTie = Math.min(
-                                  ...uniquePlaces
-                                );
-                                const highestPlaceStr =
-                                  ordinal(highestPlaceInTie);
+                              // For randomize button: get the highest place in the tie group
+                              const highestPlaceInTie = Math.min(...uniquePlaces);
+                              const highestPlaceStr = ordinal(highestPlaceInTie);
 
-                                // Check if there are "unlucky" teams (tied but outside prize band)
-                                const unluckyTeams = isTiedByScore
-                                  ? allTiedByScore.filter(
-                                      (t) => t.place > prizeCount
-                                    )
-                                  : [];
+                              // Check if there are "unlucky" teams (tied but outside prize band)
+                              const unluckyTeams = isTiedByScore
+                                ? allTiedByScore.filter((t) => t.place > prizeCount)
+                                : [];
 
-                                return (
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      flexDirection: "column",
-                                      gap: "0.25rem",
-                                      alignItems: "center",
-                                    }}
-                                  >
-                                    {/* Randomize ALL tied teams (if tied by score) */}
-                                    {isTiedByScore && (
-                                      <Button
-                                        onClick={() => {
-                                          const allTiedTeamNames =
-                                            allTiedByScore.map(
-                                              (t) => t.teamName
-                                            );
-                                          const shuffled = [
-                                            ...allTiedTeamNames,
-                                          ].sort(() => Math.random() - 0.5);
-                                          sendToDisplay("results", {
-                                            place: highestPlaceStr,
-                                            teams: shuffled,
-                                            prize: null,
-                                            isTied: true,
-                                          });
-                                        }}
-                                        style={{
-                                          fontSize: "0.7rem",
-                                          padding: "0.25rem 0.5rem",
-                                          whiteSpace: "nowrap",
-                                          background: theme.accent,
-                                          color: "#fff",
-                                        }}
-                                        title={`Randomize ALL tied teams`}
-                                      >
-                                        🔀 Rand All
-                                      </Button>
-                                    )}
-
-                                    {/* Push button for "unlucky" teams (tied but no prize) */}
-                                    {unluckyTeams.length > 0 && (
-                                      <Button
-                                        onClick={() => {
-                                          const unluckyTeamNames =
-                                            unluckyTeams.map((t) => t.teamName);
-                                          sendToDisplay("results", {
-                                            place: highestPlaceStr,
-                                            teams: unluckyTeamNames,
-                                            prize: null,
-                                            isTied: true,
-                                          });
-                                        }}
-                                        style={{
-                                          fontSize: "0.7rem",
-                                          padding: "0.25rem 0.5rem",
-                                          whiteSpace: "nowrap",
-                                        }}
-                                        title={`Push unlucky tied teams (no prizes)`}
-                                      >
-                                        😢 Unlucky
-                                      </Button>
-                                    )}
-
-                                    {/* Individual push buttons for EACH place in the tie group */}
-                                    {uniquePlaces.map((place) => {
-                                      const teamsAtThisPlace =
-                                        allTiedByScore.filter(
-                                          (t) => t.place === place
+                              return (
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: "0.25rem",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  {/* Randomize ALL tied teams (if tied by score) */}
+                                  {isTiedByScore && (
+                                    <Button
+                                      onClick={() => {
+                                        const allTiedTeamNames = allTiedByScore.map(
+                                          (t) => t.teamName
                                         );
-                                      const placeStr = ordinal(place);
-                                      const teamNames = teamsAtThisPlace.map(
-                                        (t) => t.teamName
-                                      );
-                                      const prizeText =
-                                        prizeCount > 0 && place <= prizeCount
-                                          ? prizes[place - 1] || ""
-                                          : "";
+                                        const shuffled = [...allTiedTeamNames].sort(
+                                          () => Math.random() - 0.5
+                                        );
+                                        sendToDisplay("results", {
+                                          place: highestPlaceStr,
+                                          teams: shuffled,
+                                          prize: null,
+                                          isTied: true,
+                                        });
+                                      }}
+                                      style={{
+                                        fontSize: "0.7rem",
+                                        padding: "0.25rem 0.5rem",
+                                        whiteSpace: "nowrap",
+                                        background: theme.accent,
+                                        color: "#fff",
+                                      }}
+                                      title={`Randomize ALL tied teams`}
+                                    >
+                                      🔀 Rand All
+                                    </Button>
+                                  )}
 
-                                      return (
-                                        <Button
-                                          key={place}
-                                          onClick={() => {
-                                            sendToDisplay("results", {
-                                              place: placeStr,
-                                              teams: teamNames,
-                                              prize: prizeText,
-                                              isTied: false,
-                                            });
-                                          }}
-                                          style={{
-                                            fontSize: "0.7rem",
-                                            padding: "0.25rem 0.5rem",
-                                            whiteSpace: "nowrap",
-                                          }}
-                                          title={`Push ${placeStr} place: ${teamNames.join(", ")}`}
-                                        >
-                                          📺 {placeStr}
-                                        </Button>
-                                      );
-                                    })}
-                                  </div>
-                                );
-                              })()}
+                                  {/* Push button for "unlucky" teams (tied but no prize) */}
+                                  {unluckyTeams.length > 0 && (
+                                    <Button
+                                      onClick={() => {
+                                        const unluckyTeamNames = unluckyTeams.map(
+                                          (t) => t.teamName
+                                        );
+                                        sendToDisplay("results", {
+                                          place: highestPlaceStr,
+                                          teams: unluckyTeamNames,
+                                          prize: null,
+                                          isTied: true,
+                                        });
+                                      }}
+                                      style={{
+                                        fontSize: "0.7rem",
+                                        padding: "0.25rem 0.5rem",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                      title={`Push unlucky tied teams (no prizes)`}
+                                    >
+                                      😢 Unlucky
+                                    </Button>
+                                  )}
+
+                                  {/* Individual push buttons for EACH place in the tie group */}
+                                  {uniquePlaces.map((place) => {
+                                    const teamsAtThisPlace = allTiedByScore.filter(
+                                      (t) => t.place === place
+                                    );
+                                    const placeStr = ordinal(place);
+                                    const teamNames = teamsAtThisPlace.map((t) => t.teamName);
+                                    const prizeText =
+                                      prizeCount > 0 && place <= prizeCount
+                                        ? prizes[place - 1] || ""
+                                        : "";
+
+                                    return (
+                                      <Button
+                                        key={place}
+                                        onClick={() => {
+                                          sendToDisplay("results", {
+                                            place: placeStr,
+                                            teams: teamNames,
+                                            prize: prizeText,
+                                            isTied: false,
+                                          });
+                                        }}
+                                        style={{
+                                          fontSize: "0.7rem",
+                                          padding: "0.25rem 0.5rem",
+                                          whiteSpace: "nowrap",
+                                        }}
+                                        title={`Push ${placeStr} place: ${teamNames.join(", ")}`}
+                                      >
+                                        📺 {placeStr}
+                                      </Button>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
                           </td>
                         )}
 
