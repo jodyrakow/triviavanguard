@@ -1,5 +1,5 @@
 // src/DisplayMode.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { colors as theme, tokens } from "./styles";
 import triviaVanguardLogo from "./trivia-vanguard-logo-white.png";
 import { marked } from "marked";
@@ -162,9 +162,10 @@ export default function DisplayMode() {
         {/* Main content area */}
         <div
           style={{
-            width: "90%",
-            maxWidth: "1400px",
+            width: "100%",
+            height: "100%",
             textAlign: "center",
+            position: "relative",
           }}
         >
           {displayState.type === "standby" && <StandbyScreen />}
@@ -291,8 +292,63 @@ function QuestionDisplay({ content, fontSize = 100 }) {
 
   const [currentImageIndex] = useState(0);
 
+  // fixed “reserved” heights in vh so layout doesn’t jump
+  const TOP_BAR_H = categoryName ? 100 : 0; // px, matches your bar
+  const STAGE_H = "90vh";
+
+  const ANSWER_BOTTOM = "10vh";
+
+  // Reserve a bottom "safe area" so question text can never overlap answer/stats
+  const STATS_H = `${6.5 * scale}rem`; // your existing stats reserve
+  const ANSWER_H = `${4.0 * scale}rem`; // reserve ~1–2 lines for answer
+  const BOTTOM_PAD = `calc(${ANSWER_H} + ${STATS_H} + ${ANSWER_BOTTOM})`;
+
+  const showStats =
+    (correctCount != null && totalTeams != null) || pointsPerTeam != null;
+
+  const textRef = useRef(null);
+  const [fitTextScale, setFitTextScale] = useState(1);
+
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+
+    // Reset before measuring
+    el.style.fontSize = `${2.6 * scale}rem`;
+    setFitTextScale(1);
+
+    requestAnimationFrame(() => {
+      const node = textRef.current;
+      if (!node) return;
+
+      const fits = () => node.scrollHeight <= node.clientHeight + 1;
+
+      if (fits()) return;
+
+      let s = 1;
+      const MIN = 0.72;
+      const STEP = 0.04;
+
+      while (s > MIN && !fits()) {
+        s = Math.max(MIN, s - STEP);
+        node.style.fontSize = `${2.6 * scale * s}rem`;
+      }
+
+      setFitTextScale(s);
+    });
+  }, [questionText, categoryName, images?.length, fontSize]);
+
   return (
-    <div>
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: STAGE_H,
+        maxHeight: STAGE_H,
+        overflow: "hidden",
+        paddingTop: categoryName ? `${TOP_BAR_H}px` : "0px",
+      }}
+    >
       {/* Category bar at top - gray bar behind logo */}
       {categoryName && (
         <div
@@ -301,7 +357,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
             top: 0,
             left: 0,
             right: 0,
-            height: "100px",
+            height: `${TOP_BAR_H}px`,
             backgroundColor: theme.gray.border,
             display: "flex",
             justifyContent: "flex-start",
@@ -330,75 +386,43 @@ function QuestionDisplay({ content, fontSize = 100 }) {
       {questionNumber && (
         <div
           style={{
-            fontSize: `${4 * scale}rem`,
-            fontWeight: 700,
+            position: "absolute",
+            top: categoryName ? `${TOP_BAR_H + 18}px` : "18px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            textAlign: "center",
+            whiteSpace: "nowrap",
+            fontSize: `${4.25 * scale}rem`,
+            fontWeight: 800,
             color: theme.accent,
-            marginBottom: "1rem",
-            marginTop: categoryName ? "80px" : "0",
+            zIndex: 10,
           }}
         >
           {questionNumber === "TB" ? "TIEBREAKER" : questionNumber}
         </div>
       )}
 
-      {/* Images */}
-      {images && images.length > 0 && (
-        <div
-          style={{
-            marginBottom: "1rem", // less extra space under the image
-            display: "flex",
-            justifyContent: "center",
-          }}
-        >
-          <img
-            src={images[currentImageIndex].url}
-            alt={`Question ${currentImageIndex + 1}`}
-            style={{
-              maxWidth: "90%",
-              maxHeight: "65vh",
-              borderRadius: "12px",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-              objectFit: "contain",
-            }}
-          />
-          {/* Image indicators */}
-          {images.length > 1 && (
-            <div
-              style={{
-                marginTop: "1rem",
-                display: "flex",
-                gap: "8px",
-                justifyContent: "center",
-              }}
-            >
-              {images.map((_, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    width: "12px",
-                    height: "12px",
-                    borderRadius: "50%",
-                    backgroundColor:
-                      idx === currentImageIndex
-                        ? theme.accent
-                        : theme.gray.border,
-                    transition: "background-color 0.3s",
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Question text */}
       {questionText && (
         <div
+          ref={textRef}
           style={{
-            fontSize: `${2.5 * scale}rem`,
+            position: "absolute",
+            top: categoryName ? `${TOP_BAR_H + 120}px` : "120px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "90%",
+            maxWidth: "1400px",
+            textAlign: "center",
+            fontSize: `${2.6 * scale * fitTextScale}rem`,
             fontWeight: 500,
-            lineHeight: 1.4,
+            lineHeight: 1.35,
             color: theme.dark,
+            zIndex: 10,
+            maxHeight: `calc(${STAGE_H} - ${TOP_BAR_H}px - ${BOTTOM_PAD} - 140px)`,
+            overflow: "hidden",
+            wordBreak: "break-word",
+            overflowWrap: "anywhere",
           }}
           dangerouslySetInnerHTML={{
             __html: marked.parseInline(questionText || ""),
@@ -406,59 +430,76 @@ function QuestionDisplay({ content, fontSize = 100 }) {
         />
       )}
 
-      {/* Answer (if provided) */}
-      {answer && (
-        <>
-          <div
-            style={{
-              fontSize: `${2.5 * scale}rem`,
-              fontWeight: 600,
-              lineHeight: 1.4,
-              color: theme.accent,
-              marginTop: "2rem",
-            }}
-            dangerouslySetInnerHTML={{
-              __html: marked.parseInline(answer || ""),
-            }}
-          />
-
-          {/* Stats for all scoring modes - only show if stats are actually provided */}
-          {((correctCount != null && totalTeams != null) ||
-            pointsPerTeam != null) && (
+      {/* ANSWER + STATS BAND (pinned to bottom; height stays constant) */}
+      {(answer || showStats) && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)",
+            bottom: ANSWER_BOTTOM,
+            width: "92%",
+            maxWidth: "1400px",
+            textAlign: "center",
+            zIndex: 20,
+          }}
+        >
+          {/* Answer text — stays in the same place */}
+          {answer && (
             <div
               style={{
-                marginTop: "2rem",
-                fontSize: `${2.5 * scale}rem`,
-                color: theme.dark,
-                fontFamily: tokens.font.body,
+                fontSize: `${2.75 * scale}rem`,
+                fontWeight: 800,
+                lineHeight: 1.25,
+                color: theme.accent,
+                marginBottom: "1rem", // always the same
               }}
-            >
-              {correctCount != null && totalTeams != null && (
-                <div
+              dangerouslySetInnerHTML={{
+                __html: marked.parseInline(answer || ""),
+              }}
+            />
+          )}
+
+          {/* Stats area — ALWAYS takes space, even when empty */}
+          <div
+            style={{
+              minHeight: STATS_H,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              fontSize: `${2.3 * scale}rem`,
+              color: theme.dark,
+              fontFamily: tokens.font.body,
+              lineHeight: 1.2,
+
+              // hide when not showing, but keep reserved space:
+              visibility: showStats ? "visible" : "hidden",
+            }}
+          >
+            {correctCount != null && totalTeams != null && (
+              <div
+                style={{ marginBottom: pointsPerTeam != null ? "0.5rem" : 0 }}
+              >
+                {correctCount} / {totalTeams} teams correct
+              </div>
+            )}
+
+            {pointsPerTeam != null && (
+              <div>
+                <span
                   style={{
-                    marginBottom: pointsPerTeam != null ? "0.5rem" : "0",
+                    color: theme.accent,
+                    fontWeight: 900,
+                    fontSize: `${2.4 * scale}rem`,
                   }}
                 >
-                  {correctCount} / {totalTeams} teams correct
-                </div>
-              )}
-              {pointsPerTeam != null && (
-                <div>
-                  <span
-                    style={{
-                      color: theme.accent,
-                      fontWeight: 700,
-                      fontSize: `${2.5 * scale}rem`,
-                    }}
-                  >
-                    {pointsPerTeam}
-                  </span>{" "}
-                  points per team
-                </div>
-              )}
-            </div>
-          )}
-        </>
+                  {pointsPerTeam}
+                </span>{" "}
+                points per team
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
