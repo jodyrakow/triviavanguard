@@ -190,6 +190,7 @@ export default function ShowMode({
               "Category description": catDesc,
               "Category order": catOrder,
               "Super secret": !!cat?.superSecret,
+              questionType: cat?.questionType || null, // ✅ Add questionType from category
               "Category image": Array.isArray(cat?.categoryImages)
                 ? cat.categoryImages
                 : [],
@@ -1259,32 +1260,55 @@ export default function ShowMode({
                             }}
                           />
                           {sendToDisplay && (
-                            <Button
-                              onClick={() => {
-                                // Push question with answer and stats
-                                sendToDisplay("questionWithAnswer", {
-                                  questionNumber: q["Question order"],
-                                  questionText: q["Question text"] || "",
-                                  categoryName: categoryName,
-                                  images: [],
-                                  answer: q["Answer"] || "",
-                                  pointsPerTeam: q._calculatedPoints,
-                                  correctCount:
-                                    q._calculatedStats?.correctCount || null,
-                                  totalTeams:
-                                    q._calculatedStats?.totalTeams || null,
-                                });
-                              }}
-                              style={{
-                                marginLeft: ".5rem",
-                                fontSize: ".75rem",
-                                padding: ".25rem .5rem",
-                                verticalAlign: "middle",
-                              }}
-                              title="Push this question with answer to the display"
-                            >
-                              Push answer to display
-                            </Button>
+                            <>
+                              <Button
+                                onClick={() => {
+                                  // Push question with answer only (no stats)
+                                  sendToDisplay("questionWithAnswer", {
+                                    questionNumber: q["Question order"],
+                                    questionText: q["Question text"] || "",
+                                    categoryName: categoryName,
+                                    images: [],
+                                    answer: q["Answer"] || "",
+                                  });
+                                }}
+                                style={{
+                                  marginLeft: ".5rem",
+                                  fontSize: ".75rem",
+                                  padding: ".25rem .5rem",
+                                  verticalAlign: "middle",
+                                }}
+                                title="Push answer to display"
+                              >
+                                Push answer
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  // Push answer with statistics
+                                  sendToDisplay("questionWithAnswer", {
+                                    questionNumber: q["Question order"],
+                                    questionText: q["Question text"] || "",
+                                    categoryName: categoryName,
+                                    images: [],
+                                    answer: q["Answer"] || "",
+                                    pointsPerTeam: q._calculatedPoints,
+                                    correctCount:
+                                      q._calculatedStats?.correctCount || null,
+                                    totalTeams:
+                                      q._calculatedStats?.totalTeams || null,
+                                  });
+                                }}
+                                style={{
+                                  marginLeft: ".5rem",
+                                  fontSize: ".75rem",
+                                  padding: ".25rem .5rem",
+                                  verticalAlign: "middle",
+                                }}
+                                title="Push answer with statistics to display"
+                              >
+                                Push stats
+                              </Button>
+                            </>
                           )}
                         </p>
                       )}
