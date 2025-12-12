@@ -297,30 +297,20 @@ function QuestionDisplay({ content, fontSize = 100 }) {
     totalTeams,
   } = content || {};
 
-  console.log("[QuestionDisplay] Rendering with:", {
-    answer,
-    pointsPerTeam,
-    correctCount,
-    totalTeams,
-  });
-
   const scale = fontSize / 100;
 
-  // fixed "reserved" heights in vh so layout doesn't jump
-  const TOP_BAR_H = categoryName ? 100 : 0; // px, matches your bar
+  // fixed “reserved” heights so layout doesn’t jump
+  const TOP_BAR_H = categoryName ? 100 : 0; // px
   const STAGE_H = "90vh";
-
   const ANSWER_BOTTOM = "10vh";
 
   const showStats =
     (correctCount != null && totalTeams != null) || pointsPerTeam != null;
 
-  console.log(
-    "[QuestionDisplay] showStats:",
-    showStats,
-    "answer condition:",
-    !!(answer || showStats)
-  );
+  // Reserve a bottom "safe area" so question text can never overlap answer/stats
+  const STATS_H = `${6.5 * scale}rem`;
+  const ANSWER_H = `${4.0 * scale}rem`;
+  const BOTTOM_PAD = `calc(${ANSWER_H} + ${STATS_H} + ${ANSWER_BOTTOM})`;
 
   const textRef = useRef(null);
   const [fitTextScale, setFitTextScale] = useState(1);
@@ -338,7 +328,6 @@ function QuestionDisplay({ content, fontSize = 100 }) {
       if (!node) return;
 
       const fits = () => node.scrollHeight <= node.clientHeight + 1;
-
       if (fits()) return;
 
       let s = 1;
@@ -357,15 +346,16 @@ function QuestionDisplay({ content, fontSize = 100 }) {
   return (
     <div
       style={{
-        display: "flex",
-        flexDirection: "column",
-        width: "100%",
-        height: "100%",
-        paddingTop: categoryName ? `${TOP_BAR_H}px` : "0px",
         position: "relative",
+        width: "100%",
+        height: STAGE_H,
+        maxHeight: STAGE_H,
+        overflow: "hidden",
+        paddingTop: categoryName ? `${TOP_BAR_H}px` : "0px",
+        paddingBottom: BOTTOM_PAD,
       }}
     >
-      {/* Category bar at top - gray bar behind logo */}
+      {/* Category bar */}
       {categoryName && (
         <div
           style={{
@@ -435,7 +425,8 @@ function QuestionDisplay({ content, fontSize = 100 }) {
             lineHeight: 1.35,
             color: theme.dark,
             zIndex: 10,
-            maxHeight: "50vh", // Simplified - give question text plenty of room
+            maxHeight: `calc(${STAGE_H} - ${TOP_BAR_H}px - ${BOTTOM_PAD} - 140px)`,
+            overflow: "hidden",
             wordBreak: "break-word",
             overflowWrap: "anywhere",
           }}
@@ -445,32 +436,27 @@ function QuestionDisplay({ content, fontSize = 100 }) {
         />
       )}
 
-      {/* ANSWER + STATS BAND (pinned to bottom; height stays constant) */}
+      {/* ANSWER + STATS (pinned within the stage, NOT fixed to the viewport) */}
       {(answer || showStats) && (
         <div
           style={{
-            position: "fixed",
+            position: "absolute",
             left: "50%",
             transform: "translateX(-50%)",
-            bottom: "5vh",
+            bottom: ANSWER_BOTTOM,
             width: "92%",
             maxWidth: "1400px",
             textAlign: "center",
-            zIndex: 9999,
-            backgroundColor: "rgba(220, 106, 36, 0.95)",
-            padding: "2rem",
-            borderRadius: "1rem",
+            zIndex: 20,
           }}
         >
-          {console.log("[QuestionDisplay] Rendering answer/stats container")}
-          {/* Answer text — stays in the same place */}
           {answer && (
             <div
               style={{
                 fontSize: `${2.75 * scale}rem`,
                 fontWeight: 800,
                 lineHeight: 1.25,
-                color: "#FFFFFF",
+                color: theme.accent,
                 marginBottom: "1rem",
               }}
               dangerouslySetInnerHTML={{
@@ -479,16 +465,17 @@ function QuestionDisplay({ content, fontSize = 100 }) {
             />
           )}
 
-          {/* Stats area */}
           <div
             style={{
-              display: showStats ? "flex" : "none",
+              minHeight: STATS_H,
+              display: "flex",
               flexDirection: "column",
               justifyContent: "center",
               fontSize: `${2.3 * scale}rem`,
-              color: "#FFFFFF",
+              color: theme.dark,
               fontFamily: tokens.font.body,
               lineHeight: 1.2,
+              visibility: showStats ? "visible" : "hidden",
             }}
           >
             {correctCount != null && totalTeams != null && (
@@ -527,16 +514,29 @@ function MessageDisplay({ content, fontSize = 100 }) {
   return (
     <div
       style={{
-        fontSize: `${3 * scale}rem`,
-        fontWeight: 600,
-        lineHeight: 1.5,
-        color: theme.dark,
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         padding: "2rem",
+        boxSizing: "border-box",
+        textAlign: "center",
       }}
-      dangerouslySetInnerHTML={{
-        __html: marked.parseInline(text || ""),
-      }}
-    />
+    >
+      <div
+        style={{
+          fontSize: `${3 * scale}rem`,
+          fontWeight: 600,
+          lineHeight: 1.5,
+          color: theme.dark,
+          maxWidth: "1400px",
+        }}
+        dangerouslySetInnerHTML={{
+          __html: marked.parseInline(text || ""),
+        }}
+      />
+    </div>
   );
 }
 
