@@ -475,7 +475,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
               color: theme.dark,
               fontFamily: tokens.font.body,
               lineHeight: 1.2,
-              visibility: showStats ? "visible" : "hidden",
+              display: showStats ? "flex" : "none",
             }}
           >
             {correctCount != null && totalTeams != null && (
