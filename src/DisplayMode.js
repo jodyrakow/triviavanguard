@@ -287,9 +287,16 @@ function QuestionDisplay({ content, fontSize = 100 }) {
     totalTeams,
   } = content || {};
 
+  console.log("[QuestionDisplay] Rendering with:", {
+    answer,
+    pointsPerTeam,
+    correctCount,
+    totalTeams,
+  });
+
   const scale = fontSize / 100;
 
-  // fixed “reserved” heights in vh so layout doesn’t jump
+  // fixed "reserved" heights in vh so layout doesn't jump
   const TOP_BAR_H = categoryName ? 100 : 0; // px, matches your bar
   const STAGE_H = "90vh";
 
@@ -302,6 +309,13 @@ function QuestionDisplay({ content, fontSize = 100 }) {
 
   const showStats =
     (correctCount != null && totalTeams != null) || pointsPerTeam != null;
+
+  console.log(
+    "[QuestionDisplay] showStats:",
+    showStats,
+    "answer condition:",
+    !!(answer || showStats)
+  );
 
   const textRef = useRef(null);
   const [fitTextScale, setFitTextScale] = useState(1);
@@ -439,8 +453,10 @@ function QuestionDisplay({ content, fontSize = 100 }) {
             maxWidth: "1400px",
             textAlign: "center",
             zIndex: 20,
+            border: "2px solid red", // DEBUG: make visible
           }}
         >
+          {console.log("[QuestionDisplay] Rendering answer/stats container")}
           {/* Answer text — stays in the same place */}
           {answer && (
             <div
@@ -456,6 +472,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
               }}
             />
           )}
+          {console.log("[QuestionDisplay] answer block rendered:", !!answer)}
 
           {/* Stats area — ALWAYS takes space, even when empty */}
           <div
