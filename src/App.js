@@ -904,6 +904,15 @@ export default function App() {
         if (cancelled) return;
 
         const bundle = res.data || null;
+
+        // Debug: log first question to check if answer field exists
+        if (bundle?.rounds?.[0]?.categories?.[0]?.questions?.[0]) {
+          console.log(
+            "[App] First question from bundle:",
+            bundle.rounds[0].categories[0].questions[0]
+          );
+        }
+
         setShowBundle(bundle);
 
         // Pre-populate settings from Airtable config (if available)

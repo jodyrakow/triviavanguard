@@ -248,6 +248,19 @@ export async function handler(event) {
 
     for (const rec of sqRecords) {
       const f = rec.fields || {};
+
+      // Debug: log field names for first question to see what Airtable is returning
+      if (sqRecords.indexOf(rec) === 0) {
+        console.log(
+          `[fetchShowBundle] ShowQuestion field names (first record):`,
+          Object.keys(f)
+        );
+        console.log(
+          `[fetchShowBundle] Answer field value:`,
+          f["Answer"]
+        );
+      }
+
       const scIdArray = f["ShowCategory ID"];
       const scId =
         Array.isArray(scIdArray) && scIdArray.length > 0

@@ -759,12 +759,17 @@ function ResultsDisplay({ content, fontSize = 100 }) {
             left: "50%",
             transform: "translateX(-50%)",
             width: "90%",
+            height: "42vh", // 🔹 make height explicit
+            maxHeight: "42vh",
+            display: "flex", // 🔹 enable flexbox
+            flexDirection: "column",
+            justifyContent: "center", // 🔹 vertical centering
+            alignItems: "center", // 🔹 horizontal centering
             textAlign: "center",
             fontSize: `${5 * scale * teamScale}rem`,
             fontFamily: tokens.font.body,
             color: theme.dark,
             lineHeight: teamCount >= 7 ? 1.05 : 1.15,
-            maxHeight: "42vh", // keep it from running into prize
             overflow: "hidden", // or "auto" if you prefer scroll
           }}
         >

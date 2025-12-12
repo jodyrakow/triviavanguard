@@ -1367,7 +1367,8 @@ export default function ShowMode({
                                   <Button
                                     onClick={() => {
                                       // Push answer only (no stats) - explicitly set stats to undefined to clear any old values
-                                      sendToDisplay("questionWithAnswer", {
+                                      console.log("[ShowMode] Question object:", q);
+                                      const payload = {
                                         questionNumber: q["Question order"],
                                         questionText: q["Question text"] || "",
                                         categoryName: categoryName,
@@ -1376,7 +1377,9 @@ export default function ShowMode({
                                         pointsPerTeam: undefined,
                                         correctCount: undefined,
                                         totalTeams: undefined,
-                                      });
+                                      };
+                                      console.log("[ShowMode] Push answer - sending:", payload);
+                                      sendToDisplay("questionWithAnswer", payload);
                                     }}
                                     style={{
                                       marginLeft: ".5rem",
@@ -1391,7 +1394,7 @@ export default function ShowMode({
                                   <Button
                                     onClick={() => {
                                       // Push answer WITH statistics
-                                      sendToDisplay("questionWithAnswer", {
+                                      const payload = {
                                         questionNumber: q["Question order"],
                                         questionText: q["Question text"] || "",
                                         categoryName: categoryName,
@@ -1401,7 +1404,9 @@ export default function ShowMode({
                                         correctCount:
                                           qStats?.correctCount || null,
                                         totalTeams: qStats?.totalTeams || null,
-                                      });
+                                      };
+                                      console.log("[ShowMode] Push stats - sending:", payload);
+                                      sendToDisplay("questionWithAnswer", payload);
                                     }}
                                     style={{
                                       marginLeft: ".5rem",
