@@ -210,8 +210,9 @@ export default function ShowMode({
             "Question ID": q?.questionId?.[0] || q?.id,
             "Question order": q?.questionOrder,
             "Question text": q?.questionText || "",
-            Notes: q?.notes || "",
-            "Pronunciation guide": q?.pronunciationGuide || "",
+            Notes: q?.questionNotes || q?.notes || "",
+            "Pronunciation guide":
+              q?.questionPronunciationGuide || q?.pronunciationGuide || "",
             Answer: q?.answer || "",
             "Question type": q?.questionType || "",
             Images: Array.isArray(q?.questionImages) ? q.questionImages : [],
