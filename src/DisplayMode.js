@@ -281,7 +281,6 @@ function QuestionDisplay({ content, fontSize = 100 }) {
     questionNumber,
     questionText,
     categoryName,
-    images = [],
     answer,
     pointsPerTeam,
     correctCount,
@@ -289,8 +288,6 @@ function QuestionDisplay({ content, fontSize = 100 }) {
   } = content || {};
 
   const scale = fontSize / 100;
-
-  const [currentImageIndex] = useState(0);
 
   // fixed “reserved” heights in vh so layout doesn’t jump
   const TOP_BAR_H = categoryName ? 100 : 0; // px, matches your bar
@@ -336,7 +333,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
 
       setFitTextScale(s);
     });
-  }, [questionText, categoryName, images?.length, fontSize]);
+  }, [questionText, categoryName, fontSize, scale]);
 
   return (
     <div
@@ -347,6 +344,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
         maxHeight: STAGE_H,
         overflow: "hidden",
         paddingTop: categoryName ? `${TOP_BAR_H}px` : "0px",
+        paddingBottom: BOTTOM_PAD, // ✅ add this back
       }}
     >
       {/* Category bar at top - gray bar behind logo */}
@@ -419,8 +417,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
             lineHeight: 1.35,
             color: theme.dark,
             zIndex: 10,
-            maxHeight: `calc(${STAGE_H} - ${TOP_BAR_H}px - ${BOTTOM_PAD} - 140px)`,
-            overflow: "hidden",
+            maxHeight: `max(140px, calc(${STAGE_H} - ${TOP_BAR_H}px - ${BOTTOM_PAD} - 140px))`,
             wordBreak: "break-word",
             overflowWrap: "anywhere",
           }}
