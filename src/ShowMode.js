@@ -1282,13 +1282,16 @@ export default function ShowMode({
                               <>
                                 <Button
                                   onClick={() => {
-                                    // Push answer only (no stats)
+                                    // Push answer only (no stats) - explicitly set stats to undefined to clear any old values
                                     sendToDisplay("questionWithAnswer", {
                                       questionNumber: q["Question order"],
                                       questionText: q["Question text"] || "",
                                       categoryName: categoryName,
                                       images: [],
                                       answer: q["Answer"] || "",
+                                      pointsPerTeam: undefined,
+                                      correctCount: undefined,
+                                      totalTeams: undefined,
                                     });
                                   }}
                                   style={{
