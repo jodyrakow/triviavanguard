@@ -642,82 +642,122 @@ function ResultsDisplay({ content, fontSize = 100 }) {
   if (!content) return null;
 
   const { place, teams, prize, isTied, points } = content;
+  const scale = fontSize / 100;
+
+  const teamCount = Array.isArray(teams) ? teams.length : 0;
+
+  // Auto-scale the TEAMS font to fit more names (aim: 5+ comfortably)
+  const teamScale = (() => {
+    if (teamCount <= 1) return 1.0;
+    if (teamCount === 2) return 0.95;
+    if (teamCount === 3) return 0.88;
+    if (teamCount === 4) return 0.8;
+    if (teamCount === 5) return 0.72; // target: 5 fits nicely
+    if (teamCount === 6) return 0.66;
+    if (teamCount === 7) return 0.6;
+    if (teamCount === 8) return 0.55;
+    if (teamCount === 9) return 0.5;
+    if (teamCount === 10) return 0.46;
+    // 11+ keep shrinking gently, but clamp so it doesn't become microscopic
+    return Math.max(0.34, 0.46 - (teamCount - 10) * 0.03);
+  })();
 
   return (
     <div
       style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "2rem",
-        padding: "2rem",
+        position: "relative",
+        width: "100%",
+        height: "90vh", // key: fixed stage height so nothing re-centers
+        maxHeight: "90vh",
+        overflow: "hidden",
       }}
     >
-      {/* Place heading with points underneath */}
+      {/* PLACE (pinned) */}
       <div
         style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "0.5rem",
+          position: "absolute",
+          top: "0vh",
+          left: "50%",
+          transform: "translateX(-50%)",
+          textAlign: "center",
+          whiteSpace: "nowrap",
+          fontSize: `${5 * scale}rem`,
+          fontFamily: tokens.font.display,
+          color: theme.accent,
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          fontWeight: 700,
         }}
       >
-        <div
-          style={{
-            fontSize: `${5 * (fontSize / 100)}rem`,
-            fontFamily: tokens.font.display,
-            color: theme.accent,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            fontWeight: 700,
-          }}
-        >
-          {isTied ? `TIED for ${place}` : place}
-        </div>
-
-        {/* Points displayed underneath place in slightly smaller font */}
-        {points != null && (
-          <div
-            style={{
-              fontSize: `${4 * (fontSize / 100)}rem`,
-              fontFamily: tokens.font.body,
-              color: theme.dark,
-              fontWeight: 600,
-            }}
-          >
-            {points} {points === 1 ? "point" : "points"}
-          </div>
-        )}
+        {isTied ? `TIED for ${place}` : place}
       </div>
 
-      {/* Team names (only show if teams array is provided) */}
+      {/* POINTS (pinned) */}
+      {points != null && (
+        <div
+          style={{
+            position: "absolute",
+            top: "18vh",
+            left: "50%",
+            transform: "translateX(-50%)",
+            textAlign: "center",
+            whiteSpace: "nowrap",
+            fontSize: `${3.75 * scale}rem`,
+            fontFamily: tokens.font.body,
+            color: theme.accent,
+            fontWeight: 600,
+          }}
+        >
+          {points} {points === 1 ? "point" : "points"}
+        </div>
+      )}
+
+      {/* TEAMS (pinned; can grow without moving place/points) */}
       {teams && teams.length > 0 && (
         <div
           style={{
-            fontSize: `${5 * (fontSize / 100)}rem`,
+            position: "absolute",
+            top: "30vh", // starts below points
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "90%",
+            textAlign: "center",
+            fontSize: `${5 * scale * teamScale}rem`,
             fontFamily: tokens.font.body,
             color: theme.dark,
-            lineHeight: 1.5,
+            lineHeight: teamCount >= 7 ? 1.05 : 1.15,
+            maxHeight: "42vh", // keep it from running into prize
+            overflow: "hidden", // or "auto" if you prefer scroll
           }}
         >
           {teams.map((team, idx) => (
-            <div key={idx} style={{ marginBottom: "0.5rem" }}>
+            <div
+              key={idx}
+              style={{ marginBottom: teamCount >= 7 ? "0.18rem" : "0.35rem" }}
+            >
               {team}
             </div>
           ))}
         </div>
       )}
 
-      {/* Prize (if provided) */}
+      {/* PRIZE (pinned to bottom) */}
       {prize && (
         <div
           style={{
-            fontSize: `${4 * (fontSize / 100)}rem`,
+            position: "absolute",
+            bottom: "6vh",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "90%",
+            textAlign: "center",
+            fontSize: `${4 * scale}rem`,
             fontFamily: tokens.font.body,
             color: theme.accent,
             fontWeight: 600,
-            marginTop: "1rem",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
           {prize}

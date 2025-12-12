@@ -50,7 +50,7 @@ export default function ShowMode({
 }) {
   // Unified question editor modal state
   const [editingQuestion, setEditingQuestion] = React.useState(null);
-  // { showQuestionId, questionText, flavorText, answer }
+  // { showQuestionId, questionText, notes, pronunciationGuide, answer }
 
   // Add Tiebreaker modal state
   const [addingTiebreaker, setAddingTiebreaker] = React.useState(false);
@@ -210,7 +210,8 @@ export default function ShowMode({
             "Question ID": q?.questionId?.[0] || q?.id,
             "Question order": q?.questionOrder,
             "Question text": q?.questionText || "",
-            "Flavor text": q?.flavorText || "",
+            Notes: q?.notes || "",
+            "Pronunciation guide": q?.pronunciationGuide || "",
             Answer: q?.answer || "",
             "Question type": q?.questionType || "",
             Images: Array.isArray(q?.questionImages) ? q.questionImages : [],
@@ -224,8 +225,12 @@ export default function ShowMode({
   }, [displayRounds]);
 
   const isTB = (q) => {
-    const questionType = String(q?.questionType || q?.["Question type"] || "").toLowerCase();
-    const questionOrder = String(q?.questionOrder || q?.["Question order"] || "").toUpperCase();
+    const questionType = String(
+      q?.questionType || q?.["Question type"] || ""
+    ).toLowerCase();
+    const questionOrder = String(
+      q?.questionOrder || q?.["Question order"] || ""
+    ).toUpperCase();
     return questionType === "tiebreaker" || questionOrder === "TB";
   };
 
@@ -351,7 +356,9 @@ export default function ShowMode({
 
       // Check the category's Question type field (stored at category level, not question level)
       const catQuestionType = String(
-        cat?.categoryInfo?.questionType || cat?.categoryInfo?.["Question type"] || ""
+        cat?.categoryInfo?.questionType ||
+          cat?.categoryInfo?.["Question type"] ||
+          ""
       ).toLowerCase();
 
       // Visual categories don't get a number
@@ -891,7 +898,9 @@ export default function ShowMode({
                             setEditingQuestion({
                               showQuestionId: q["Show Question ID"],
                               questionText: q["Question text"] || "",
-                              flavorText: q["Flavor text"] || "",
+                              notes: q["Notes"] || "",
+                              pronunciationGuide:
+                                q["Pronunciation guide"] || "",
                               answer: q["Answer"] || "",
                             });
                           }
@@ -902,7 +911,9 @@ export default function ShowMode({
                             setEditingQuestion({
                               showQuestionId: q["Show Question ID"],
                               questionText: q["Question text"] || "",
-                              flavorText: q["Flavor text"] || "",
+                              notes: q["Notes"] || "",
+                              pronunciationGuide:
+                                q["Pronunciation guide"] || "",
                               answer: q["Answer"] || "",
                             });
                           }
@@ -986,8 +997,8 @@ export default function ShowMode({
                         </div>
                       </div>
 
-                      {/* FLAVOR TEXT */}
-                      {q["Flavor text"]?.trim() && showDetails && (
+                      {/* NOTES */}
+                      {q["Notes"]?.trim() && showDetails && (
                         <p
                           style={{
                             fontFamily: tokens.font.flavor,
@@ -1011,7 +1022,9 @@ export default function ShowMode({
                               setEditingQuestion({
                                 showQuestionId: q["Show Question ID"],
                                 questionText: q["Question text"] || "",
-                                flavorText: q["Flavor text"] || "",
+                                notes: q["Notes"] || "",
+                                pronunciationGuide:
+                                  q["Pronunciation guide"] || "",
                                 answer: q["Answer"] || "",
                               });
                             }
@@ -1022,7 +1035,9 @@ export default function ShowMode({
                               setEditingQuestion({
                                 showQuestionId: q["Show Question ID"],
                                 questionText: q["Question text"] || "",
-                                flavorText: q["Flavor text"] || "",
+                                notes: q["Notes"] || "",
+                                pronunciationGuide:
+                                  q["Pronunciation guide"] || "",
                                 answer: q["Answer"] || "",
                               });
                             }
@@ -1031,7 +1046,63 @@ export default function ShowMode({
                           <span
                             dangerouslySetInnerHTML={{
                               __html: marked.parseInline(
-                                `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">💭</span> ${q["Flavor text"]}`
+                                `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">💭</span> ${q["Notes"]}`
+                              ),
+                            }}
+                          />
+                        </p>
+                      )}
+
+                      {/* PRONUNCIATION GUIDE */}
+                      {q["Pronunciation guide"]?.trim() && showDetails && (
+                        <p
+                          style={{
+                            fontFamily: tokens.font.flavor,
+                            fontSize: "1rem",
+                            fontStyle: "italic",
+                            display: "block",
+                            paddingLeft: "1.5rem",
+                            paddingTop: "0.25rem",
+                            marginTop: 0,
+                            marginBottom: "0.01rem",
+                            cursor: editQuestionField ? "pointer" : "default",
+                          }}
+                          title={
+                            editQuestionField
+                              ? "Right-click or Ctrl+Click to edit"
+                              : ""
+                          }
+                          onContextMenu={(e) => {
+                            if (editQuestionField) {
+                              e.preventDefault();
+                              setEditingQuestion({
+                                showQuestionId: q["Show Question ID"],
+                                questionText: q["Question text"] || "",
+                                notes: q["Notes"] || "",
+                                pronunciationGuide:
+                                  q["Pronunciation guide"] || "",
+                                answer: q["Answer"] || "",
+                              });
+                            }
+                          }}
+                          onClick={(e) => {
+                            if (editQuestionField && (e.ctrlKey || e.metaKey)) {
+                              e.preventDefault();
+                              setEditingQuestion({
+                                showQuestionId: q["Show Question ID"],
+                                questionText: q["Question text"] || "",
+                                notes: q["Notes"] || "",
+                                pronunciationGuide:
+                                  q["Pronunciation guide"] || "",
+                                answer: q["Answer"] || "",
+                              });
+                            }
+                          }}
+                        >
+                          <span
+                            dangerouslySetInnerHTML={{
+                              __html: marked.parseInline(
+                                `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">🗣️</span> ${q["Pronunciation guide"]}`
                               ),
                             }}
                           />
@@ -1235,7 +1306,9 @@ export default function ShowMode({
                               setEditingQuestion({
                                 showQuestionId: q["Show Question ID"],
                                 questionText: q["Question text"] || "",
-                                flavorText: q["Flavor text"] || "",
+                                notes: q["Notes"] || "",
+                                pronunciationGuide:
+                                  q["Pronunciation guide"] || "",
                                 answer: q["Answer"] || "",
                               });
                             }
@@ -1246,7 +1319,9 @@ export default function ShowMode({
                               setEditingQuestion({
                                 showQuestionId: q["Show Question ID"],
                                 questionText: q["Question text"] || "",
-                                flavorText: q["Flavor text"] || "",
+                                notes: q["Notes"] || "",
+                                pronunciationGuide:
+                                  q["Pronunciation guide"] || "",
                                 answer: q["Answer"] || "",
                               });
                             }
@@ -1259,78 +1334,88 @@ export default function ShowMode({
                               ),
                             }}
                           />
-                          {sendToDisplay && (() => {
-                            // Calculate stats for this question (same logic as STATS PILL below)
-                            const m = /^(\d+)/.exec(String(categoryId));
-                            const roundNum = m ? Number(m[1]) : 0;
-                            const qStats = statsByRoundAndQuestion[roundNum]?.[q["Show Question ID"]];
+                          {sendToDisplay &&
+                            (() => {
+                              // Calculate stats for this question (same logic as STATS PILL below)
+                              const m = /^(\d+)/.exec(String(categoryId));
+                              const roundNum = m ? Number(m[1]) : 0;
+                              const qStats =
+                                statsByRoundAndQuestion[roundNum]?.[
+                                  q["Show Question ID"]
+                                ];
 
-                            // Calculate points for pooled scoring modes
-                            const qPointsPerTeam =
-                              qStats &&
-                              (scoringMode === "pooled" || scoringMode === "pooled-adaptive") &&
-                              qStats.correctCount > 0
-                                ? scoringMode === "pooled-adaptive"
-                                  ? Math.round(
-                                      (Number(poolContribution) * qStats.activeTeamCount) /
-                                        qStats.correctCount
-                                    )
-                                  : Math.round(Number(poolPerQuestion) / qStats.correctCount)
-                                : null;
+                              // Calculate points for pooled scoring modes
+                              const qPointsPerTeam =
+                                qStats &&
+                                (scoringMode === "pooled" ||
+                                  scoringMode === "pooled-adaptive") &&
+                                qStats.correctCount > 0
+                                  ? scoringMode === "pooled-adaptive"
+                                    ? Math.round(
+                                        (Number(poolContribution) *
+                                          qStats.activeTeamCount) /
+                                          qStats.correctCount
+                                      )
+                                    : Math.round(
+                                        Number(poolPerQuestion) /
+                                          qStats.correctCount
+                                      )
+                                  : null;
 
-                            return (
-                              <>
-                                <Button
-                                  onClick={() => {
-                                    // Push answer only (no stats) - explicitly set stats to undefined to clear any old values
-                                    sendToDisplay("questionWithAnswer", {
-                                      questionNumber: q["Question order"],
-                                      questionText: q["Question text"] || "",
-                                      categoryName: categoryName,
-                                      images: [],
-                                      answer: q["Answer"] || "",
-                                      pointsPerTeam: undefined,
-                                      correctCount: undefined,
-                                      totalTeams: undefined,
-                                    });
-                                  }}
-                                  style={{
-                                    marginLeft: ".5rem",
-                                    fontSize: ".75rem",
-                                    padding: ".25rem .5rem",
-                                    verticalAlign: "middle",
-                                  }}
-                                  title="Push answer to display (no statistics)"
-                                >
-                                  Push answer
-                                </Button>
-                                <Button
-                                  onClick={() => {
-                                    // Push answer WITH statistics
-                                    sendToDisplay("questionWithAnswer", {
-                                      questionNumber: q["Question order"],
-                                      questionText: q["Question text"] || "",
-                                      categoryName: categoryName,
-                                      images: [],
-                                      answer: q["Answer"] || "",
-                                      pointsPerTeam: qPointsPerTeam,
-                                      correctCount: qStats?.correctCount || null,
-                                      totalTeams: qStats?.totalTeams || null,
-                                    });
-                                  }}
-                                  style={{
-                                    marginLeft: ".5rem",
-                                    fontSize: ".75rem",
-                                    padding: ".25rem .5rem",
-                                    verticalAlign: "middle",
-                                  }}
-                                  title="Push answer with statistics to display"
-                                >
-                                  Push stats
-                                </Button>
-                              </>
-                            );
-                          })()}
+                              return (
+                                <>
+                                  <Button
+                                    onClick={() => {
+                                      // Push answer only (no stats) - explicitly set stats to undefined to clear any old values
+                                      sendToDisplay("questionWithAnswer", {
+                                        questionNumber: q["Question order"],
+                                        questionText: q["Question text"] || "",
+                                        categoryName: categoryName,
+                                        images: [],
+                                        answer: q["Answer"] || "",
+                                        pointsPerTeam: undefined,
+                                        correctCount: undefined,
+                                        totalTeams: undefined,
+                                      });
+                                    }}
+                                    style={{
+                                      marginLeft: ".5rem",
+                                      fontSize: ".75rem",
+                                      padding: ".25rem .5rem",
+                                      verticalAlign: "middle",
+                                    }}
+                                    title="Push answer to display (no statistics)"
+                                  >
+                                    Push answer
+                                  </Button>
+                                  <Button
+                                    onClick={() => {
+                                      // Push answer WITH statistics
+                                      sendToDisplay("questionWithAnswer", {
+                                        questionNumber: q["Question order"],
+                                        questionText: q["Question text"] || "",
+                                        categoryName: categoryName,
+                                        images: [],
+                                        answer: q["Answer"] || "",
+                                        pointsPerTeam: qPointsPerTeam,
+                                        correctCount:
+                                          qStats?.correctCount || null,
+                                        totalTeams: qStats?.totalTeams || null,
+                                      });
+                                    }}
+                                    style={{
+                                      marginLeft: ".5rem",
+                                      fontSize: ".75rem",
+                                      padding: ".25rem .5rem",
+                                      verticalAlign: "middle",
+                                    }}
+                                    title="Push answer with statistics to display"
+                                  >
+                                    Push stats
+                                  </Button>
+                                </>
+                              );
+                            })()}
                         </p>
                       )}
 
@@ -1846,7 +1931,7 @@ export default function ShowMode({
                   Question text
                 </div>
                 <textarea
-                  value={editingQuestion.questionText}
+                  value={editingQuestion.questionText ?? ""}
                   onChange={(e) =>
                     setEditingQuestion((prev) => ({
                       ...prev,
@@ -1868,14 +1953,14 @@ export default function ShowMode({
 
               <label style={{ display: "block", marginBottom: ".6rem" }}>
                 <div style={{ marginBottom: 4, fontWeight: 600 }}>
-                  Flavor text (optional)
+                  Notes (optional)
                 </div>
                 <textarea
-                  value={editingQuestion.flavorText}
+                  value={editingQuestion.notes ?? ""}
                   onChange={(e) =>
                     setEditingQuestion((prev) => ({
                       ...prev,
-                      flavorText: e.target.value,
+                      notes: e.target.value,
                     }))
                   }
                   rows={2}
@@ -1894,9 +1979,36 @@ export default function ShowMode({
               </label>
 
               <label style={{ display: "block", marginBottom: ".6rem" }}>
+                <div style={{ marginBottom: 4, fontWeight: 600 }}>
+                  Pronunciation guide (optional)
+                </div>
+                <textarea
+                  value={editingQuestion.pronunciationGuide || ""}
+                  onChange={(e) =>
+                    setEditingQuestion((prev) => ({
+                      ...prev,
+                      pronunciationGuide: e.target.value,
+                    }))
+                  }
+                  rows={2}
+                  placeholder="Optional: how to say tricky names/words..."
+                  style={{
+                    width: "100%",
+                    padding: ".55rem .65rem",
+                    border: "1px solid #ccc",
+                    borderRadius: ".35rem",
+                    resize: "vertical",
+                    fontFamily: tokens.font.body,
+                    fontSize: "1rem",
+                    fontStyle: "italic",
+                  }}
+                />
+              </label>
+
+              <label style={{ display: "block", marginBottom: ".6rem" }}>
                 <div style={{ marginBottom: 4, fontWeight: 600 }}>Answer</div>
                 <textarea
-                  value={editingQuestion.answer}
+                  value={editingQuestion.answer ?? ""}
                   onChange={(e) =>
                     setEditingQuestion((prev) => ({
                       ...prev,
@@ -1944,21 +2056,27 @@ export default function ShowMode({
                 type="button"
                 onClick={() => {
                   if (editQuestionField) {
-                    // Save all three fields
+                    const safeTrim = (v) => String(v ?? "").trim();
+
                     editQuestionField(
                       editingQuestion.showQuestionId,
                       "question",
-                      editingQuestion.questionText.trim()
+                      safeTrim(editingQuestion.questionText)
                     );
                     editQuestionField(
                       editingQuestion.showQuestionId,
-                      "flavorText",
-                      editingQuestion.flavorText.trim()
+                      "notes",
+                      safeTrim(editingQuestion.notes)
                     );
                     editQuestionField(
                       editingQuestion.showQuestionId,
                       "answer",
-                      editingQuestion.answer.trim()
+                      safeTrim(editingQuestion.answer)
+                    );
+                    editQuestionField(
+                      editingQuestion.showQuestionId,
+                      "pronunciationGuide",
+                      safeTrim(editingQuestion.pronunciationGuide)
                     );
                   }
                   setEditingQuestion(null);

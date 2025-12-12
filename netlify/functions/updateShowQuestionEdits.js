@@ -1,5 +1,5 @@
 // netlify/functions/updateShowQuestionEdits.js
-// Updates ShowQuestions table with host edits to question text, flavor text, and answers
+// Updates ShowQuestions table with host edits to question text, notes, pronunciation guide, and answers
 const Airtable = require("airtable");
 
 // ==== Env / Config ====
@@ -11,7 +11,8 @@ const TBL_SHOWQUESTIONS = "ShowQuestions";
 // Field names in ShowQuestions
 const F_EDITED_BY_HOST = "Edited by host";
 const F_EDITED_QUESTION = "Edited question";
-const F_EDITED_FLAVOR = "Edited flavor text";
+const F_EDITED_NOTES = "Edited notes";
+const F_EDITED_PRONUNCIATION = "Edited pronunciation guide";
 const F_EDITED_ANSWER = "Edited answer";
 
 // Airtable base
@@ -26,7 +27,7 @@ const chunk = (arr, size = 10) => {
 
 /**
  * Update ShowQuestions with edits
- * @param {Array} edits - Array of { showQuestionId, question?, flavorText?, answer? }
+ * @param {Array} edits - Array of { showQuestionId, question?, notes?, pronunciationGuide?, answer? }
  */
 async function updateShowQuestionEdits(edits) {
   if (!edits || !edits.length) return;
@@ -44,8 +45,14 @@ async function updateShowQuestionEdits(edits) {
       if (edit.question !== undefined && edit.question !== null) {
         fields[F_EDITED_QUESTION] = String(edit.question);
       }
-      if (edit.flavorText !== undefined && edit.flavorText !== null) {
-        fields[F_EDITED_FLAVOR] = String(edit.flavorText);
+      if (edit.notes !== undefined && edit.notes !== null) {
+        fields[F_EDITED_NOTES] = String(edit.notes);
+      }
+      if (
+        edit.pronunciationGuide !== undefined &&
+        edit.pronunciationGuide !== null
+      ) {
+        fields[F_EDITED_PRONUNCIATION] = String(edit.pronunciationGuide);
       }
       if (edit.answer !== undefined && edit.answer !== null) {
         fields[F_EDITED_ANSWER] = String(edit.answer);
@@ -93,7 +100,8 @@ exports.handler = async function handler(event) {
       (e) =>
         !e.showQuestionId ||
         (e.question === undefined &&
-          e.flavorText === undefined &&
+          e.notes === undefined &&
+          e.pronunciationGuide === undefined &&
           e.answer === undefined)
     );
 
