@@ -1,5 +1,5 @@
 // src/DisplayMode.js
-import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { colors as theme, tokens } from "./styles";
 import triviaVanguardLogo from "./trivia-vanguard-logo-white.png";
 import { marked } from "marked";
@@ -162,10 +162,9 @@ export default function DisplayMode() {
         {/* Main content area */}
         <div
           style={{
-            width: "100%",
-            height: "100%",
+            width: "90%",
+            maxWidth: "1400px",
             textAlign: "center",
-            position: "relative",
           }}
         >
           {displayState.type === "standby" && <StandbyScreen />}
@@ -221,25 +220,15 @@ export default function DisplayMode() {
 
 function StandbyScreen() {
   return (
-    <div
+    <img
+      src={triviaVanguardLogo}
+      alt="Trivia Vanguard"
       style={{
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        maxWidth: "60%",
+        maxHeight: "60%",
+        objectFit: "contain",
       }}
-    >
-      <img
-        src={triviaVanguardLogo}
-        alt="Trivia Vanguard"
-        style={{
-          maxWidth: "60%",
-          maxHeight: "60%",
-          objectFit: "contain",
-        }}
-      />
-    </div>
+    />
   );
 }
 
@@ -291,6 +280,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
     questionNumber,
     questionText,
     categoryName,
+    images = [],
     answer,
     pointsPerTeam,
     correctCount,
@@ -299,63 +289,11 @@ function QuestionDisplay({ content, fontSize = 100 }) {
 
   const scale = fontSize / 100;
 
-  // fixed “reserved” heights so layout doesn’t jump
-  const TOP_BAR_H = categoryName ? 100 : 0; // px
-  const STAGE_H = "90vh";
-  const ANSWER_BOTTOM = "10vh";
-
-  const showStats =
-    (correctCount != null && totalTeams != null) || pointsPerTeam != null;
-
-  // Reserve a bottom "safe area" so question text can never overlap answer/stats
-  const STATS_H = `${6.5 * scale}rem`;
-  const ANSWER_H = `${4.0 * scale}rem`;
-  const BOTTOM_PAD = `calc(${ANSWER_H} + ${STATS_H} + ${ANSWER_BOTTOM})`;
-
-  const textRef = useRef(null);
-  const [fitTextScale, setFitTextScale] = useState(1);
-
-  useLayoutEffect(() => {
-    const el = textRef.current;
-    if (!el) return;
-
-    // Reset before measuring
-    el.style.fontSize = `${2.6 * scale}rem`;
-    setFitTextScale(1);
-
-    requestAnimationFrame(() => {
-      const node = textRef.current;
-      if (!node) return;
-
-      const fits = () => node.scrollHeight <= node.clientHeight + 1;
-      if (fits()) return;
-
-      let s = 1;
-      const MIN = 0.72;
-      const STEP = 0.04;
-
-      while (s > MIN && !fits()) {
-        s = Math.max(MIN, s - STEP);
-        node.style.fontSize = `${2.6 * scale * s}rem`;
-      }
-
-      setFitTextScale(s);
-    });
-  }, [questionText, categoryName, fontSize, scale]);
+  const [currentImageIndex] = useState(0);
 
   return (
-    <div
-      style={{
-        position: "relative",
-        width: "100%",
-        height: STAGE_H,
-        maxHeight: STAGE_H,
-        overflow: "hidden",
-        paddingTop: categoryName ? `${TOP_BAR_H}px` : "0px",
-        paddingBottom: BOTTOM_PAD,
-      }}
-    >
-      {/* Category bar */}
+    <div>
+      {/* Category bar at top - gray bar behind logo */}
       {categoryName && (
         <div
           style={{
@@ -363,7 +301,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
             top: 0,
             left: 0,
             right: 0,
-            height: `${TOP_BAR_H}px`,
+            height: "100px",
             backgroundColor: theme.gray.border,
             display: "flex",
             justifyContent: "flex-start",
@@ -392,43 +330,75 @@ function QuestionDisplay({ content, fontSize = 100 }) {
       {questionNumber && (
         <div
           style={{
-            position: "absolute",
-            top: categoryName ? `${TOP_BAR_H + 18}px` : "18px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            textAlign: "center",
-            whiteSpace: "nowrap",
-            fontSize: `${4.25 * scale}rem`,
-            fontWeight: 800,
+            fontSize: `${4 * scale}rem`,
+            fontWeight: 700,
             color: theme.accent,
-            zIndex: 10,
+            marginBottom: "1rem",
+            marginTop: categoryName ? "80px" : "0",
           }}
         >
           {questionNumber === "TB" ? "TIEBREAKER" : questionNumber}
         </div>
       )}
 
+      {/* Images */}
+      {images && images.length > 0 && (
+        <div
+          style={{
+            marginBottom: "1rem", // less extra space under the image
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <img
+            src={images[currentImageIndex].url}
+            alt={`Question ${currentImageIndex + 1}`}
+            style={{
+              maxWidth: "90%",
+              maxHeight: "65vh",
+              borderRadius: "12px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+              objectFit: "contain",
+            }}
+          />
+          {/* Image indicators */}
+          {images.length > 1 && (
+            <div
+              style={{
+                marginTop: "1rem",
+                display: "flex",
+                gap: "8px",
+                justifyContent: "center",
+              }}
+            >
+              {images.map((_, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "50%",
+                    backgroundColor:
+                      idx === currentImageIndex
+                        ? theme.accent
+                        : theme.gray.border,
+                    transition: "background-color 0.3s",
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Question text */}
       {questionText && (
         <div
-          ref={textRef}
           style={{
-            position: "absolute",
-            top: categoryName ? `${TOP_BAR_H + 120}px` : "120px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "90%",
-            maxWidth: "1400px",
-            textAlign: "center",
-            fontSize: `${2.6 * scale * fitTextScale}rem`,
+            fontSize: `${2.5 * scale}rem`,
             fontWeight: 500,
-            lineHeight: 1.35,
+            lineHeight: 1.4,
             color: theme.dark,
-            zIndex: 10,
-            maxHeight: `calc(${STAGE_H} - ${TOP_BAR_H}px - ${BOTTOM_PAD} - 140px)`,
-            overflow: "hidden",
-            wordBreak: "break-word",
-            overflowWrap: "anywhere",
           }}
           dangerouslySetInnerHTML={{
             __html: marked.parseInline(questionText || ""),
@@ -436,72 +406,59 @@ function QuestionDisplay({ content, fontSize = 100 }) {
         />
       )}
 
-      {/* ANSWER + STATS (pinned within the stage, NOT fixed to the viewport) */}
-      {(answer || showStats) && (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            transform: "translateX(-50%)",
-            bottom: ANSWER_BOTTOM,
-            width: "92%",
-            maxWidth: "1400px",
-            textAlign: "center",
-            zIndex: 20,
-          }}
-        >
-          {answer && (
-            <div
-              style={{
-                fontSize: `${2.75 * scale}rem`,
-                fontWeight: 800,
-                lineHeight: 1.25,
-                color: theme.accent,
-                marginBottom: "1rem",
-              }}
-              dangerouslySetInnerHTML={{
-                __html: marked.parseInline(answer || ""),
-              }}
-            />
-          )}
-
+      {/* Answer (if provided) */}
+      {answer && (
+        <>
           <div
             style={{
-              minHeight: STATS_H,
-
-              flexDirection: "column",
-              justifyContent: "center",
-              fontSize: `${2.3 * scale}rem`,
-              color: theme.dark,
-              fontFamily: tokens.font.body,
-              lineHeight: 1.2,
-              display: showStats ? "flex" : "none",
+              fontSize: `${2.5 * scale}rem`,
+              fontWeight: 600,
+              lineHeight: 1.4,
+              color: theme.accent,
+              marginTop: "2rem",
             }}
-          >
-            {correctCount != null && totalTeams != null && (
-              <div
-                style={{ marginBottom: pointsPerTeam != null ? "0.5rem" : 0 }}
-              >
-                {correctCount} / {totalTeams} teams correct
-              </div>
-            )}
+            dangerouslySetInnerHTML={{
+              __html: marked.parseInline(answer || ""),
+            }}
+          />
 
-            {pointsPerTeam != null && (
-              <div>
-                <span
+          {/* Stats for all scoring modes - only show if stats are actually provided */}
+          {((correctCount != null && totalTeams != null) ||
+            pointsPerTeam != null) && (
+            <div
+              style={{
+                marginTop: "2rem",
+                fontSize: `${2.5 * scale}rem`,
+                color: theme.dark,
+                fontFamily: tokens.font.body,
+              }}
+            >
+              {correctCount != null && totalTeams != null && (
+                <div
                   style={{
-                    color: theme.accent,
-                    fontWeight: 900,
-                    fontSize: `${2.4 * scale}rem`,
+                    marginBottom: pointsPerTeam != null ? "0.5rem" : "0",
                   }}
                 >
-                  {pointsPerTeam}
-                </span>{" "}
-                points per team
-              </div>
-            )}
-          </div>
-        </div>
+                  {correctCount} / {totalTeams} teams correct
+                </div>
+              )}
+              {pointsPerTeam != null && (
+                <div>
+                  <span
+                    style={{
+                      color: theme.accent,
+                      fontWeight: 700,
+                      fontSize: `${2.5 * scale}rem`,
+                    }}
+                  >
+                    {pointsPerTeam}
+                  </span>{" "}
+                  points per team
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -514,29 +471,16 @@ function MessageDisplay({ content, fontSize = 100 }) {
   return (
     <div
       style={{
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        fontSize: `${3 * scale}rem`,
+        fontWeight: 600,
+        lineHeight: 1.5,
+        color: theme.dark,
         padding: "2rem",
-        boxSizing: "border-box",
-        textAlign: "center",
       }}
-    >
-      <div
-        style={{
-          fontSize: `${3 * scale}rem`,
-          fontWeight: 600,
-          lineHeight: 1.5,
-          color: theme.dark,
-          maxWidth: "1400px",
-        }}
-        dangerouslySetInnerHTML={{
-          __html: marked.parseInline(text || ""),
-        }}
-      />
-    </div>
+      dangerouslySetInnerHTML={{
+        __html: marked.parseInline(text || ""),
+      }}
+    />
   );
 }
 
@@ -698,127 +642,82 @@ function ResultsDisplay({ content, fontSize = 100 }) {
   if (!content) return null;
 
   const { place, teams, prize, isTied, points } = content;
-  const scale = fontSize / 100;
-
-  const teamCount = Array.isArray(teams) ? teams.length : 0;
-
-  // Auto-scale the TEAMS font to fit more names (aim: 5+ comfortably)
-  const teamScale = (() => {
-    if (teamCount <= 1) return 1.0;
-    if (teamCount === 2) return 0.95;
-    if (teamCount === 3) return 0.88;
-    if (teamCount === 4) return 0.8;
-    if (teamCount === 5) return 0.72; // target: 5 fits nicely
-    if (teamCount === 6) return 0.66;
-    if (teamCount === 7) return 0.6;
-    if (teamCount === 8) return 0.55;
-    if (teamCount === 9) return 0.5;
-    if (teamCount === 10) return 0.46;
-    // 11+ keep shrinking gently, but clamp so it doesn't become microscopic
-    return Math.max(0.34, 0.46 - (teamCount - 10) * 0.03);
-  })();
 
   return (
     <div
       style={{
-        position: "relative",
-        width: "100%",
-        height: "90vh", // key: fixed stage height so nothing re-centers
-        maxHeight: "90vh",
-        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "2rem",
+        padding: "2rem",
       }}
     >
-      {/* PLACE (pinned) */}
+      {/* Place heading with points underneath */}
       <div
         style={{
-          position: "absolute",
-          top: "0vh",
-          left: "50%",
-          transform: "translateX(-50%)",
-          textAlign: "center",
-          whiteSpace: "nowrap",
-          fontSize: `${5 * scale}rem`,
-          fontFamily: tokens.font.display,
-          color: theme.accent,
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          fontWeight: 700,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "0.5rem",
         }}
       >
-        {isTied ? `TIED for ${place}` : place}
-      </div>
-
-      {/* POINTS (pinned) */}
-      {points != null && (
         <div
           style={{
-            position: "absolute",
-            top: "18vh",
-            left: "50%",
-            transform: "translateX(-50%)",
-            textAlign: "center",
-            whiteSpace: "nowrap",
-            fontSize: `${3.75 * scale}rem`,
-            fontFamily: tokens.font.body,
+            fontSize: `${5 * (fontSize / 100)}rem`,
+            fontFamily: tokens.font.display,
             color: theme.accent,
-            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            fontWeight: 700,
           }}
         >
-          {points} {points === 1 ? "point" : "points"}
+          {isTied ? `TIED for ${place}` : place}
         </div>
-      )}
 
-      {/* TEAMS (pinned; can grow without moving place/points) */}
+        {/* Points displayed underneath place in slightly smaller font */}
+        {points != null && (
+          <div
+            style={{
+              fontSize: `${4 * (fontSize / 100)}rem`,
+              fontFamily: tokens.font.body,
+              color: theme.dark,
+              fontWeight: 600,
+            }}
+          >
+            {points} {points === 1 ? "point" : "points"}
+          </div>
+        )}
+      </div>
+
+      {/* Team names (only show if teams array is provided) */}
       {teams && teams.length > 0 && (
         <div
           style={{
-            position: "absolute",
-            top: "30vh", // starts below points
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "90%",
-            height: "42vh", // 🔹 make height explicit
-            maxHeight: "42vh",
-            display: "flex", // 🔹 enable flexbox
-            flexDirection: "column",
-            justifyContent: "center", // 🔹 vertical centering
-            alignItems: "center", // 🔹 horizontal centering
-            textAlign: "center",
-            fontSize: `${5 * scale * teamScale}rem`,
+            fontSize: `${5 * (fontSize / 100)}rem`,
             fontFamily: tokens.font.body,
             color: theme.dark,
-            lineHeight: teamCount >= 7 ? 1.05 : 1.15,
-            overflow: "hidden", // or "auto" if you prefer scroll
+            lineHeight: 1.5,
           }}
         >
           {teams.map((team, idx) => (
-            <div
-              key={idx}
-              style={{ marginBottom: teamCount >= 7 ? "0.18rem" : "0.35rem" }}
-            >
+            <div key={idx} style={{ marginBottom: "0.5rem" }}>
               {team}
             </div>
           ))}
         </div>
       )}
 
-      {/* PRIZE (pinned to bottom) */}
+      {/* Prize (if provided) */}
       {prize && (
         <div
           style={{
-            position: "absolute",
-            bottom: "6vh",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "90%",
-            textAlign: "center",
-            fontSize: `${4 * scale}rem`,
+            fontSize: `${4 * (fontSize / 100)}rem`,
             fontFamily: tokens.font.body,
             color: theme.accent,
             fontWeight: 600,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
+            marginTop: "1rem",
           }}
         >
           {prize}

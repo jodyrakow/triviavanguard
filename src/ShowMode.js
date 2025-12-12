@@ -1367,19 +1367,28 @@ export default function ShowMode({
                                   <Button
                                     onClick={() => {
                                       // Push answer only (no stats) - explicitly set stats to undefined to clear any old values
-                                      console.log("[ShowMode] Question object:", q);
+                                      console.log(
+                                        "[ShowMode] Question object:",
+                                        q
+                                      );
                                       const payload = {
                                         questionNumber: q["Question order"],
                                         questionText: q["Question text"] || "",
                                         categoryName: categoryName,
                                         images: [],
                                         answer: q["Answer"] || "",
-                                        pointsPerTeam: undefined,
-                                        correctCount: undefined,
-                                        totalTeams: undefined,
+                                        pointsPerTeam: null,
+                                        correctCount: null,
+                                        totalTeams: null,
                                       };
-                                      console.log("[ShowMode] Push answer - sending:", payload);
-                                      sendToDisplay("questionWithAnswer", payload);
+                                      console.log(
+                                        "[ShowMode] Push answer - sending:",
+                                        payload
+                                      );
+                                      sendToDisplay(
+                                        "questionWithAnswer",
+                                        payload
+                                      );
                                     }}
                                     style={{
                                       marginLeft: ".5rem",
@@ -1402,11 +1411,17 @@ export default function ShowMode({
                                         answer: q["Answer"] || "",
                                         pointsPerTeam: qPointsPerTeam,
                                         correctCount:
-                                          qStats?.correctCount || null,
-                                        totalTeams: qStats?.totalTeams || null,
+                                          qStats?.correctCount ?? null,
+                                        totalTeams: qStats?.totalTeams ?? null,
                                       };
-                                      console.log("[ShowMode] Push stats - sending:", payload);
-                                      sendToDisplay("questionWithAnswer", payload);
+                                      console.log(
+                                        "[ShowMode] Push stats - sending:",
+                                        payload
+                                      );
+                                      sendToDisplay(
+                                        "questionWithAnswer",
+                                        payload
+                                      );
                                     }}
                                     style={{
                                       marginLeft: ".5rem",
