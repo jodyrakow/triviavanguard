@@ -2155,6 +2155,31 @@ export default function ResultsMode({
                                       alignItems: "center",
                                     }}
                                   >
+                                    {/* NEW: Push place + points only (no team names) */}
+                                    <Button
+                                      onClick={() => {
+                                        const placeStr = ordinal(highestPlaceInTie);
+                                        const points = allTiedByScore[0]?.total || 0;
+                                        sendToDisplay("results", {
+                                          place: placeStr,
+                                          teams: null, // No team names
+                                          prize: null,
+                                          isTied: false,
+                                          points, // Add points to display
+                                        });
+                                      }}
+                                      style={{
+                                        fontSize: "0.7rem",
+                                        padding: "0.25rem 0.5rem",
+                                        whiteSpace: "nowrap",
+                                        background: theme.dark,
+                                        color: "#fff",
+                                      }}
+                                      title="Push place and points only (no team names)"
+                                    >
+                                      📊 Place+Pts
+                                    </Button>
+
                                     {/* Randomize ALL tied teams (if tied by score) */}
                                     {isTiedByScore && (
                                       <Button
@@ -2166,11 +2191,13 @@ export default function ResultsMode({
                                           const shuffled = [
                                             ...allTiedTeamNames,
                                           ].sort(() => Math.random() - 0.5);
+                                          const points = allTiedByScore[0]?.total || 0;
                                           sendToDisplay("results", {
                                             place: highestPlaceStr,
                                             teams: shuffled,
                                             prize: null,
                                             isTied: true,
+                                            points, // Add points to display
                                           });
                                         }}
                                         style={{
@@ -2192,11 +2219,13 @@ export default function ResultsMode({
                                         onClick={() => {
                                           const unluckyTeamNames =
                                             unluckyTeams.map((t) => t.teamName);
+                                          const points = unluckyTeams[0]?.total || 0;
                                           sendToDisplay("results", {
                                             place: highestPlaceStr,
                                             teams: unluckyTeamNames,
                                             prize: null,
                                             isTied: true,
+                                            points, // Add points to display
                                           });
                                         }}
                                         style={{
@@ -2224,6 +2253,7 @@ export default function ResultsMode({
                                         prizeCount > 0 && place <= prizeCount
                                           ? prizes[place - 1] || ""
                                           : "";
+                                      const points = teamsAtThisPlace[0]?.total || 0;
 
                                       return (
                                         <Button
@@ -2234,6 +2264,7 @@ export default function ResultsMode({
                                               teams: teamNames,
                                               prize: prizeText,
                                               isTied: false,
+                                              points, // Add points to display
                                             });
                                           }}
                                           style={{

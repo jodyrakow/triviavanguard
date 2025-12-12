@@ -641,7 +641,7 @@ function ImageOverlay({ images, currentIndex, onClose }) {
 function ResultsDisplay({ content, fontSize = 100 }) {
   if (!content) return null;
 
-  const { place, teams, prize, isTied } = content;
+  const { place, teams, prize, isTied, points } = content;
 
   return (
     <div
@@ -654,35 +654,60 @@ function ResultsDisplay({ content, fontSize = 100 }) {
         padding: "2rem",
       }}
     >
-      {/* Place heading */}
+      {/* Place heading with points underneath */}
       <div
         style={{
-          fontSize: `${5 * (fontSize / 100)}rem`,
-          fontFamily: tokens.font.display,
-          color: theme.accent,
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          fontWeight: 700,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "0.5rem",
         }}
       >
-        {isTied ? `TIED for ${place}` : place}
+        <div
+          style={{
+            fontSize: `${5 * (fontSize / 100)}rem`,
+            fontFamily: tokens.font.display,
+            color: theme.accent,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            fontWeight: 700,
+          }}
+        >
+          {isTied ? `TIED for ${place}` : place}
+        </div>
+
+        {/* Points displayed underneath place in slightly smaller font */}
+        {points != null && (
+          <div
+            style={{
+              fontSize: `${4 * (fontSize / 100)}rem`,
+              fontFamily: tokens.font.body,
+              color: theme.dark,
+              fontWeight: 600,
+            }}
+          >
+            {points} {points === 1 ? "point" : "points"}
+          </div>
+        )}
       </div>
 
-      {/* Team names */}
-      <div
-        style={{
-          fontSize: `${5 * (fontSize / 100)}rem`,
-          fontFamily: tokens.font.body,
-          color: theme.dark,
-          lineHeight: 1.5,
-        }}
-      >
-        {teams.map((team, idx) => (
-          <div key={idx} style={{ marginBottom: "0.5rem" }}>
-            {team}
-          </div>
-        ))}
-      </div>
+      {/* Team names (only show if teams array is provided) */}
+      {teams && teams.length > 0 && (
+        <div
+          style={{
+            fontSize: `${5 * (fontSize / 100)}rem`,
+            fontFamily: tokens.font.body,
+            color: theme.dark,
+            lineHeight: 1.5,
+          }}
+        >
+          {teams.map((team, idx) => (
+            <div key={idx} style={{ marginBottom: "0.5rem" }}>
+              {team}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Prize (if provided) */}
       {prize && (
