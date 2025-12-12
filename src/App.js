@@ -698,7 +698,7 @@ export default function App() {
         const updatedRounds = prev.rounds.map((r) => {
           if (Number(r.round) === Number(roundId)) {
             // Check if tiebreaker already exists (avoid duplicates)
-            const hasTB = r.questions.some(
+            const hasTB = (r.questions || []).some(
               (q) =>
                 (q.questionType || "").toLowerCase() === "tiebreaker" ||
                 String(q.questionOrder).toUpperCase() === "TB"
@@ -707,7 +707,7 @@ export default function App() {
 
             return {
               ...r,
-              questions: [...r.questions, tiebreakerQuestion],
+              questions: [...(r.questions || []), tiebreakerQuestion],
             };
           }
           return r;
@@ -1111,9 +1111,28 @@ export default function App() {
         const roundNum = String(round.round);
         const tb = tiebreakers[roundNum];
 
-        // Apply question edits
+        // Apply question edits to questions in CATEGORIES (the main questions)
+        const categories = (round.categories || []).map((cat) => ({
+          ...cat,
+          questions: (cat.questions || []).map((q) => {
+            const edit = edits?.[q.showQuestionId];
+            if (!edit) return q;
+
+            return {
+              ...q,
+              ...(edit.question !== undefined && { questionText: edit.question }),
+              ...(edit.flavorText !== undefined && {
+                flavorText: edit.flavorText,
+              }),
+              ...(edit.answer !== undefined && { answer: edit.answer }),
+              _edited: true, // flag for UI to show indicator
+            };
+          }),
+        }));
+
+        // Apply question edits to flat questions array (host-added tiebreakers)
         let questions = (round.questions || []).map((q) => {
-          const edit = edits?.[q.id];
+          const edit = edits?.[q.showQuestionId || q.id];
           if (!edit) return q;
 
           return {
@@ -1139,7 +1158,7 @@ export default function App() {
           }
         }
 
-        return { ...round, questions };
+        return { ...round, categories, questions };
       }),
     };
 
@@ -1216,7 +1235,7 @@ export default function App() {
       const updatedRounds = prev.rounds.map((r) => {
         if (Number(r.round) === Number(selectedRoundId)) {
           // Check if tiebreaker already exists
-          const hasTB = r.questions.some(
+          const hasTB = (r.questions || []).some(
             (q) =>
               (q.questionType || "").toLowerCase() === "tiebreaker" ||
               String(q.questionOrder).toUpperCase() === "TB"
@@ -1227,7 +1246,7 @@ export default function App() {
           }
           return {
             ...r,
-            questions: [...r.questions, tiebreakerQuestion],
+            questions: [...(r.questions || []), tiebreakerQuestion],
           };
         }
         return r;
