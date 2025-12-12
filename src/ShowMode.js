@@ -1259,57 +1259,75 @@ export default function ShowMode({
                               ),
                             }}
                           />
-                          {sendToDisplay && (
-                            <>
-                              <Button
-                                onClick={() => {
-                                  // Push question with answer only (no stats)
-                                  sendToDisplay("questionWithAnswer", {
-                                    questionNumber: q["Question order"],
-                                    questionText: q["Question text"] || "",
-                                    categoryName: categoryName,
-                                    images: [],
-                                    answer: q["Answer"] || "",
-                                  });
-                                }}
-                                style={{
-                                  marginLeft: ".5rem",
-                                  fontSize: ".75rem",
-                                  padding: ".25rem .5rem",
-                                  verticalAlign: "middle",
-                                }}
-                                title="Push answer to display"
-                              >
-                                Push answer
-                              </Button>
-                              <Button
-                                onClick={() => {
-                                  // Push answer with statistics
-                                  sendToDisplay("questionWithAnswer", {
-                                    questionNumber: q["Question order"],
-                                    questionText: q["Question text"] || "",
-                                    categoryName: categoryName,
-                                    images: [],
-                                    answer: q["Answer"] || "",
-                                    pointsPerTeam: q._calculatedPoints,
-                                    correctCount:
-                                      q._calculatedStats?.correctCount || null,
-                                    totalTeams:
-                                      q._calculatedStats?.totalTeams || null,
-                                  });
-                                }}
-                                style={{
-                                  marginLeft: ".5rem",
-                                  fontSize: ".75rem",
-                                  padding: ".25rem .5rem",
-                                  verticalAlign: "middle",
-                                }}
-                                title="Push answer with statistics to display"
-                              >
-                                Push stats
-                              </Button>
-                            </>
-                          )}
+                          {sendToDisplay && (() => {
+                            // Calculate stats for this question (same logic as STATS PILL below)
+                            const m = /^(\d+)/.exec(String(categoryId));
+                            const roundNum = m ? Number(m[1]) : 0;
+                            const qStats = statsByRoundAndQuestion[roundNum]?.[q["Show Question ID"]];
+
+                            // Calculate points for pooled scoring modes
+                            const qPointsPerTeam =
+                              qStats &&
+                              (scoringMode === "pooled" || scoringMode === "pooled-adaptive") &&
+                              qStats.correctCount > 0
+                                ? scoringMode === "pooled-adaptive"
+                                  ? Math.round(
+                                      (Number(poolContribution) * qStats.activeTeamCount) /
+                                        qStats.correctCount
+                                    )
+                                  : Math.round(Number(poolPerQuestion) / qStats.correctCount)
+                                : null;
+
+                            return (
+                              <>
+                                <Button
+                                  onClick={() => {
+                                    // Push answer only (no stats)
+                                    sendToDisplay("questionWithAnswer", {
+                                      questionNumber: q["Question order"],
+                                      questionText: q["Question text"] || "",
+                                      categoryName: categoryName,
+                                      images: [],
+                                      answer: q["Answer"] || "",
+                                    });
+                                  }}
+                                  style={{
+                                    marginLeft: ".5rem",
+                                    fontSize: ".75rem",
+                                    padding: ".25rem .5rem",
+                                    verticalAlign: "middle",
+                                  }}
+                                  title="Push answer to display (no statistics)"
+                                >
+                                  Push answer
+                                </Button>
+                                <Button
+                                  onClick={() => {
+                                    // Push answer WITH statistics
+                                    sendToDisplay("questionWithAnswer", {
+                                      questionNumber: q["Question order"],
+                                      questionText: q["Question text"] || "",
+                                      categoryName: categoryName,
+                                      images: [],
+                                      answer: q["Answer"] || "",
+                                      pointsPerTeam: qPointsPerTeam,
+                                      correctCount: qStats?.correctCount || null,
+                                      totalTeams: qStats?.totalTeams || null,
+                                    });
+                                  }}
+                                  style={{
+                                    marginLeft: ".5rem",
+                                    fontSize: ".75rem",
+                                    padding: ".25rem .5rem",
+                                    verticalAlign: "middle",
+                                  }}
+                                  title="Push answer with statistics to display"
+                                >
+                                  Push stats
+                                </Button>
+                              </>
+                            );
+                          })()}
                         </p>
                       )}
 
