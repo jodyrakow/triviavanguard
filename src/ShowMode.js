@@ -348,9 +348,9 @@ export default function ShowMode({
       const m = /^(\d+)/.exec(String(key));
       const roundNum = m ? Number(m[1]) : 0;
 
-      // check if this category has visual questions
+      // check if this category has visual questions (check both field name formats)
       const isVisualCat = Object.values(cat?.questions || {}).some((q) =>
-        String(q?.["Question type"] || "")
+        String(q?.questionType || q?.["Question type"] || "")
           .toLowerCase()
           .includes("visual")
       );
@@ -360,9 +360,9 @@ export default function ShowMode({
         continue; // don't increment counter
       }
 
-      // check if this category has visual questions
+      // check if this category has tiebreaker questions (check both field name formats)
       const isTbCat = Object.values(cat?.questions || {}).some((q) =>
-        String(q?.["Question type"] || "")
+        String(q?.questionType || q?.["Question type"] || "")
           .toLowerCase()
           .includes("tiebreaker")
       );
@@ -400,6 +400,16 @@ export default function ShowMode({
   const totalQuestions = useMemo(() => {
     let count = 0;
     for (const r of allRounds) {
+      // Check both flat questions array (host-added) and nested categories structure
+      // First check flat questions array
+      for (const q of r?.questions || []) {
+        const typ = String(
+          q?.questionType || q?.["Question type"] || ""
+        ).toLowerCase();
+        if (typ.includes("tiebreaker")) continue;
+        count += 1;
+      }
+      // Then check nested categories structure
       for (const cat of r?.categories || []) {
         for (const q of cat?.questions || []) {
           const typ = String(

@@ -963,6 +963,19 @@ export default function ScoringMode({
       byTeam[tiebreaker.id] = { ...cell, tiebreakerGuessRaw: raw };
       return { ...prev, [showTeamId]: byTeam };
     });
+
+    // ✅ NEW: Broadcast the raw value in real-time so other hosts see it as the user types
+    try {
+      window.sendTBEdit?.({
+        showId: selectedShowId,
+        roundId: selectedRoundId,
+        teamId: showTeamId,
+        showQuestionId: tiebreaker.id,
+        tiebreakerGuessRaw: raw,
+        tiebreakerGuess: null, // Don't convert to number yet, just sync the raw string
+        ts: Date.now(),
+      });
+    } catch {}
   };
 
   // Commit on blur: coerce to number if valid, else clear
@@ -1018,6 +1031,7 @@ export default function ScoringMode({
   const bonusBorder = "1px solid rgba(220,106,36,0.65)";
   const thinRowBorder = "1px solid rgba(220,106,36,0.35)";
   const focusColor = theme.dark;
+  const HEADER_ROW_HEIGHT = 44;
 
   const sticky = {
     thTop: {
@@ -1049,6 +1063,12 @@ export default function ScoringMode({
       width: COL_Q_WIDTH,
       maxWidth: COL_Q_WIDTH,
       boxShadow: "2px 0 4px rgba(0,0,0,0.05)", // Subtle shadow
+    },
+    bonusRowCell: {
+      position: "sticky",
+      top: HEADER_ROW_HEIGHT, // sits just under the header row
+      zIndex: 9,
+      background: "#fff",
     },
   };
 
@@ -1238,6 +1258,8 @@ export default function ScoringMode({
       <div
         style={{
           overflowX: "auto",
+          overflowY: "auto", // 👈 allow vertical scroll *inside* grid
+          maxHeight: "70vh",
           background: "#fff",
           border: "1px solid #ddd",
           borderRadius: "0.5rem",
@@ -1499,6 +1521,7 @@ export default function ScoringMode({
                 style={{
                   padding: "0.3rem",
                   ...sticky.qNumTd,
+                  ...sticky.bonusRowCell,
                   fontWeight: "bold",
                   color: theme.accent,
                   borderTop: bonusBorder,
@@ -1521,6 +1544,7 @@ export default function ScoringMode({
                     padding: "0.2rem",
                     borderTop: bonusBorder,
                     borderBottom: bonusBorder,
+                    ...sticky.bonusRowCell,
                   }}
                 >
                   <input
@@ -1697,35 +1721,25 @@ export default function ScoringMode({
                         outlineColor: theme.accent,
                       }}
                       onKeyDown={(e) => {
-                        const goTopOfSameTeam = () => {
+                        const goTopOfSameColumn = () => {
                           e.preventDefault();
-                          setFocus({ teamIdx: 0, qIdx: 0 });
+                          // Always return to top of current column (don't advance to next column)
+                          setFocus(({ teamIdx }) => ({
+                            teamIdx: teamMode ? 0 : teamIdx,
+                            qIdx: 0,
+                          }));
                           e.currentTarget.blur(); // leave the TB field so focus returns to grid
                         };
 
-                        const goNextColumnToRow0 = () => {
-                          e.preventDefault();
-                          setFocus(({ teamIdx }) => ({
-                            teamIdx: Math.min(
-                              teamIdx + 1,
-                              renderTeams.length - 1
-                            ),
-                            qIdx: 0,
-                          }));
-                          e.currentTarget.blur();
-                        };
                         if (e.key === "Enter") {
                           commitTBGuess(t.showTeamId);
-                          if (teamMode) goTopOfSameTeam();
-                          else goNextColumnToRow0();
+                          goTopOfSameColumn();
                           return;
                         }
                         if (e.key === "Tab" && !e.shiftKey) {
-                          if (teamMode) goTopOfSameTeam();
-                          else goNextColumnToRow0();
+                          goTopOfSameColumn();
                         } else if (e.key === "ArrowDown") {
-                          if (teamMode) goTopOfSameTeam();
-                          else goNextColumnToRow0();
+                          goTopOfSameColumn();
                         }
                       }}
                       aria-label={`Tiebreaker guess for ${t.teamName}`}

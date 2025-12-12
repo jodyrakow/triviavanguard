@@ -265,9 +265,17 @@ export async function handler(event) {
           : showIdArray || null;
 
       // Question object (only question-specific fields)
+      // Extract questionId from the linked "Question" field (direct link to Questions table)
+      // This is more reliable than using the "Question ID" lookup field
+      const questionIdArray = f["Question"];
+      const questionId = Array.isArray(questionIdArray) && questionIdArray.length > 0
+        ? questionIdArray[0]
+        : questionIdArray || null;
+
       const q = {
         showQuestionId: rec.id,
         showId: normalizedShowId,
+        questionId: questionId, // ✅ Add the linked Question ID from Airtable
         questionOrder: f["Question order"] || "",
         sortOrder: typeof f["Sort order"] === "number" ? f["Sort order"] : null,
         questionText: f["Question text"] || "",

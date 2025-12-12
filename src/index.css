@@ -5,7 +5,7 @@ body,
   padding: 0;
   width: 100%;
   height: 100%;
-  background: #000; /* optional, but helpful for DisplayMode */
+  background: #f8f8f8; /* match app background color */
 }
 
 /* Your existing styles */

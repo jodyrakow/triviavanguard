@@ -17,6 +17,14 @@ export default function SidebarMenu({
   setDisplayControlsOpen,
   setShowAnswerKey,
   refreshBundle,
+  scoringMode,
+  setScoringMode,
+  pubPoints,
+  setPubPoints,
+  poolPerQuestion,
+  setPoolPerQuestion,
+  poolContribution,
+  setPoolContribution,
 }) {
   const [expandedSections, setExpandedSections] = useState({
     hostTools: false,
@@ -282,6 +290,108 @@ export default function SidebarMenu({
         </div>
         {expandedSections.showSettings && (
           <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}>
+            {/* Scoring mode */}
+            <div style={{ marginBottom: "0.75rem" }}>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+                🎯 Scoring type
+              </label>
+              <select
+                value={scoringMode}
+                onChange={(e) => setScoringMode(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.35rem",
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  borderRadius: "4px",
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontFamily: tokens.font.body,
+                }}
+              >
+                <option value="pub" style={{ backgroundColor: "#2B394A" }}>Pub (fixed points)</option>
+                <option value="pooled" style={{ backgroundColor: "#2B394A" }}>Pooled (static)</option>
+                <option value="pooled-adaptive" style={{ backgroundColor: "#2B394A" }}>Adaptive (pooled per team)</option>
+              </select>
+            </div>
+
+            {/* Pub points per question (only show if pub mode) */}
+            {scoringMode === "pub" && (
+              <div style={{ marginBottom: "0.75rem" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+                  💰 Points per question
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={pubPoints}
+                  onChange={(e) => setPubPoints(Number(e.target.value))}
+                  style={{
+                    width: "80px",
+                    padding: "0.35rem",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    fontFamily: tokens.font.body,
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Pool per question (only show if pooled static mode) */}
+            {scoringMode === "pooled" && (
+              <div style={{ marginBottom: "0.75rem" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+                  💰 Points in pool per question
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={poolPerQuestion}
+                  onChange={(e) => setPoolPerQuestion(Number(e.target.value))}
+                  style={{
+                    width: "80px",
+                    padding: "0.35rem",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    fontFamily: tokens.font.body,
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Pool contribution per team (only show if adaptive mode) */}
+            {scoringMode === "pooled-adaptive" && (
+              <div style={{ marginBottom: "0.75rem" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+                  💰 Points contributed per team
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={poolContribution}
+                  onChange={(e) => setPoolContribution(Number(e.target.value))}
+                  style={{
+                    width: "80px",
+                    padding: "0.35rem",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    fontFamily: tokens.font.body,
+                  }}
+                />
+              </div>
+            )}
+
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: "0.75rem", paddingTop: "0.75rem" }} />
+
             {/* Location (read-only from show config) */}
             <div style={{ marginBottom: "0.75rem" }}>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>

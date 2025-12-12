@@ -1313,6 +1313,14 @@ export default function App() {
           setDisplayControlsOpen={setDisplayControlsOpen}
           setShowAnswerKey={setShowAnswerKey}
           refreshBundle={refreshBundle}
+          scoringMode={scoringMode}
+          setScoringMode={setScoringMode}
+          pubPoints={pubPoints}
+          setPubPoints={setPubPoints}
+          poolPerQuestion={poolPerQuestion}
+          setPoolPerQuestion={setPoolPerQuestion}
+          poolContribution={poolContribution}
+          setPoolContribution={setPoolContribution}
         />
       </Sidebar>
 

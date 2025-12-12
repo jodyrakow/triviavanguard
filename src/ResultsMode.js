@@ -25,12 +25,9 @@ export default function ResultsMode({
   selectedRoundId, // e.g. "1" (still used for UI text & fallback mode)
   cachedState, // { teams, grid, entryOrder } for current round (fallback)
   cachedByRound = null, // NEW: flat structure { teams, grid, entryOrder, ... } for all rounds
-  scoringMode, // "pub" | "pooled"
-  setScoringMode,
+  scoringMode, // "pub" | "pooled" | "pooled-adaptive"
   pubPoints,
-  setPubPoints,
   poolPerQuestion,
-  setPoolPerQuestion,
   selectedShowId,
   prizes: prizesString = "", // NEW: prizes from shared state (newline-separated string)
   setPrizes: setPrizesString, // NEW: setter for shared prizes
@@ -856,21 +853,28 @@ export default function ResultsMode({
         (q) => !(tbQ && q.showQuestionId === tbQ.id)
       );
 
-      // Validate every non-TB question has a Questions record id
+      // Filter out questions without questionId (host-added or edited questions)
+      // These will be skipped during publish
+      const questionsWithIds = nonTBQuestions.filter((q) => q.questionId);
       const missingQids = nonTBQuestions
         .filter((q) => !q.questionId)
         .map((q) => q.showQuestionId);
+
       if (missingQids.length) {
-        throw new Error(
-          `Some ShowQuestions are missing a linked Questions record (questionId).\n` +
-            `Please open Airtable and link these ShowQuestions to a Question:\n` +
-            missingQids.join(", ")
+        console.warn(
+          `⚠️ Skipping ${missingQids.length} questions without questionId links:`,
+          missingQids
         );
+        setPublishDetail(
+          `Note: Skipping ${missingQids.length} host-added/edited questions (no Airtable link)`
+        );
+        // Wait a moment so user can see the message
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      // Precompute nCorrect per Q for pooled
+      // Precompute nCorrect per Q for pooled (only for questions with IDs)
       const nCorrectByQ = {};
-      for (const q of nonTBQuestions) {
+      for (const q of questionsWithIds) {
         let n = 0;
         for (const t of teams) {
           if (getCell(t.showTeamId, q.showQuestionId)?.isCorrect) n++;
@@ -1180,112 +1184,6 @@ export default function ResultsMode({
           </div>
         </div>
       )}
-
-      {/* Controls */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr auto",
-          alignItems: "center",
-          gap: ".75rem",
-          padding: "0 12px",
-          marginBottom: tokens.spacing.md,
-        }}
-      >
-        <div
-          style={{ display: "flex", flexWrap: "wrap", gap: tokens.spacing.sm }}
-        >
-          <div
-            style={{
-              display: "inline-flex",
-              border: `${tokens.borders.thin} ${colors.gray.border}`,
-              borderRadius: 999,
-              overflow: "hidden",
-              background: colors.white,
-            }}
-            title="Choose scoring type"
-          >
-            <button
-              type="button"
-              onClick={() => setScoringMode("pub")}
-              style={{
-                padding: ".35rem .6rem",
-                border: "none",
-                background:
-                  scoringMode === "pub" ? theme.accent : "transparent",
-                color: scoringMode === "pub" ? colors.white : theme.dark,
-                cursor: "pointer",
-              }}
-            >
-              Pub scoring
-            </button>
-            <button
-              type="button"
-              onClick={() => setScoringMode("pooled")}
-              style={{
-                padding: ".35rem .6rem",
-                border: "none",
-                background:
-                  scoringMode === "pooled" ? theme.accent : "transparent",
-                color: scoringMode === "pooled" ? colors.white : theme.dark,
-                cursor: "pointer",
-              }}
-            >
-              Pooled scoring
-            </button>
-          </div>
-
-          {scoringMode === "pub" ? (
-            <label
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: ".4rem",
-              }}
-            >
-              <span>Points per question:</span>
-              <input
-                type="number"
-                value={pubPoints}
-                min={0}
-                step={1}
-                onChange={(e) => setPubPoints(Number(e.target.value || 0))}
-                style={{
-                  width: 80,
-                  padding: ".35rem .5rem",
-                  border: `${tokens.borders.thin} ${colors.gray.border}`,
-                  borderRadius: ".35rem",
-                }}
-              />
-            </label>
-          ) : (
-            <label
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: ".4rem",
-              }}
-            >
-              <span>Pooled points per question:</span>
-              <input
-                type="number"
-                value={poolPerQuestion}
-                min={0}
-                step={10}
-                onChange={(e) =>
-                  setPoolPerQuestion(Number(e.target.value || 0))
-                }
-                style={{
-                  width: 120,
-                  padding: ".35rem .5rem",
-                  border: `${tokens.borders.thin} ${colors.gray.border}`,
-                  borderRadius: ".35rem",
-                }}
-              />
-            </label>
-          )}
-        </div>
-      </div>
 
       {/* Prizes control */}
       <div
