@@ -1091,9 +1091,12 @@ export default function ShowMode({
                               setEditingQuestion({
                                 showQuestionId: q["Show Question ID"],
                                 questionText: q["Question text"] || "",
-                                notes: q["Notes"] || "",
-                                pronunciationGuide:
-                                  q["Pronunciation guide"] || "",
+                                Notes: q?.questionNotes || q?.notes || "",
+                                "Pronunciation guide":
+                                  q?.questionPronunciationGuide ||
+                                  q?.pronunciationGuide ||
+                                  "",
+
                                 answer: q["Answer"] || "",
                               });
                             }
