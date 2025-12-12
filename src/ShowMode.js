@@ -348,30 +348,24 @@ export default function ShowMode({
       const m = /^(\d+)/.exec(String(key));
       const roundNum = m ? Number(m[1]) : 0;
 
-      // check if this category has visual questions (check both field name formats)
-      const isVisualCat = Object.values(cat?.questions || {}).some((q) =>
-        String(q?.questionType || q?.["Question type"] || "")
-          .toLowerCase()
-          .includes("visual")
-      );
+      // Check the category's Question type field (stored at category level, not question level)
+      const catQuestionType = String(
+        cat?.categoryInfo?.questionType || cat?.categoryInfo?.["Question type"] || ""
+      ).toLowerCase();
 
-      if (isVisualCat) {
-        out[key] = null; // no number assigned
-        continue; // don't increment counter
+      // Visual categories don't get a number
+      if (catQuestionType.includes("visual")) {
+        out[key] = null;
+        continue;
       }
 
-      // check if this category has tiebreaker questions (check both field name formats)
-      const isTbCat = Object.values(cat?.questions || {}).some((q) =>
-        String(q?.questionType || q?.["Question type"] || "")
-          .toLowerCase()
-          .includes("tiebreaker")
-      );
-
-      if (isTbCat) {
-        out[key] = null; // no number assigned
-        continue; // don't increment counter
+      // Tiebreaker categories don't get a number
+      if (catQuestionType.includes("tiebreaker")) {
+        out[key] = null;
+        continue;
       }
 
+      // All other question types get numbered
       const next = (perRound.get(roundNum) || 0) + 1;
       perRound.set(roundNum, next);
       out[key] = next;
