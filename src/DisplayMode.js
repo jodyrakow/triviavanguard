@@ -221,15 +221,25 @@ export default function DisplayMode() {
 
 function StandbyScreen() {
   return (
-    <img
-      src={triviaVanguardLogo}
-      alt="Trivia Vanguard"
+    <div
       style={{
-        maxWidth: "60%",
-        maxHeight: "60%",
-        objectFit: "contain",
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
-    />
+    >
+      <img
+        src={triviaVanguardLogo}
+        alt="Trivia Vanguard"
+        style={{
+          maxWidth: "60%",
+          maxHeight: "60%",
+          objectFit: "contain",
+        }}
+      />
+    </div>
   );
 }
 
@@ -347,13 +357,12 @@ function QuestionDisplay({ content, fontSize = 100 }) {
   return (
     <div
       style={{
-        position: "relative",
+        display: "flex",
+        flexDirection: "column",
         width: "100%",
-        height: STAGE_H,
-        maxHeight: STAGE_H,
-        overflow: "visible", // Changed from "hidden" to allow answer/stats to show
+        height: "100%",
         paddingTop: categoryName ? `${TOP_BAR_H}px` : "0px",
-        // paddingBottom removed - using absolute positioning for answer/stats instead
+        position: "relative",
       }}
     >
       {/* Category bar at top - gray bar behind logo */}
@@ -440,15 +449,17 @@ function QuestionDisplay({ content, fontSize = 100 }) {
       {(answer || showStats) && (
         <div
           style={{
-            position: "absolute",
+            position: "fixed",
             left: "50%",
             transform: "translateX(-50%)",
-            bottom: ANSWER_BOTTOM,
+            bottom: "5vh",
             width: "92%",
             maxWidth: "1400px",
             textAlign: "center",
-            zIndex: 20,
-            border: "2px solid red", // DEBUG: make visible
+            zIndex: 9999,
+            backgroundColor: "rgba(220, 106, 36, 0.95)",
+            padding: "2rem",
+            borderRadius: "1rem",
           }}
         >
           {console.log("[QuestionDisplay] Rendering answer/stats container")}
@@ -459,15 +470,14 @@ function QuestionDisplay({ content, fontSize = 100 }) {
                 fontSize: `${2.75 * scale}rem`,
                 fontWeight: 800,
                 lineHeight: 1.25,
-                color: theme.accent,
-                marginBottom: "1rem", // always the same
+                color: "#FFFFFF",
+                marginBottom: "1rem",
               }}
               dangerouslySetInnerHTML={{
                 __html: marked.parseInline(answer || ""),
               }}
             />
           )}
-          {console.log("[QuestionDisplay] answer block rendered:", !!answer)}
 
           {/* Stats area */}
           <div
@@ -476,7 +486,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
               flexDirection: "column",
               justifyContent: "center",
               fontSize: `${2.3 * scale}rem`,
-              color: theme.dark,
+              color: "#FFFFFF",
               fontFamily: tokens.font.body,
               lineHeight: 1.2,
             }}
