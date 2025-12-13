@@ -903,9 +903,14 @@ export default function ResultsMode({
       const teamsById = new Map(teams.map((t) => [t.showTeamId, t]));
       const teamsPayload = publishRows.map((r) => {
         const t = teamsById.get(r.showTeamId);
+        // Extract teamId from array if needed (Airtable link fields are arrays)
+        let teamId = t?.teamId || null;
+        if (Array.isArray(teamId)) {
+          teamId = teamId[0] || null;
+        }
         return {
           showTeamId: r.showTeamId,
-          teamId: t?.teamId || null,
+          teamId: teamId,
           teamName: r.teamName,
           finalTotal: r.total,
           finalPlace: r.place,
