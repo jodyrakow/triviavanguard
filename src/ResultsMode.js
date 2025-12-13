@@ -978,6 +978,11 @@ export default function ResultsMode({
       const json = await res.json();
       console.log("Publish OK:", json);
 
+      // Warn about skipped invalid questions if any
+      if (json.skippedInvalid > 0) {
+        console.warn(`⚠️ Skipped ${json.skippedInvalid} questions with invalid record IDs:`, json.invalidIdDetails);
+      }
+
       // Update question edits if any exist
       let editsUpdated = 0;
       if (questionEdits && Object.keys(questionEdits).length > 0) {
@@ -1039,6 +1044,9 @@ export default function ResultsMode({
       ];
       if (editsUpdated > 0) {
         detailParts.push(`updated ${editsUpdated} question edit(s)`);
+      }
+      if (json.skippedInvalid > 0) {
+        detailParts.push(`⚠️ skipped ${json.skippedInvalid} question(s) with invalid IDs`);
       }
       setPublishDetail(`✅ Published! ${detailParts.join(", ")}.`);
       clearBannerSoon();

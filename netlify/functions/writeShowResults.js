@@ -38,6 +38,12 @@ const chunk = (arr, size = 10) => {
   return out;
 };
 
+// Validate Airtable record ID format (rec + 14 alphanumeric characters)
+const isValidRecordId = (id) => {
+  if (!id || typeof id !== 'string') return false;
+  return /^rec[a-zA-Z0-9]{14}$/.test(id);
+};
+
 async function ensureTeamRecord(team) {
   // team: { teamId|null, teamName }
   if (team.teamId) return team.teamId;
@@ -199,6 +205,7 @@ exports.handler = async function handler(event) {
     // 4) Build fresh Scores — skip any incomplete rows (and any tiebreakers if they slipped through)
     const badRows = [];
     const scoreRows = [];
+    const skippedInvalidIds = [];
 
     for (const s of scores) {
       // Skip obvious tiebreakers if present
@@ -219,6 +226,25 @@ exports.handler = async function handler(event) {
           showTeamId,
           questionId,
           showQuestionId,
+        });
+        continue;
+      }
+
+      // Validate that questionId and showQuestionId are valid Airtable record IDs
+      if (!isValidRecordId(questionId)) {
+        skippedInvalidIds.push({
+          reason: 'Invalid questionId format',
+          questionId,
+          showQuestionId
+        });
+        continue;
+      }
+
+      if (!isValidRecordId(showQuestionId)) {
+        skippedInvalidIds.push({
+          reason: 'Invalid showQuestionId format',
+          questionId,
+          showQuestionId
         });
         continue;
       }
@@ -253,12 +279,20 @@ exports.handler = async function handler(event) {
       await createScores(scoreRows);
     }
 
+    // Log warnings about skipped questions (if any)
+    if (skippedInvalidIds.length > 0) {
+      console.warn(`⚠️ Skipped ${skippedInvalidIds.length} questions with invalid record IDs:`,
+        skippedInvalidIds.slice(0, 5));
+    }
+
     return {
       statusCode: 200,
       body: JSON.stringify({
         ok: true,
         teamsUpserted: teams.length,
         scoresCreated: scoreRows.length,
+        skippedInvalid: skippedInvalidIds.length,
+        invalidIdDetails: skippedInvalidIds.length > 0 ? skippedInvalidIds.slice(0, 5) : undefined,
       }),
     };
   } catch (err) {
