@@ -324,11 +324,15 @@ export default function ResultsMode({
 
     // Filter out tiebreaker questions for scoring
     const scoringQuestions = tbQ
-      ? questions.filter(q => q.showQuestionId !== tbQ.id)
+      ? questions.filter((q) => q.showQuestionId !== tbQ.id)
       : questions;
 
     // Use utility to build correct count map and team totals
-    const nCorrectByQ = buildCorrectCountMap(teams, scoringQuestions, adaptedGrid);
+    const nCorrectByQ = buildCorrectCountMap(
+      teams,
+      scoringQuestions,
+      adaptedGrid
+    );
     const totalByTeam = buildTeamTotals(
       teams,
       scoringQuestions,
@@ -522,11 +526,6 @@ export default function ResultsMode({
   }, [
     teams,
     questions,
-    getCell,
-    scoringMode,
-    pubPoints,
-    poolPerQuestion,
-    poolContribution,
     prizeCount,
     tbQ,
     tbNumber,
@@ -895,7 +894,11 @@ export default function ResultsMode({
       }
 
       // Use utility to build correct count map (only for questions with IDs)
-      const nCorrectByQ = buildCorrectCountMap(teams, questionsWithIds, adaptedGridForPublish);
+      const nCorrectByQ = buildCorrectCountMap(
+        teams,
+        questionsWithIds,
+        adaptedGridForPublish
+      );
 
       setPublishDetail("Preparing payload…");
 
@@ -941,7 +944,11 @@ export default function ResultsMode({
           }
 
           const correctCount = nCorrectByQ[q.showQuestionId] || 0;
-          const pointsEarned = computeCellPoints(adaptedCell, config, correctCount);
+          const pointsEarned = computeCellPoints(
+            adaptedCell,
+            config,
+            correctCount
+          );
 
           scoresPayload.push({
             showTeamId: t.showTeamId,
@@ -981,7 +988,10 @@ export default function ResultsMode({
 
       // Warn about skipped invalid questions if any
       if (json.skippedInvalid > 0) {
-        console.warn(`⚠️ Skipped ${json.skippedInvalid} questions with invalid record IDs:`, json.invalidIdDetails);
+        console.warn(
+          `⚠️ Skipped ${json.skippedInvalid} questions with invalid record IDs:`,
+          json.invalidIdDetails
+        );
       }
 
       // Update question edits if any exist
@@ -1048,7 +1058,9 @@ export default function ResultsMode({
         detailParts.push(`updated ${editsUpdated} question edit(s)`);
       }
       if (json.skippedInvalid > 0) {
-        detailParts.push(`⚠️ skipped ${json.skippedInvalid} question(s) with invalid IDs`);
+        detailParts.push(
+          `⚠️ skipped ${json.skippedInvalid} question(s) with invalid IDs`
+        );
       }
       setPublishDetail(`✅ Published! ${detailParts.join(", ")}.`);
       clearBannerSoon();
