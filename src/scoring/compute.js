@@ -128,3 +128,69 @@ export function buildTeamTotals(
   }
   return totals;
 }
+
+/**
+ * Compute solo statistics for a round
+ * @param {Array} teams - teams array
+ * @param {Array} questions - questions for the round
+ * @param {Object} grid - answer grid
+ * @param {Object} answeredAllMap - map of which questions have all teams answered
+ * @returns {{ count: number, teams: Array<{showTeamId: string, teamName: string}> }}
+ */
+export function computeSolosForRound(teams, questions, grid, answeredAllMap) {
+  const soloMap = buildSoloMap(teams, questions, grid, answeredAllMap);
+
+  let count = 0;
+  const soloTeamSet = new Set();
+
+  for (const sqid in soloMap) {
+    if (soloMap[sqid]) {
+      count++;
+      soloTeamSet.add(soloMap[sqid]);
+    }
+  }
+
+  // Build list of unique teams with solos
+  const soloTeamsList = Array.from(soloTeamSet).map(showTeamId => {
+    const team = teams.find(t => t.showTeamId === showTeamId);
+    return {
+      showTeamId,
+      teamName: team?.teamName || '(Unknown)'
+    };
+  });
+
+  return { count, teams: soloTeamsList };
+}
+
+/**
+ * Compute places/rankings from team totals
+ * @param {Object} teamTotals - map of showTeamId -> total points
+ * @returns {Object} map of showTeamId -> place (1, 2, 3, etc.)
+ */
+export function computePlaces(teamTotals) {
+  // Convert to array and sort by total (descending)
+  const entries = Object.entries(teamTotals).map(([showTeamId, total]) => ({
+    showTeamId,
+    total
+  }));
+
+  entries.sort((a, b) => b.total - a.total);
+
+  const places = {};
+  let currentPlace = 1;
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+
+    // Handle ties: if total matches previous, use same place
+    if (i > 0 && entry.total === entries[i - 1].total) {
+      places[entry.showTeamId] = places[entries[i - 1].showTeamId];
+    } else {
+      places[entry.showTeamId] = currentPlace;
+    }
+
+    currentPlace++;
+  }
+
+  return places;
+}

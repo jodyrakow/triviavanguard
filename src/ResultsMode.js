@@ -2,6 +2,12 @@
 import React, { useMemo, useRef, useState, useCallback } from "react";
 import { tokens, colors as theme, Button } from "./styles/index.js";
 import { colors } from "./styles/ui.js";
+import {
+  buildCorrectCountMap,
+  buildTeamTotals,
+  computePlaces,
+  computeCellPoints,
+} from "./scoring/compute.js";
 
 // Normalize team shapes coming from cache (same as ScoringMode)
 const normalizeTeam = (t) => ({
@@ -285,72 +291,55 @@ export default function ResultsMode({
   const [otfApplied, setOtfApplied] = useState(null);
   // when applied: { number, question, answerText, teamDelta: {teamId: number}, selected: [ids] }
 
+  // Build scoring config for utility functions
+  const scoringConfig = useMemo(
+    () => ({
+      mode: scoringMode,
+      pubPoints: Number(pubPoints || 0),
+      poolPerQuestion: Number(poolPerQuestion || 0),
+      poolContribution: Number(poolContribution || 0),
+      teamCount: teams.length,
+    }),
+    [scoringMode, pubPoints, poolPerQuestion, poolContribution, teams.length]
+  );
+
   // ----------------------- Standings (cumulative-aware) -----------------------
   const standings = useMemo(() => {
     if (!teams.length || !questions.length) return [];
 
-    // Precompute nCorrect per Q for pooled
-    const nCorrectByQ = {};
-    for (const q of questions) {
-      let n = 0;
-      for (const t of teams) {
-        const cell = getCell(t.showTeamId, q.showQuestionId);
-        if (cell?.isCorrect) n++;
+    // Build grid in utility format (adapt from cachedByRound.grid)
+    const adaptedGrid = {};
+    const rawGrid = cachedByRound?.grid || {};
+    for (const teamId in rawGrid) {
+      adaptedGrid[teamId] = {};
+      for (const questionId in rawGrid[teamId]) {
+        const cell = rawGrid[teamId][questionId];
+        adaptedGrid[teamId][questionId] = {
+          isCorrect: cell.isCorrect,
+          bonusPoints: cell.questionBonus,
+          partialCredit: cell.overridePoints,
+        };
       }
-      nCorrectByQ[q.showQuestionId] = n;
     }
 
-    // Start totals with show bonus
-    const totalByTeam = new Map(
-      teams.map((t) => [t.showTeamId, Number(t.showBonus || 0)])
+    // Filter out tiebreaker questions for scoring
+    const scoringQuestions = tbQ
+      ? questions.filter(q => q.showQuestionId !== tbQ.id)
+      : questions;
+
+    // Use utility to build correct count map and team totals
+    const nCorrectByQ = buildCorrectCountMap(teams, scoringQuestions, adaptedGrid);
+    const totalByTeam = buildTeamTotals(
+      teams,
+      scoringQuestions,
+      adaptedGrid,
+      scoringConfig,
+      nCorrectByQ
     );
-
-    // Earn points per cell (skip TB for scoring)
-    for (const t of teams) {
-      for (const q of questions) {
-        if (tbQ && q.showQuestionId === tbQ.id) continue; // TB never gives points
-
-        const cell = getCell(t.showTeamId, q.showQuestionId);
-        if (!cell) continue;
-
-        const isCorrect = !!cell.isCorrect;
-        const qb = Number(cell.questionBonus || 0);
-        const override =
-          cell.overridePoints === null || cell.overridePoints === undefined
-            ? null
-            : Number(cell.overridePoints);
-
-        let base = 0;
-        if (isCorrect) {
-          if (scoringMode === "pub") {
-            const perQ =
-              typeof q.pubPerQuestion === "number"
-                ? q.pubPerQuestion
-                : Number(pubPoints);
-            base = perQ;
-          } else if (scoringMode === "pooled-adaptive") {
-            // Adaptive pool: teamCount × poolContribution, split among correct teams
-            const pool = teams.length * Number(poolContribution);
-            const n = Math.max(1, nCorrectByQ[q.showQuestionId] || 0);
-            base = Math.round(pool / n);
-          } else {
-            // Static pooled: fixed pool split among correct teams
-            const n = Math.max(1, nCorrectByQ[q.showQuestionId] || 0);
-            base = Math.round(Number(poolPerQuestion) / n);
-          }
-        }
-
-        const earned = override !== null ? override : base;
-        totalByTeam.set(
-          t.showTeamId,
-          (totalByTeam.get(t.showTeamId) || 0) + earned + (isCorrect ? qb : 0)
-        );
-      }
-    }
 
     // Base rows
     const rows = teams.map((t) => {
-      const total = +(totalByTeam.get(t.showTeamId) ?? 0);
+      const total = +(totalByTeam[t.showTeamId] ?? 0);
       const guess = tbGuessFor(t.showTeamId);
       const delta =
         tbNumber !== null && guess !== null
@@ -374,17 +363,10 @@ export default function ResultsMode({
         a.teamName.localeCompare(b.teamName, "en", { sensitivity: "base" })
     );
 
-    // Provisional places with ties
-    let place = 0,
-      prevTotal = null,
-      cnt = 0;
+    // Use utility to compute places with tie handling
+    const places = computePlaces(totalByTeam);
     for (const r of rows) {
-      cnt++;
-      if (prevTotal === null || r.total !== prevTotal) {
-        place = cnt;
-        prevTotal = r.total;
-      }
-      r.place = place;
+      r.place = places[r.showTeamId];
     }
 
     // TB only affects ordering inside prize band (optional)
@@ -445,8 +427,8 @@ export default function ResultsMode({
 
     // Re-assign places (unique inside TB-broken groups)
     let prevKey = null;
-    place = 0;
-    cnt = 0;
+    let place = 0;
+    let cnt = 0;
     for (const r of rows) {
       cnt++;
       const tieKey =
@@ -544,11 +526,14 @@ export default function ResultsMode({
     scoringMode,
     pubPoints,
     poolPerQuestion,
+    poolContribution,
     prizeCount,
     tbQ,
     tbNumber,
     tbGuessFor,
     otfApplied,
+    cachedByRound,
+    scoringConfig,
   ]);
 
   // Candidates inside prize band that remain tied (or were unbreakably tied by authored TB)
@@ -894,15 +879,23 @@ export default function ResultsMode({
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      // Precompute nCorrect per Q for pooled (only for questions with IDs)
-      const nCorrectByQ = {};
-      for (const q of questionsWithIds) {
-        let n = 0;
-        for (const t of teams) {
-          if (getCell(t.showTeamId, q.showQuestionId)?.isCorrect) n++;
+      // Build adapted grid for utility functions
+      const adaptedGridForPublish = {};
+      const rawGrid = cachedByRound?.grid || {};
+      for (const teamId in rawGrid) {
+        adaptedGridForPublish[teamId] = {};
+        for (const questionId in rawGrid[teamId]) {
+          const cell = rawGrid[teamId][questionId];
+          adaptedGridForPublish[teamId][questionId] = {
+            isCorrect: cell.isCorrect,
+            bonusPoints: cell.questionBonus,
+            partialCredit: cell.overridePoints,
+          };
         }
-        nCorrectByQ[q.showQuestionId] = n;
       }
+
+      // Use utility to build correct count map (only for questions with IDs)
+      const nCorrectByQ = buildCorrectCountMap(teams, questionsWithIds, adaptedGridForPublish);
 
       setPublishDetail("Preparing payload…");
 
@@ -928,43 +921,33 @@ export default function ResultsMode({
       const scoresPayload = [];
       for (const t of teams) {
         for (const q of questionsWithIds) {
-          // ✅ Use filtered list (only questions with questionId)
           const cell = getCell(t.showTeamId, q.showQuestionId);
-          const isCorrect = !!cell?.isCorrect;
-          const qb = Number(cell?.questionBonus || 0);
-          const override =
-            cell?.overridePoints === null || cell?.overridePoints === undefined
-              ? null
-              : Number(cell?.overridePoints);
+          if (!cell) continue;
 
-          let base = 0;
-          if (isCorrect) {
-            if (scoringMode === "pub") {
-              const perQ =
-                typeof q.pubPerQuestion === "number"
-                  ? q.pubPerQuestion
-                  : Number(pubPoints);
-              base = perQ;
-            } else if (scoringMode === "pooled-adaptive") {
-              // Adaptive pool: teamCount × poolContribution, split among correct teams
-              const pool = teams.length * Number(poolContribution);
-              const n = Math.max(1, nCorrectByQ[q.showQuestionId] || 0);
-              base = Math.round(pool / n);
-            } else {
-              // Static pooled: fixed pool split among correct teams
-              const n = Math.max(1, nCorrectByQ[q.showQuestionId] || 0);
-              base = Math.round(Number(poolPerQuestion) / n);
+          // Adapt cell for utility format
+          const adaptedCell = {
+            isCorrect: cell.isCorrect,
+            bonusPoints: cell.questionBonus,
+            partialCredit: cell.overridePoints,
+          };
+
+          // Handle per-question pub points
+          let config = scoringConfig;
+          if (scoringConfig.mode === "pub") {
+            const perQPub = q.pubPerQuestion;
+            if (perQPub !== null && perQPub !== undefined) {
+              config = { ...scoringConfig, pubPoints: perQPub };
             }
           }
 
-          const earned = override !== null ? override : base;
-          const pointsEarned = isCorrect ? earned + qb : earned;
+          const correctCount = nCorrectByQ[q.showQuestionId] || 0;
+          const pointsEarned = computeCellPoints(adaptedCell, config, correctCount);
 
           scoresPayload.push({
             showTeamId: t.showTeamId,
             questionId: q.questionId,
             showQuestionId: q.showQuestionId,
-            isCorrect,
+            isCorrect: !!cell.isCorrect,
             pointsEarned: Number(pointsEarned || 0),
           });
         }

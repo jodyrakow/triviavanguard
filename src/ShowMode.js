@@ -10,6 +10,10 @@ import {
   colors as theme,
   tokens,
 } from "./styles";
+import {
+  buildCorrectCountMap,
+  computeAutoEarned,
+} from "./scoring/compute.js";
 
 export default function ShowMode({
   showBundle = { rounds: [], teams: [] },
@@ -261,12 +265,47 @@ export default function ShowMode({
     return Number(selectedRoundId) === maxRound;
   }, [showBundle, selectedRoundId]);
 
+  // Build scoring config for utility functions
+  const scoringConfig = React.useMemo(
+    () => ({
+      mode: scoringMode,
+      pubPoints: Number(pubPoints || 0),
+      poolPerQuestion: Number(poolPerQuestion || 0),
+      poolContribution: Number(poolContribution || 0),
+      teamCount: cachedState?.teams?.length || 0,
+    }),
+    [scoringMode, pubPoints, poolPerQuestion, poolContribution, cachedState?.teams?.length]
+  );
+
+  // Helper to calculate points per team for a question
+  const calculatePointsPerTeam = React.useCallback(
+    (correctCount, activeTeamCount) => {
+      if (!correctCount || correctCount === 0) return null;
+
+      // For pooled modes, use the utility to calculate points
+      if (scoringMode === "pooled" || scoringMode === "pooled-adaptive") {
+        // Create a mock correct cell to get the base points
+        const mockCell = { isCorrect: true };
+
+        // For adaptive mode, override teamCount with activeTeamCount
+        const config = scoringMode === "pooled-adaptive"
+          ? { ...scoringConfig, teamCount: activeTeamCount }
+          : scoringConfig;
+
+        return computeAutoEarned(mockCell, config, correctCount);
+      }
+
+      return null; // Pub mode doesn't show points per team
+    },
+    [scoringMode, scoringConfig]
+  );
+
   // Calculate statistics for each question (teams correct, points per team, etc.)
   const statsByRoundAndQuestion = React.useMemo(() => {
     if (!cachedState?.teams || !cachedState?.grid) return {};
 
     const teams = cachedState.teams;
-    const grid = cachedState.grid; // Flat grid: { [teamId]: { [questionId]: {...} } }
+    const grid = cachedState.grid;
 
     const teamNames = new Map(
       teams.map((t) => [t.showTeamId, t.teamName || "(Unnamed team)"])
@@ -279,13 +318,34 @@ export default function ShowMode({
     for (const round of rounds) {
       const roundId = String(round.round);
 
-      // Flatten questions from categories (new structure)
+      // Flatten questions from categories
       const roundQuestions = [];
       for (const cat of round?.categories || []) {
         for (const q of cat?.questions || []) {
-          roundQuestions.push(q);
+          roundQuestions.push({
+            showQuestionId: q.showQuestionId || q.id,
+            questionId: q.questionId,
+            order: q.questionOrder,
+          });
         }
       }
+
+      // Adapt grid format for utility (utility uses bonusPoints/partialCredit)
+      const adaptedGrid = {};
+      for (const teamId in grid) {
+        adaptedGrid[teamId] = {};
+        for (const questionId in grid[teamId]) {
+          const cell = grid[teamId][questionId];
+          adaptedGrid[teamId][questionId] = {
+            isCorrect: cell.isCorrect,
+            bonusPoints: cell.questionBonus,
+            partialCredit: cell.overridePoints,
+          };
+        }
+      }
+
+      // Use utility to get correct counts
+      const correctCountMap = buildCorrectCountMap(teams, roundQuestions, adaptedGrid);
 
       // For adaptive pooled mode: count only teams active in THIS round
       let activeTeamCount = teams.length;
@@ -293,9 +353,9 @@ export default function ShowMode({
         const activeTeams = new Set();
         for (const t of teams) {
           for (const q of roundQuestions) {
-            if (grid[t.showTeamId]?.[q.showQuestionId || q.id]) {
+            if (grid[t.showTeamId]?.[q.showQuestionId]) {
               activeTeams.add(t.showTeamId);
-              break; // Found at least one answer for this team
+              break;
             }
           }
         }
@@ -306,14 +366,14 @@ export default function ShowMode({
       const roundStats = {};
 
       for (const q of roundQuestions) {
-        const showQuestionId = q.showQuestionId || q.id;
-        let correctCount = 0;
+        const showQuestionId = q.showQuestionId;
+        const correctCount = correctCountMap[showQuestionId] || 0;
         const correctTeams = [];
 
+        // Build list of correct team names
         for (const t of teams) {
           const cell = grid[t.showTeamId]?.[showQuestionId];
           if (cell?.isCorrect) {
-            correctCount++;
             const nm = teamNames.get(t.showTeamId);
             if (nm) correctTeams.push(nm);
           }
@@ -321,7 +381,7 @@ export default function ShowMode({
 
         roundStats[showQuestionId] = {
           totalTeams,
-          activeTeamCount, // For adaptive mode pool calculation
+          activeTeamCount,
           correctCount,
           correctTeams,
         };
@@ -1368,22 +1428,9 @@ export default function ShowMode({
                                 ];
 
                               // Calculate points for pooled scoring modes
-                              const qPointsPerTeam =
-                                qStats &&
-                                (scoringMode === "pooled" ||
-                                  scoringMode === "pooled-adaptive") &&
-                                qStats.correctCount > 0
-                                  ? scoringMode === "pooled-adaptive"
-                                    ? Math.round(
-                                        (Number(poolContribution) *
-                                          qStats.activeTeamCount) /
-                                          qStats.correctCount
-                                      )
-                                    : Math.round(
-                                        Number(poolPerQuestion) /
-                                          qStats.correctCount
-                                      )
-                                  : null;
+                              const qPointsPerTeam = qStats
+                                ? calculatePointsPerTeam(qStats.correctCount, qStats.activeTeamCount)
+                                : null;
 
                               return (
                                 <>
@@ -1473,21 +1520,9 @@ export default function ShowMode({
                           ];
 
                         // Calculate points for pooled scoring modes (not pub)
-                        const qPointsPerTeam =
-                          qStats &&
-                          (scoringMode === "pooled" ||
-                            scoringMode === "pooled-adaptive") &&
-                          qStats.correctCount > 0
-                            ? scoringMode === "pooled-adaptive"
-                              ? Math.round(
-                                  (Number(poolContribution) *
-                                    qStats.activeTeamCount) /
-                                    qStats.correctCount
-                                )
-                              : Math.round(
-                                  Number(poolPerQuestion) / qStats.correctCount
-                                )
-                            : null;
+                        const qPointsPerTeam = qStats
+                          ? calculatePointsPerTeam(qStats.correctCount, qStats.activeTeamCount)
+                          : null;
 
                         const isTiebreaker =
                           (q["Question type"] || "") === "Tiebreaker";

@@ -13,6 +13,13 @@ import {
   colors as theme,
   tokens,
 } from "./styles/index.js";
+import {
+  buildCorrectCountMap,
+  buildAnsweredAllMap,
+  computeCellPoints,
+  buildTeamTotals,
+  computeSolosForRound,
+} from "./scoring/compute.js";
 
 // Small helper to make local IDs for teams added during the show
 const makeLocalId = (prefix = "local") =>
@@ -803,78 +810,74 @@ export default function ScoringMode({
 
   // ---------------- Derived scoring helpers ----------------
   const correctCountByShowQuestionId = useMemo(() => {
-    const out = {};
-    for (const q of questions) {
-      let count = 0;
-      for (const t of teams) {
-        const cell = grid[t.showTeamId]?.[q.showQuestionId];
-        if (cell?.isCorrect) count++;
-      }
-      out[q.showQuestionId] = count;
-    }
-    return out;
+    return buildCorrectCountMap(teams, questions, grid);
   }, [questions, teams, grid]);
+
+  // Build scoring config object for utility functions
+  const scoringConfig = useMemo(
+    () => ({
+      mode: scoringMode,
+      pubPoints: Number(pubPoints || 0),
+      poolPerQuestion: Number(poolPerQuestion || 0),
+      poolContribution: Number(poolContribution || 0),
+      teamCount: teams.length,
+    }),
+    [scoringMode, pubPoints, poolPerQuestion, poolContribution, teams.length]
+  );
 
   const earnedFor = useCallback(
     (cell, showQuestionId) => {
-      if (!cell?.isCorrect) return 0;
+      if (!cell) return 0;
 
-      const nCorrect = Math.max(
-        1,
-        correctCountByShowQuestionId[showQuestionId] || 0
-      );
+      // Adapt cell format: utility uses bonusPoints/partialCredit, we use questionBonus/overridePoints
+      const adaptedCell = {
+        isCorrect: cell.isCorrect,
+        bonusPoints: cell.questionBonus,
+        partialCredit: cell.overridePoints,
+      };
 
-      // Calculate base points based on scoring mode
-      let base = 0;
-      if (scoringMode === "pub") {
-        // Use per-question pub value if provided, else global pubPoints
+      // Handle per-question pub points (if this question has its own value, use it)
+      let config = scoringConfig;
+      if (scoringConfig.mode === "pub") {
         const perQPub = pubPerQuestionByShowQ[showQuestionId];
-        base = Number(
-          perQPub !== null && perQPub !== undefined ? perQPub : pubPoints
-        );
-      } else if (scoringMode === "pooled-adaptive") {
-        // Adaptive pool: teamCount × poolContribution, split among correct teams
-        const pool = teams.length * Number(poolContribution);
-        base = Math.round(pool / nCorrect);
-      } else {
-        // Static pooled: fixed pool split among correct teams
-        base = Math.round(Number(poolPerQuestion) / nCorrect);
+        if (perQPub !== null && perQPub !== undefined) {
+          config = { ...scoringConfig, pubPoints: perQPub };
+        }
       }
 
-      const override =
-        cell.overridePoints === null || cell.overridePoints === undefined
-          ? null
-          : Number(cell.overridePoints);
-
-      const earned = override !== null ? override : base;
-      const bonus = Number(cell.questionBonus || 0); // add only if correct
-      return earned + bonus;
+      const correctCount = correctCountByShowQuestionId[showQuestionId] || 0;
+      return computeCellPoints(adaptedCell, config, correctCount);
     },
-    [
-      correctCountByShowQuestionId,
-      scoringMode,
-      pubPoints,
-      poolPerQuestion,
-      poolContribution,
-      teams.length,
-      pubPerQuestionByShowQ,
-    ]
+    [correctCountByShowQuestionId, scoringConfig, pubPerQuestionByShowQ]
   );
+
+  // Adapt grid format for utility (utility uses bonusPoints/partialCredit, we use questionBonus/overridePoints)
+  const adaptedGrid = useMemo(() => {
+    const adapted = {};
+    for (const teamId in grid) {
+      adapted[teamId] = {};
+      for (const questionId in grid[teamId]) {
+        const cell = grid[teamId][questionId];
+        adapted[teamId][questionId] = {
+          isCorrect: cell.isCorrect,
+          bonusPoints: cell.questionBonus,
+          partialCredit: cell.overridePoints,
+        };
+      }
+    }
+    return adapted;
+  }, [grid]);
 
   const displayTotals = useMemo(() => {
     if (!teams.length || !questions.length) return {};
-    const totals = {};
-    for (const t of teams) {
-      let sum = Number(t.showBonus || 0);
-      for (const q of questions) {
-        const cell = grid[t.showTeamId]?.[q.showQuestionId];
-        if (!cell) continue;
-        sum += earnedFor(cell, q.showQuestionId);
-      }
-      totals[t.showTeamId] = sum;
-    }
-    return totals;
-  }, [teams, questions, grid, earnedFor]);
+    return buildTeamTotals(
+      teams,
+      questions,
+      adaptedGrid,
+      scoringConfig,
+      correctCountByShowQuestionId
+    );
+  }, [teams, questions, adaptedGrid, scoringConfig, correctCountByShowQuestionId]);
 
   // ---------------- Local mutations (pure state) ----------------
   const updateShowBonus = (showTeamId, val) => {
@@ -1096,43 +1099,18 @@ export default function ScoringMode({
   };
 
   // --------- Solos calculation ---------
+  const answeredAllMap = useMemo(() => {
+    return buildAnsweredAllMap(teams, questions, adaptedGrid);
+  }, [teams, questions, adaptedGrid]);
+
   const solosData = useMemo(() => {
-    const soloTeams = new Set();
-    let soloCount = 0;
-
-    // Build a map of team names
-    const teamNames = new Map(
-      teams.map((t) => [t.showTeamId, t.teamName || "(Unnamed team)"])
-    );
-
-    // Check each question
-    for (const q of questions) {
-      let correctCount = 0;
-      let correctTeamId = null;
-
-      for (const t of teams) {
-        const cell = grid[t.showTeamId]?.[q.showQuestionId];
-        if (cell?.isCorrect) {
-          correctCount++;
-          correctTeamId = t.showTeamId;
-        }
-      }
-
-      // If exactly one team got it correct, it's a solo
-      if (correctCount === 1 && correctTeamId) {
-        soloCount++;
-        const teamName = teamNames.get(correctTeamId);
-        if (teamName) {
-          soloTeams.add(teamName);
-        }
-      }
-    }
-
+    const result = computeSolosForRound(teams, questions, adaptedGrid, answeredAllMap);
+    // Convert to format expected by UI (array of team names, sorted)
     return {
-      count: soloCount,
-      teams: Array.from(soloTeams).sort(),
+      count: result.count,
+      teams: result.teams.map(t => t.teamName).sort(),
     };
-  }, [questions, teams, grid]);
+  }, [teams, questions, adaptedGrid, answeredAllMap]);
 
   // ---------------- Render ----------------
 
