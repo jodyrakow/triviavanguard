@@ -28,6 +28,7 @@ export default function ResultsMode({
   scoringMode, // "pub" | "pooled" | "pooled-adaptive"
   pubPoints,
   poolPerQuestion,
+  poolContribution,
   selectedShowId,
   prizes: prizesString = "", // NEW: prizes from shared state (newline-separated string)
   setPrizes: setPrizesString, // NEW: setter for shared prizes
@@ -327,7 +328,13 @@ export default function ResultsMode({
                 ? q.pubPerQuestion
                 : Number(pubPoints);
             base = perQ;
+          } else if (scoringMode === "pooled-adaptive") {
+            // Adaptive pool: teamCount × poolContribution, split among correct teams
+            const pool = teams.length * Number(poolContribution);
+            const n = Math.max(1, nCorrectByQ[q.showQuestionId] || 0);
+            base = Math.round(pool / n);
           } else {
+            // Static pooled: fixed pool split among correct teams
             const n = Math.max(1, nCorrectByQ[q.showQuestionId] || 0);
             base = Math.round(Number(poolPerQuestion) / n);
           }
@@ -938,7 +945,13 @@ export default function ResultsMode({
                   ? q.pubPerQuestion
                   : Number(pubPoints);
               base = perQ;
+            } else if (scoringMode === "pooled-adaptive") {
+              // Adaptive pool: teamCount × poolContribution, split among correct teams
+              const pool = teams.length * Number(poolContribution);
+              const n = Math.max(1, nCorrectByQ[q.showQuestionId] || 0);
+              base = Math.round(pool / n);
             } else {
+              // Static pooled: fixed pool split among correct teams
               const n = Math.max(1, nCorrectByQ[q.showQuestionId] || 0);
               base = Math.round(Number(poolPerQuestion) / n);
             }
