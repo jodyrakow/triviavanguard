@@ -50,7 +50,7 @@ export default function ShowMode({
 }) {
   // Unified question editor modal state
   const [editingQuestion, setEditingQuestion] = React.useState(null);
-  // { showQuestionId, questionText, notes, pronunciationGuide, answer }
+  // { showQuestionId, questionText, flavorText, answer }
 
   // Add Tiebreaker modal state
   const [addingTiebreaker, setAddingTiebreaker] = React.useState(false);
@@ -210,8 +210,7 @@ export default function ShowMode({
             "Question ID": q?.questionId?.[0] || q?.id,
             "Question order": q?.questionOrder,
             "Question text": q?.questionText || "",
-            "Question notes": q?.questionNotes || "",
-            "Question pronunciation guide": q?.questionPronunciationGuide || "",
+            "Flavor text": q?.flavorText || "",
             Answer: q?.answer || "",
             "Question type": q?.questionType || "",
             Images: Array.isArray(q?.questionImages) ? q.questionImages : [],
@@ -898,9 +897,7 @@ export default function ShowMode({
                             setEditingQuestion({
                               showQuestionId: q["Show Question ID"],
                               questionText: q["Question text"] || "",
-                              questionNotes: q["Question notes"] || "",
-                              questionPronunciationGuideronunciationGuide:
-                                q["Question pronunciation guide"] || "",
+                              flavorText: q["Flavor text"] || "",
                               answer: q["Answer"] || "",
                             });
                           }
@@ -911,9 +908,7 @@ export default function ShowMode({
                             setEditingQuestion({
                               showQuestionId: q["Show Question ID"],
                               questionText: q["Question text"] || "",
-                              questionNotes: q["Question notes"] || "",
-                              questionPronunciationGuide:
-                                q["Question pronunciation guide"] || "",
+                              flavorText: q["Flavor text"] || "",
                               answer: q["Answer"] || "",
                             });
                           }
@@ -997,8 +992,8 @@ export default function ShowMode({
                         </div>
                       </div>
 
-                      {/* NOTES */}
-                      {q["Question notes"]?.trim() && showDetails && (
+                      {/* FLAVOR TEXT */}
+                      {q["Flavor text"]?.trim() && showDetails && (
                         <p
                           style={{
                             fontFamily: tokens.font.flavor,
@@ -1022,9 +1017,7 @@ export default function ShowMode({
                               setEditingQuestion({
                                 showQuestionId: q["Show Question ID"],
                                 questionText: q["Question text"] || "",
-                                questionNotes: q["Question notes"] || "",
-                                questionPronunciationGuide:
-                                  q["Question pronunciation guide"] || "",
+                                flavorText: q["Flavor text"] || "",
                                 answer: q["Answer"] || "",
                               });
                             }
@@ -1035,9 +1028,7 @@ export default function ShowMode({
                               setEditingQuestion({
                                 showQuestionId: q["Show Question ID"],
                                 questionText: q["Question text"] || "",
-                                questionNotes: q["Question notes"] || "",
-                                questionPronunciationGuide:
-                                  q["Question pronunciation guide"] || "",
+                                flavorText: q["Flavor text"] || "",
                                 answer: q["Answer"] || "",
                               });
                             }
@@ -1046,72 +1037,12 @@ export default function ShowMode({
                           <span
                             dangerouslySetInnerHTML={{
                               __html: marked.parseInline(
-                                `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">💭</span> ${q["Question notes"]}`
+                                `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">💭</span> ${q["Flavor text"]}`
                               ),
                             }}
                           />
                         </p>
                       )}
-
-                      {/* PRONUNCIATION GUIDE */}
-                      {q["Question pronunciation guide"]?.trim() &&
-                        showDetails && (
-                          <p
-                            style={{
-                              fontFamily: tokens.font.flavor,
-                              fontSize: "1rem",
-                              fontStyle: "italic",
-                              display: "block",
-                              paddingLeft: "1.5rem",
-                              paddingTop: "0.25rem",
-                              marginTop: 0,
-                              marginBottom: "0.01rem",
-                              cursor: editQuestionField ? "pointer" : "default",
-                            }}
-                            title={
-                              editQuestionField
-                                ? "Right-click or Ctrl+Click to edit"
-                                : ""
-                            }
-                            onContextMenu={(e) => {
-                              if (editQuestionField) {
-                                e.preventDefault();
-                                setEditingQuestion({
-                                  showQuestionId: q["Show Question ID"],
-                                  questionText: q["Question text"] || "",
-                                  questionNotes: q["Question notes"] || "",
-                                  questionPronunciationGuide:
-                                    q["Question pronunciation guide"] || "",
-                                  answer: q["Answer"] || "",
-                                });
-                              }
-                            }}
-                            onClick={(e) => {
-                              if (
-                                editQuestionField &&
-                                (e.ctrlKey || e.metaKey)
-                              ) {
-                                e.preventDefault();
-                                setEditingQuestion({
-                                  showQuestionId: q["Show Question ID"],
-                                  questionText: q["Question text"] || "",
-                                  questionNotes: q["Question notes"] || "",
-                                  questionPronunciationGuide:
-                                    q["Question pronunciation guide"] || "",
-                                  answer: q["Answer"] || "",
-                                });
-                              }
-                            }}
-                          >
-                            <span
-                              dangerouslySetInnerHTML={{
-                                __html: marked.parseInline(
-                                  `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">🗣️</span> ${q["Question pronunciation guide"]}`
-                                ),
-                              }}
-                            />
-                          </p>
-                        )}
 
                       {/* IMAGE POPUP TOGGLE */}
                       {Array.isArray(q.Images) && q.Images.length > 0 && (
@@ -1310,9 +1241,7 @@ export default function ShowMode({
                               setEditingQuestion({
                                 showQuestionId: q["Show Question ID"],
                                 questionText: q["Question text"] || "",
-                                questionNotes: q["Question notes"] || "",
-                                questionPronunciationGuide:
-                                  q["Question pronunciation guide"] || "",
+                                flavorText: q["Flavor text"] || "",
                                 answer: q["Answer"] || "",
                               });
                             }
@@ -1323,9 +1252,7 @@ export default function ShowMode({
                               setEditingQuestion({
                                 showQuestionId: q["Show Question ID"],
                                 questionText: q["Question text"] || "",
-                                questionNotes: q["Question notes"] || "",
-                                questionPronunciationGuide:
-                                  q["Question pronunciation guide"] || "",
+                                flavorText: q["Flavor text"] || "",
                                 answer: q["Answer"] || "",
                               });
                             }
@@ -1371,28 +1298,16 @@ export default function ShowMode({
                                   <Button
                                     onClick={() => {
                                       // Push answer only (no stats) - explicitly set stats to undefined to clear any old values
-                                      console.log(
-                                        "[ShowMode] Question object:",
-                                        q
-                                      );
-                                      const payload = {
+                                      sendToDisplay("questionWithAnswer", {
                                         questionNumber: q["Question order"],
                                         questionText: q["Question text"] || "",
                                         categoryName: categoryName,
                                         images: [],
                                         answer: q["Answer"] || "",
-                                        pointsPerTeam: null,
-                                        correctCount: null,
-                                        totalTeams: null,
-                                      };
-                                      console.log(
-                                        "[ShowMode] Push answer - sending:",
-                                        payload
-                                      );
-                                      sendToDisplay(
-                                        "questionWithAnswer",
-                                        payload
-                                      );
+                                        pointsPerTeam: undefined,
+                                        correctCount: undefined,
+                                        totalTeams: undefined,
+                                      });
                                     }}
                                     style={{
                                       marginLeft: ".5rem",
@@ -1407,7 +1322,7 @@ export default function ShowMode({
                                   <Button
                                     onClick={() => {
                                       // Push answer WITH statistics
-                                      const payload = {
+                                      sendToDisplay("questionWithAnswer", {
                                         questionNumber: q["Question order"],
                                         questionText: q["Question text"] || "",
                                         categoryName: categoryName,
@@ -1415,17 +1330,9 @@ export default function ShowMode({
                                         answer: q["Answer"] || "",
                                         pointsPerTeam: qPointsPerTeam,
                                         correctCount:
-                                          qStats?.correctCount ?? null,
-                                        totalTeams: qStats?.totalTeams ?? null,
-                                      };
-                                      console.log(
-                                        "[ShowMode] Push stats - sending:",
-                                        payload
-                                      );
-                                      sendToDisplay(
-                                        "questionWithAnswer",
-                                        payload
-                                      );
+                                          qStats?.correctCount || null,
+                                        totalTeams: qStats?.totalTeams || null,
+                                      });
                                     }}
                                     style={{
                                       marginLeft: ".5rem",
@@ -1955,7 +1862,7 @@ export default function ShowMode({
                   Question text
                 </div>
                 <textarea
-                  value={editingQuestion.questionText ?? ""}
+                  value={editingQuestion.questionText}
                   onChange={(e) =>
                     setEditingQuestion((prev) => ({
                       ...prev,
@@ -1977,14 +1884,14 @@ export default function ShowMode({
 
               <label style={{ display: "block", marginBottom: ".6rem" }}>
                 <div style={{ marginBottom: 4, fontWeight: 600 }}>
-                  Notes (optional)
+                  Flavor text (optional)
                 </div>
                 <textarea
-                  value={editingQuestion.questionNotes ?? ""}
+                  value={editingQuestion.flavorText}
                   onChange={(e) =>
                     setEditingQuestion((prev) => ({
                       ...prev,
-                      questionNotes: e.target.value,
+                      flavorText: e.target.value,
                     }))
                   }
                   rows={2}
@@ -2003,36 +1910,9 @@ export default function ShowMode({
               </label>
 
               <label style={{ display: "block", marginBottom: ".6rem" }}>
-                <div style={{ marginBottom: 4, fontWeight: 600 }}>
-                  Pronunciation guide (optional)
-                </div>
-                <textarea
-                  value={editingQuestion.pronunciationGuide || ""}
-                  onChange={(e) =>
-                    setEditingQuestion((prev) => ({
-                      ...prev,
-                      pronunciationGuide: e.target.value,
-                    }))
-                  }
-                  rows={2}
-                  placeholder="Optional: how to say tricky names/words..."
-                  style={{
-                    width: "100%",
-                    padding: ".55rem .65rem",
-                    border: "1px solid #ccc",
-                    borderRadius: ".35rem",
-                    resize: "vertical",
-                    fontFamily: tokens.font.body,
-                    fontSize: "1rem",
-                    fontStyle: "italic",
-                  }}
-                />
-              </label>
-
-              <label style={{ display: "block", marginBottom: ".6rem" }}>
                 <div style={{ marginBottom: 4, fontWeight: 600 }}>Answer</div>
                 <textarea
-                  value={editingQuestion.answer ?? ""}
+                  value={editingQuestion.answer}
                   onChange={(e) =>
                     setEditingQuestion((prev) => ({
                       ...prev,
@@ -2080,27 +1960,21 @@ export default function ShowMode({
                 type="button"
                 onClick={() => {
                   if (editQuestionField) {
-                    const safeTrim = (v) => String(v ?? "").trim();
-
+                    // Save all three fields
                     editQuestionField(
                       editingQuestion.showQuestionId,
                       "question",
-                      safeTrim(editingQuestion.questionText)
+                      editingQuestion.questionText.trim()
                     );
                     editQuestionField(
                       editingQuestion.showQuestionId,
-                      "notes",
-                      safeTrim(editingQuestion.questionNotes)
+                      "flavorText",
+                      editingQuestion.flavorText.trim()
                     );
                     editQuestionField(
                       editingQuestion.showQuestionId,
                       "answer",
-                      safeTrim(editingQuestion.answer)
-                    );
-                    editQuestionField(
-                      editingQuestion.showQuestionId,
-                      "pronunciationGuide",
-                      safeTrim(editingQuestion.questionPronunciationGuide)
+                      editingQuestion.answer.trim()
                     );
                   }
                   setEditingQuestion(null);

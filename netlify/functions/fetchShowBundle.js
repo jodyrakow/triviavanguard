@@ -255,10 +255,7 @@ export async function handler(event) {
           `[fetchShowBundle] ShowQuestion field names (first record):`,
           Object.keys(f)
         );
-        console.log(
-          `[fetchShowBundle] Answer field value:`,
-          f["Answer"]
-        );
+        console.log(`[fetchShowBundle] Answer field value:`, f["Answer"]);
       }
 
       const scIdArray = f["ShowCategory ID"];
@@ -281,9 +278,10 @@ export async function handler(event) {
       // Extract questionId from the linked "Question" field (direct link to Questions table)
       // This is more reliable than using the "Question ID" lookup field
       const questionIdArray = f["Question"];
-      const questionId = Array.isArray(questionIdArray) && questionIdArray.length > 0
-        ? questionIdArray[0]
-        : questionIdArray || null;
+      const questionId =
+        Array.isArray(questionIdArray) && questionIdArray.length > 0
+          ? questionIdArray[0]
+          : questionIdArray || null;
 
       const q = {
         showQuestionId: rec.id,
@@ -292,8 +290,8 @@ export async function handler(event) {
         questionOrder: f["Question order"] || "",
         sortOrder: typeof f["Sort order"] === "number" ? f["Sort order"] : null,
         questionText: f["Question text"] || "",
-        questionNotes: f["Question notes"] || "",
-        questionPronunciationGuide: f["Question pronunciation guide"] || "",
+        questionNotes: f["Notes"] || "",
+        questionPronunciationGuide: f["Pronunciation guide"] || "",
         answer: f["Answer"] || "",
         tiebreakerNumber: f["Tiebreaker number"] || "",
         questionImages: toAttachmentArray(f["Question image attachments"]),
