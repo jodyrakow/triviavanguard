@@ -919,8 +919,12 @@ export default function App() {
         if (bundle?.config) {
           const config = bundle.config;
 
+          // DEBUG: Log the entire config to see what we're getting
+          console.log("[App] Bundle config received:", JSON.stringify(config, null, 2));
+
           // Only set scoring mode if it's provided and valid
           if (config.scoringMode) {
+            console.log("[App] Applying scoring mode from config:", config.scoringMode);
             const mode = config.scoringMode
               .toLowerCase()
               .replace(/\s*\(.*?\)\s*/g, "");
@@ -935,17 +939,26 @@ export default function App() {
 
           // Set pub points if provided
           if (typeof config.pubPoints === "number") {
+            console.log("[App] Setting pubPoints from config:", config.pubPoints);
             setPubPoints(config.pubPoints);
+          } else {
+            console.log("[App] pubPoints not a number, got:", typeof config.pubPoints, config.pubPoints);
           }
 
           // Set pool per question if provided
           if (typeof config.poolPerQuestion === "number") {
+            console.log("[App] Setting poolPerQuestion from config:", config.poolPerQuestion);
             setPoolPerQuestion(config.poolPerQuestion);
+          } else {
+            console.log("[App] poolPerQuestion not a number, got:", typeof config.poolPerQuestion, config.poolPerQuestion);
           }
 
           // Set pool contribution if provided
           if (typeof config.poolContribution === "number") {
+            console.log("[App] Setting poolContribution from config:", config.poolContribution);
             setPoolContribution(config.poolContribution);
+          } else {
+            console.log("[App] poolContribution not a number, got:", typeof config.poolContribution, config.poolContribution);
           }
 
           // Set timer default if provided
