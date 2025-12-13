@@ -28,6 +28,7 @@ const chunk = (arr, size = 10) => {
 /**
  * Update ShowQuestions with edits
  * @param {Array} edits - Array of { showQuestionId, question?, notes?, pronunciationGuide?, answer? }
+ * Maps to Airtable fields: "Edited question", "Edited notes", "Edited pronunciation guide", "Edited answer"
  */
 async function updateShowQuestionEdits(edits) {
   if (!edits || !edits.length) return;

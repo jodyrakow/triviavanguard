@@ -998,7 +998,8 @@ export default function ResultsMode({
             ([showQuestionId, edit]) => ({
               showQuestionId,
               question: edit.question,
-              flavorText: edit.flavorText,
+              notes: edit.notes,
+              pronunciationGuide: edit.pronunciationGuide,
               answer: edit.answer,
             })
           );

@@ -52,6 +52,9 @@ export default function ShowMode({
   const [editingQuestion, setEditingQuestion] = React.useState(null);
   // { showQuestionId, questionText, notes, pronunciationGuide, answer }
 
+  // Track if image overlay is active on display
+  const [imageOverlayActive, setImageOverlayActive] = React.useState(false);
+
   // Add Tiebreaker modal state
   const [addingTiebreaker, setAddingTiebreaker] = React.useState(false);
   const [tbQuestion, setTbQuestion] = React.useState("");
@@ -700,10 +703,18 @@ export default function ShowMode({
                 {sendToDisplay && (
                   <Button
                     onClick={() => {
-                      sendToDisplay("imageOverlay", {
-                        images: catImagesArr.map((img) => ({ url: img.url })),
-                        currentIndex: 0,
-                      });
+                      if (imageOverlayActive) {
+                        // Close the image overlay
+                        sendToDisplay("closeImageOverlay", null);
+                        setImageOverlayActive(false);
+                      } else {
+                        // Send image to display
+                        sendToDisplay("imageOverlay", {
+                          images: catImagesArr.map((img) => ({ url: img.url })),
+                          currentIndex: 0,
+                        });
+                        setImageOverlayActive(true);
+                      }
                     }}
                     style={{
                       fontSize: tokens.font.size,
@@ -711,9 +722,9 @@ export default function ShowMode({
                       marginBottom: "0.25rem",
                       marginLeft: "0.5rem",
                     }}
-                    title="Push category image to display"
+                    title={imageOverlayActive ? "Close image on display" : "Push category image to display"}
                   >
-                    Push image to display
+                    {imageOverlayActive ? "Close image" : "Push image to display"}
                   </Button>
                 )}
 
@@ -1137,22 +1148,30 @@ export default function ShowMode({
                           {sendToDisplay && (
                             <Button
                               onClick={() => {
-                                const idx =
-                                  currentImageIndex[q["Question ID"]] || 0;
-                                sendToDisplay("imageOverlay", {
-                                  images: q.Images.map((img) => ({
-                                    url: img.url,
-                                  })),
-                                  currentIndex: idx,
-                                });
+                                if (imageOverlayActive) {
+                                  // Close the image overlay
+                                  sendToDisplay("closeImageOverlay", null);
+                                  setImageOverlayActive(false);
+                                } else {
+                                  // Send image to display
+                                  const idx =
+                                    currentImageIndex[q["Question ID"]] || 0;
+                                  sendToDisplay("imageOverlay", {
+                                    images: q.Images.map((img) => ({
+                                      url: img.url,
+                                    })),
+                                    currentIndex: idx,
+                                  });
+                                  setImageOverlayActive(true);
+                                }
                               }}
                               style={{
                                 marginBottom: "0.25rem",
                                 marginLeft: "0.5rem",
                               }}
-                              title="Push image to display"
+                              title={imageOverlayActive ? "Close image on display" : "Push image to display"}
                             >
-                              Push image to display
+                              {imageOverlayActive ? "Close image" : "Push image to display"}
                             </Button>
                           )}
 
