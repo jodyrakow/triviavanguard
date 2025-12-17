@@ -1339,6 +1339,8 @@ export default function App() {
       <Sidebar
         setShowDetails={setshowDetails}
         setDisplayControlsOpen={setDisplayControlsOpen}
+        showTimer={showTimer}
+        setShowTimer={setShowTimer}
       >
         <SidebarMenu
           showBundle={showBundleWithEdits || { rounds: [], teams: [] }}

@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { colors as theme } from "./styles/index.js";
 
-export default function Sidebar({ children, setShowDetails, setDisplayControlsOpen }) {
+export default function Sidebar({ children, setShowDetails, setDisplayControlsOpen, showTimer, setShowTimer }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -106,9 +106,37 @@ export default function Sidebar({ children, setShowDetails, setDisplayControlsOp
           📺
         </button>
 
+        {/* Stopwatch button - Show/hide timer */}
+        <button
+          onClick={() => setShowTimer((prev) => !prev)}
+          style={{
+            position: "absolute",
+            top: "145px",
+            right: "8px",
+            backgroundColor: "rgba(255,255,255,0.2)",
+            border: "none",
+            borderRadius: "4px",
+            padding: "6px",
+            cursor: "pointer",
+            color: "#fff",
+            fontSize: "20px",
+            width: "35px",
+            height: "35px",
+            boxSizing: "border-box",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "all 0.3s ease",
+          }}
+          aria-label="Toggle timer"
+          title="Show/hide timer"
+        >
+          ⏱️
+        </button>
+
         {/* Menu content - only visible when open */}
         {isOpen && (
-          <div style={{ padding: "9rem 1rem 1rem 1rem" }}>{children}</div>
+          <div style={{ padding: "11.5rem 1rem 1rem 1rem" }}>{children}</div>
         )}
       </div>
 
