@@ -877,7 +877,13 @@ export default function ScoringMode({
       scoringConfig,
       correctCountByShowQuestionId
     );
-  }, [teams, questions, adaptedGrid, scoringConfig, correctCountByShowQuestionId]);
+  }, [
+    teams,
+    questions,
+    adaptedGrid,
+    scoringConfig,
+    correctCountByShowQuestionId,
+  ]);
 
   // ---------------- Local mutations (pure state) ----------------
   const updateShowBonus = (showTeamId, val) => {
@@ -1034,7 +1040,7 @@ export default function ScoringMode({
   const bonusBorder = "1px solid rgba(220,106,36,0.65)";
   const thinRowBorder = "1px solid rgba(220,106,36,0.35)";
   const focusColor = theme.dark;
-  const HEADER_ROW_HEIGHT = 44;
+  const HEADER_ROW_HEIGHT = 44; // Height to position bonus row below header
 
   const sticky = {
     thTop: {
@@ -1072,6 +1078,7 @@ export default function ScoringMode({
       top: HEADER_ROW_HEIGHT, // sits just under the header row
       zIndex: 9,
       background: "#fff",
+      boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
     },
   };
 
@@ -1104,11 +1111,16 @@ export default function ScoringMode({
   }, [teams, questions, adaptedGrid]);
 
   const solosData = useMemo(() => {
-    const result = computeSolosForRound(teams, questions, adaptedGrid, answeredAllMap);
+    const result = computeSolosForRound(
+      teams,
+      questions,
+      adaptedGrid,
+      answeredAllMap
+    );
     // Convert to format expected by UI (array of team names, sorted)
     return {
       count: result.count,
-      teams: result.teams.map(t => t.teamName).sort(),
+      teams: result.teams.map((t) => t.teamName).sort(),
     };
   }, [teams, questions, adaptedGrid, answeredAllMap]);
 

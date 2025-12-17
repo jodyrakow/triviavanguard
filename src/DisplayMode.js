@@ -540,20 +540,10 @@ function StandingsDisplay({ content }) {
 function ImageOverlay({ images, currentIndex, onClose }) {
   const [idx, setIdx] = useState(currentIndex);
 
-  // Update index when new images are pushed
+  // Update index when host changes the current image
   useEffect(() => {
     setIdx(currentIndex);
   }, [currentIndex, images]);
-
-  const handlePrev = (e) => {
-    e.stopPropagation();
-    setIdx((prev) => (prev - 1 + images.length) % images.length);
-  };
-
-  const handleNext = (e) => {
-    e.stopPropagation();
-    setIdx((prev) => (prev + 1) % images.length);
-  };
 
   return (
     <div
@@ -590,48 +580,11 @@ function ImageOverlay({ images, currentIndex, onClose }) {
         }}
       />
 
-      {/* Navigation buttons for multiple images */}
+      {/* Image counter only (no navigation - host controls this) */}
       {images.length > 1 && (
-        <div
-          style={{
-            display: "flex",
-            gap: "1rem",
-            alignItems: "center",
-            fontFamily: tokens.font.body,
-          }}
-        >
-          <button
-            onClick={handlePrev}
-            style={{
-              padding: "0.5rem 1rem",
-              fontSize: "1rem",
-              borderRadius: "0.25rem",
-              border: `1px solid ${theme.accent}`,
-              background: theme.white,
-              color: theme.dark,
-              cursor: "pointer",
-            }}
-          >
-            Previous
-          </button>
-          <span style={{ color: theme.white, fontSize: "1.2rem" }}>
-            {idx + 1} / {images.length}
-          </span>
-          <button
-            onClick={handleNext}
-            style={{
-              padding: "0.5rem 1rem",
-              fontSize: "1rem",
-              borderRadius: "0.25rem",
-              border: `1px solid ${theme.accent}`,
-              background: theme.white,
-              color: theme.dark,
-              cursor: "pointer",
-            }}
-          >
-            Next
-          </button>
-        </div>
+        <span style={{ color: theme.white, fontSize: "1.2rem", fontFamily: tokens.font.body }}>
+          {idx + 1} / {images.length}
+        </span>
       )}
     </div>
   );

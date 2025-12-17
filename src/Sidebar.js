@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { colors as theme } from "./styles/index.js";
 
-export default function Sidebar({ children }) {
+export default function Sidebar({ children, setShowDetails, setDisplayControlsOpen }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -50,9 +50,65 @@ export default function Sidebar({ children }) {
           {isOpen ? "×" : "☰"}
         </button>
 
+        {/* Ninja button - Show/hide all answers */}
+        <button
+          onClick={() => setShowDetails((prev) => !prev)}
+          style={{
+            position: "absolute",
+            top: "55px",
+            right: "8px",
+            backgroundColor: "rgba(255,255,255,0.2)",
+            border: "none",
+            borderRadius: "4px",
+            padding: "6px",
+            cursor: "pointer",
+            color: "#fff",
+            fontSize: "20px",
+            width: "35px",
+            height: "35px",
+            boxSizing: "border-box",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "all 0.3s ease",
+          }}
+          aria-label="Toggle all answers"
+          title="Show/hide all answers"
+        >
+          🥷
+        </button>
+
+        {/* TV button - Show/hide display controls */}
+        <button
+          onClick={() => setDisplayControlsOpen((prev) => !prev)}
+          style={{
+            position: "absolute",
+            top: "100px",
+            right: "8px",
+            backgroundColor: "rgba(255,255,255,0.2)",
+            border: "none",
+            borderRadius: "4px",
+            padding: "6px",
+            cursor: "pointer",
+            color: "#fff",
+            fontSize: "20px",
+            width: "35px",
+            height: "35px",
+            boxSizing: "border-box",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "all 0.3s ease",
+          }}
+          aria-label="Toggle display controls"
+          title="Show/hide display controls"
+        >
+          📺
+        </button>
+
         {/* Menu content - only visible when open */}
         {isOpen && (
-          <div style={{ padding: "3.5rem 1rem 1rem 1rem" }}>{children}</div>
+          <div style={{ padding: "9rem 1rem 1rem 1rem" }}>{children}</div>
         )}
       </div>
 

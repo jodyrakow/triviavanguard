@@ -59,6 +59,9 @@ export default function ShowMode({
   // Track if image overlay is active on display
   const [imageOverlayActive, setImageOverlayActive] = React.useState(false);
 
+  // Track current image index for category images
+  const [currentCategoryImageIndex, setCurrentCategoryImageIndex] = React.useState({});
+
   // Add Tiebreaker modal state
   const [addingTiebreaker, setAddingTiebreaker] = React.useState(false);
   const [tbQuestion, setTbQuestion] = React.useState("");
@@ -761,31 +764,81 @@ export default function ShowMode({
                   Show category image{catImagesArr.length > 1 ? "s" : ""}
                 </Button>
                 {sendToDisplay && (
-                  <Button
-                    onClick={() => {
-                      if (imageOverlayActive) {
-                        // Close the image overlay
-                        sendToDisplay("closeImageOverlay", null);
-                        setImageOverlayActive(false);
-                      } else {
-                        // Send image to display
-                        sendToDisplay("imageOverlay", {
-                          images: catImagesArr.map((img) => ({ url: img.url })),
-                          currentIndex: 0,
-                        });
-                        setImageOverlayActive(true);
-                      }
-                    }}
-                    style={{
-                      fontSize: tokens.font.size,
-                      fontFamily: tokens.font.body,
-                      marginBottom: "0.25rem",
-                      marginLeft: "0.5rem",
-                    }}
-                    title={imageOverlayActive ? "Close image on display" : "Push category image to display"}
-                  >
-                    {imageOverlayActive ? "Close image" : "Push image to display"}
-                  </Button>
+                  <>
+                    <Button
+                      onClick={() => {
+                        if (imageOverlayActive) {
+                          // Close the image overlay
+                          sendToDisplay("closeImageOverlay", null);
+                          setImageOverlayActive(false);
+                        } else {
+                          // Send image to display
+                          const idx = currentCategoryImageIndex[groupKey] || 0;
+                          sendToDisplay("imageOverlay", {
+                            images: catImagesArr.map((img) => ({ url: img.url })),
+                            currentIndex: idx,
+                          });
+                          setImageOverlayActive(true);
+                        }
+                      }}
+                      style={{
+                        fontSize: tokens.font.size,
+                        fontFamily: tokens.font.body,
+                        marginBottom: "0.25rem",
+                        marginLeft: "0.5rem",
+                      }}
+                      title={imageOverlayActive ? "Close image on display" : "Push category image to display"}
+                    >
+                      {imageOverlayActive ? "Close image" : "Push image to display"}
+                    </Button>
+                    {imageOverlayActive && catImagesArr.length > 1 && (
+                      <div style={{ display: "inline-block", marginLeft: "0.5rem" }}>
+                        <button
+                          onClick={() => {
+                            const currentIdx = currentCategoryImageIndex[groupKey] || 0;
+                            const newIdx = (currentIdx - 1 + catImagesArr.length) % catImagesArr.length;
+                            setCurrentCategoryImageIndex(prev => ({ ...prev, [groupKey]: newIdx }));
+                            sendToDisplay("imageOverlay", {
+                              images: catImagesArr.map((img) => ({ url: img.url })),
+                              currentIndex: newIdx,
+                            });
+                          }}
+                          style={{
+                            fontSize: "1rem",
+                            padding: "0.25rem 0.5rem",
+                            cursor: "pointer",
+                            border: `1px solid ${theme.accent}`,
+                            background: theme.white,
+                            borderRadius: "0.25rem 0 0 0.25rem",
+                          }}
+                        >
+                          ◄
+                        </button>
+                        <button
+                          onClick={() => {
+                            const currentIdx = currentCategoryImageIndex[groupKey] || 0;
+                            const newIdx = (currentIdx + 1) % catImagesArr.length;
+                            setCurrentCategoryImageIndex(prev => ({ ...prev, [groupKey]: newIdx }));
+                            sendToDisplay("imageOverlay", {
+                              images: catImagesArr.map((img) => ({ url: img.url })),
+                              currentIndex: newIdx,
+                            });
+                          }}
+                          style={{
+                            fontSize: "1rem",
+                            padding: "0.25rem 0.5rem",
+                            cursor: "pointer",
+                            border: `1px solid ${theme.accent}`,
+                            background: theme.white,
+                            borderRadius: "0 0.25rem 0.25rem 0",
+                            marginLeft: "-1px",
+                          }}
+                        >
+                          ►
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {visibleCategoryImages[groupKey] && (
@@ -845,19 +898,21 @@ export default function ShowMode({
                             width: "100%",
                           }}
                         />
-                        <div
-                          style={{
-                            textAlign: "center",
-                            fontSize: ".9rem",
-                            fontFamily: tokens.font.body,
-                            padding: "0.4rem 0.6rem",
-                            backgroundColor: theme.bg,
-                            borderTop: "1px solid #ccc",
-                          }}
-                        >
-                          🎵{" "}
-                          {(audioObj.filename || "").replace(/\.[^/.]+$/, "")}
-                        </div>
+                        {showDetails && (
+                          <div
+                            style={{
+                              textAlign: "center",
+                              fontSize: ".9rem",
+                              fontFamily: tokens.font.body,
+                              padding: "0.4rem 0.6rem",
+                              backgroundColor: theme.bg,
+                              borderTop: "1px solid #ccc",
+                            }}
+                          >
+                            🎵{" "}
+                            {(audioObj.filename || "").replace(/\.[^/.]+$/, "")}
+                          </div>
+                        )}
                       </div>
                     )
                 )}
@@ -1206,33 +1261,82 @@ export default function ShowMode({
                             Show image
                           </Button>
                           {sendToDisplay && (
-                            <Button
-                              onClick={() => {
-                                if (imageOverlayActive) {
-                                  // Close the image overlay
-                                  sendToDisplay("closeImageOverlay", null);
-                                  setImageOverlayActive(false);
-                                } else {
-                                  // Send image to display
-                                  const idx =
-                                    currentImageIndex[q["Question ID"]] || 0;
-                                  sendToDisplay("imageOverlay", {
-                                    images: q.Images.map((img) => ({
-                                      url: img.url,
-                                    })),
-                                    currentIndex: idx,
-                                  });
-                                  setImageOverlayActive(true);
-                                }
-                              }}
-                              style={{
-                                marginBottom: "0.25rem",
-                                marginLeft: "0.5rem",
-                              }}
-                              title={imageOverlayActive ? "Close image on display" : "Push image to display"}
-                            >
-                              {imageOverlayActive ? "Close image" : "Push image to display"}
-                            </Button>
+                            <>
+                              <Button
+                                onClick={() => {
+                                  if (imageOverlayActive) {
+                                    // Close the image overlay
+                                    sendToDisplay("closeImageOverlay", null);
+                                    setImageOverlayActive(false);
+                                  } else {
+                                    // Send image to display
+                                    const idx =
+                                      currentImageIndex[q["Question ID"]] || 0;
+                                    sendToDisplay("imageOverlay", {
+                                      images: q.Images.map((img) => ({
+                                        url: img.url,
+                                      })),
+                                      currentIndex: idx,
+                                    });
+                                    setImageOverlayActive(true);
+                                  }
+                                }}
+                                style={{
+                                  marginBottom: "0.25rem",
+                                  marginLeft: "0.5rem",
+                                }}
+                                title={imageOverlayActive ? "Close image on display" : "Push image to display"}
+                              >
+                                {imageOverlayActive ? "Close image" : "Push image to display"}
+                              </Button>
+                              {imageOverlayActive && q.Images.length > 1 && (
+                                <div style={{ display: "inline-block", marginLeft: "0.5rem" }}>
+                                  <button
+                                    onClick={() => {
+                                      const currentIdx = currentImageIndex[q["Question ID"]] || 0;
+                                      const newIdx = (currentIdx - 1 + q.Images.length) % q.Images.length;
+                                      setCurrentImageIndex({ ...currentImageIndex, [q["Question ID"]]: newIdx });
+                                      sendToDisplay("imageOverlay", {
+                                        images: q.Images.map((img) => ({ url: img.url })),
+                                        currentIndex: newIdx,
+                                      });
+                                    }}
+                                    style={{
+                                      fontSize: "1rem",
+                                      padding: "0.25rem 0.5rem",
+                                      cursor: "pointer",
+                                      border: `1px solid ${theme.accent}`,
+                                      background: theme.white,
+                                      borderRadius: "0.25rem 0 0 0.25rem",
+                                    }}
+                                  >
+                                    ◄
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const currentIdx = currentImageIndex[q["Question ID"]] || 0;
+                                      const newIdx = (currentIdx + 1) % q.Images.length;
+                                      setCurrentImageIndex({ ...currentImageIndex, [q["Question ID"]]: newIdx });
+                                      sendToDisplay("imageOverlay", {
+                                        images: q.Images.map((img) => ({ url: img.url })),
+                                        currentIndex: newIdx,
+                                      });
+                                    }}
+                                    style={{
+                                      fontSize: "1rem",
+                                      padding: "0.25rem 0.5rem",
+                                      cursor: "pointer",
+                                      border: `1px solid ${theme.accent}`,
+                                      background: theme.white,
+                                      borderRadius: "0 0.25rem 0.25rem 0",
+                                      marginLeft: "-1px",
+                                    }}
+                                  >
+                                    ►
+                                  </button>
+                                </div>
+                              )}
+                            </>
                           )}
 
                           {visibleImages[q["Question ID"]] && (
@@ -1344,22 +1448,24 @@ export default function ShowMode({
                                       width: "100%",
                                     }}
                                   />
-                                  <div
-                                    style={{
-                                      textAlign: "center",
-                                      fontSize: ".9rem",
-                                      fontFamily: tokens.font.body,
-                                      padding: "0.4rem 0.6rem",
-                                      backgroundColor: theme.bg,
-                                      borderTop: "1px solid #ccc",
-                                    }}
-                                  >
-                                    🎵{" "}
-                                    {(audioObj.filename || "").replace(
-                                      /\.[^/.]+$/,
-                                      ""
-                                    )}
-                                  </div>
+                                  {showDetails && (
+                                    <div
+                                      style={{
+                                        textAlign: "center",
+                                        fontSize: ".9rem",
+                                        fontFamily: tokens.font.body,
+                                        padding: "0.4rem 0.6rem",
+                                        backgroundColor: theme.bg,
+                                        borderTop: "1px solid #ccc",
+                                      }}
+                                    >
+                                      🎵{" "}
+                                      {(audioObj.filename || "").replace(
+                                        /\.[^/.]+$/,
+                                        ""
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               )
                           )}

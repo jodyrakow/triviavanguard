@@ -1336,7 +1336,10 @@ export default function App() {
   return (
     <>
       {/* Sidebar with menu */}
-      <Sidebar>
+      <Sidebar
+        setShowDetails={setshowDetails}
+        setDisplayControlsOpen={setDisplayControlsOpen}
+      >
         <SidebarMenu
           showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
           showTimer={showTimer}
