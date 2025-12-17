@@ -2,7 +2,13 @@
 import React, { useState } from "react";
 import { colors as theme } from "./styles/index.js";
 
-export default function Sidebar({ children, setShowDetails, setDisplayControlsOpen, showTimer, setShowTimer }) {
+export default function Sidebar({
+  children,
+  setShowDetails,
+  setDisplayControlsOpen,
+  showTimer,
+  setShowTimer,
+}) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -136,7 +142,7 @@ export default function Sidebar({ children, setShowDetails, setDisplayControlsOp
 
         {/* Menu content - only visible when open */}
         {isOpen && (
-          <div style={{ padding: "11.5rem 1rem 1rem 1rem" }}>{children}</div>
+          <div style={{ padding: "12rem 1rem 1rem 1rem" }}>{children}</div>
         )}
       </div>
 

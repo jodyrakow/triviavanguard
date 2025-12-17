@@ -81,16 +81,22 @@ export default function SidebarMenu({
         {expandedSections.hostTools && (
           <div style={contentStyle}>
             {/* Host details (editable) */}
-            <div style={{ ...itemStyle, borderBottom: "none", paddingBottom: 0 }}>
+            <div
+              style={{ ...itemStyle, borderBottom: "none", paddingBottom: 0 }}
+            >
               <strong>👤 Host Details</strong>
             </div>
             <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}>
               <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>Host name:</span>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                  Host name:
+                </span>
                 <input
                   type="text"
                   value={hostInfo?.host || ""}
-                  onChange={(e) => setHostInfo({ ...hostInfo, host: e.target.value })}
+                  onChange={(e) =>
+                    setHostInfo({ ...hostInfo, host: e.target.value })
+                  }
                   placeholder="From show config"
                   style={{
                     width: "100%",
@@ -105,11 +111,15 @@ export default function SidebarMenu({
                 />
               </label>
               <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>Co-host name:</span>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                  Co-host name:
+                </span>
                 <input
                   type="text"
                   value={hostInfo?.cohost || ""}
-                  onChange={(e) => setHostInfo({ ...hostInfo, cohost: e.target.value })}
+                  onChange={(e) =>
+                    setHostInfo({ ...hostInfo, cohost: e.target.value })
+                  }
                   placeholder="From show config"
                   style={{
                     width: "100%",
@@ -124,11 +134,15 @@ export default function SidebarMenu({
                 />
               </label>
               <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>Location:</span>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                  Location:
+                </span>
                 <input
                   type="text"
                   value={hostInfo?.location || ""}
-                  onChange={(e) => setHostInfo({ ...hostInfo, location: e.target.value })}
+                  onChange={(e) =>
+                    setHostInfo({ ...hostInfo, location: e.target.value })
+                  }
                   placeholder="From show config"
                   style={{
                     width: "100%",
@@ -143,12 +157,16 @@ export default function SidebarMenu({
                 />
               </label>
               <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>Total games tonight:</span>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                  Total games tonight:
+                </span>
                 <input
                   type="number"
                   min="1"
                   value={hostInfo?.totalGames || ""}
-                  onChange={(e) => setHostInfo({ ...hostInfo, totalGames: e.target.value })}
+                  onChange={(e) =>
+                    setHostInfo({ ...hostInfo, totalGames: e.target.value })
+                  }
                   placeholder="1"
                   style={{
                     width: "80px",
@@ -163,11 +181,15 @@ export default function SidebarMenu({
                 />
               </label>
               <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>Start times:</span>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                  Start times:
+                </span>
                 <input
                   type="text"
                   value={hostInfo?.startTimesText || ""}
-                  onChange={(e) => setHostInfo({ ...hostInfo, startTimesText: e.target.value })}
+                  onChange={(e) =>
+                    setHostInfo({ ...hostInfo, startTimesText: e.target.value })
+                  }
                   placeholder="7:00, 8:30"
                   style={{
                     width: "100%",
@@ -182,10 +204,14 @@ export default function SidebarMenu({
                 />
               </label>
               <label style={{ display: "block", marginBottom: "0.75rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>Announcements:</span>
+                <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                  Announcements:
+                </span>
                 <textarea
                   value={hostInfo?.announcements || ""}
-                  onChange={(e) => setHostInfo({ ...hostInfo, announcements: e.target.value })}
+                  onChange={(e) =>
+                    setHostInfo({ ...hostInfo, announcements: e.target.value })
+                  }
                   placeholder="Specials, birthdays, upcoming events, etc."
                   rows={2}
                   style={{
@@ -204,11 +230,20 @@ export default function SidebarMenu({
             </div>
 
             {/* Timer controls */}
-            <div style={{ ...itemStyle, borderBottom: "none", paddingBottom: 0 }}>
+            <div
+              style={{ ...itemStyle, borderBottom: "none", paddingBottom: 0 }}
+            >
               <strong>⏱️ Timer</strong>
             </div>
             <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  marginBottom: "0.5rem",
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={showTimer}
@@ -216,7 +251,9 @@ export default function SidebarMenu({
                 />
                 Show timer
               </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <label
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
                 <span>Default time:</span>
                 <input
                   type="number"
@@ -246,19 +283,13 @@ export default function SidebarMenu({
             </div>
 
             {/* Show script */}
-            <div
-              style={itemStyle}
-              onClick={() => setScriptOpen(true)}
-            >
-              📜 Show script
+            <div style={itemStyle} onClick={() => setScriptOpen(true)}>
+              🎤 Show script
             </div>
 
             {/* Refresh questions */}
             {refreshBundle && (
-              <div
-                style={itemStyle}
-                onClick={refreshBundle}
-              >
+              <div style={itemStyle} onClick={refreshBundle}>
                 🔄 Refresh questions
               </div>
             )}
@@ -268,7 +299,10 @@ export default function SidebarMenu({
               style={itemStyle}
               onClick={() => setDisplayControlsOpen((prev) => !prev)}
             >
-              🖥️ {displayControlsOpen ? "Hide display controls" : "Show display controls"}
+              📺{" "}
+              {displayControlsOpen
+                ? "Hide display controls"
+                : "Show display controls"}
             </div>
 
             {/* Show/hide all answers */}
@@ -276,7 +310,7 @@ export default function SidebarMenu({
               style={itemStyle}
               onClick={() => setShowDetails((prev) => !prev)}
             >
-              👁️ {showDetails ? "Hide all answers" : "Show all answers"}
+              🥷 {showDetails ? "Hide all answers" : "Show all answers"}
             </div>
           </div>
         )}
@@ -292,7 +326,13 @@ export default function SidebarMenu({
           <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}>
             {/* Scoring mode */}
             <div style={{ marginBottom: "0.75rem" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.25rem",
+                  fontWeight: "bold",
+                }}
+              >
                 🎯 Scoring type
               </label>
               <select
@@ -309,16 +349,31 @@ export default function SidebarMenu({
                   fontFamily: tokens.font.body,
                 }}
               >
-                <option value="pub" style={{ backgroundColor: "#2B394A" }}>Pub (fixed points)</option>
-                <option value="pooled" style={{ backgroundColor: "#2B394A" }}>Pooled (static)</option>
-                <option value="pooled-adaptive" style={{ backgroundColor: "#2B394A" }}>Adaptive (pooled per team)</option>
+                <option value="pub" style={{ backgroundColor: "#2B394A" }}>
+                  Pub (fixed points)
+                </option>
+                <option value="pooled" style={{ backgroundColor: "#2B394A" }}>
+                  Pooled (static)
+                </option>
+                <option
+                  value="pooled-adaptive"
+                  style={{ backgroundColor: "#2B394A" }}
+                >
+                  Adaptive (pooled per team)
+                </option>
               </select>
             </div>
 
             {/* Pub points per question (only show if pub mode) */}
             {scoringMode === "pub" && (
               <div style={{ marginBottom: "0.75rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   💰 Points per question
                 </label>
                 <input
@@ -343,7 +398,13 @@ export default function SidebarMenu({
             {/* Pool per question (only show if pooled static mode) */}
             {scoringMode === "pooled" && (
               <div style={{ marginBottom: "0.75rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   💰 Points in pool per question
                 </label>
                 <input
@@ -368,7 +429,13 @@ export default function SidebarMenu({
             {/* Pool contribution per team (only show if adaptive mode) */}
             {scoringMode === "pooled-adaptive" && (
               <div style={{ marginBottom: "0.75rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   💰 Points contributed per team
                 </label>
                 <input
@@ -390,79 +457,125 @@ export default function SidebarMenu({
               </div>
             )}
 
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: "0.75rem", paddingTop: "0.75rem" }} />
+            <div
+              style={{
+                borderTop: "1px solid rgba(255,255,255,0.1)",
+                marginTop: "0.75rem",
+                paddingTop: "0.75rem",
+              }}
+            />
 
             {/* Location (read-only from show config) */}
             <div style={{ marginBottom: "0.75rem" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.25rem",
+                  fontWeight: "bold",
+                }}
+              >
                 📍 Location
               </label>
-              <div style={{
-                padding: "0.35rem",
-                backgroundColor: "rgba(255,255,255,0.05)",
-                borderRadius: "4px",
-                fontSize: "0.85rem",
-              }}>
+              <div
+                style={{
+                  padding: "0.35rem",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  borderRadius: "4px",
+                  fontSize: "0.85rem",
+                }}
+              >
                 {showBundle?.config?.location || "Not set"}
               </div>
             </div>
 
             {/* Host name (read-only from show config) */}
             <div style={{ marginBottom: "0.75rem" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.25rem",
+                  fontWeight: "bold",
+                }}
+              >
                 👤 Host name
               </label>
-              <div style={{
-                padding: "0.35rem",
-                backgroundColor: "rgba(255,255,255,0.05)",
-                borderRadius: "4px",
-                fontSize: "0.85rem",
-              }}>
+              <div
+                style={{
+                  padding: "0.35rem",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  borderRadius: "4px",
+                  fontSize: "0.85rem",
+                }}
+              >
                 {showBundle?.config?.hostName || "Not set"}
               </div>
             </div>
 
             {/* Cohost name (read-only from show config) */}
             <div style={{ marginBottom: "0.75rem" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.25rem",
+                  fontWeight: "bold",
+                }}
+              >
                 👥 Cohost name
               </label>
-              <div style={{
-                padding: "0.35rem",
-                backgroundColor: "rgba(255,255,255,0.05)",
-                borderRadius: "4px",
-                fontSize: "0.85rem",
-              }}>
+              <div
+                style={{
+                  padding: "0.35rem",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  borderRadius: "4px",
+                  fontSize: "0.85rem",
+                }}
+              >
                 {showBundle?.config?.cohostName || "Not set"}
               </div>
             </div>
 
             {/* Total games (from Airtable, read-only) */}
             <div style={{ marginBottom: "0.75rem" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.25rem",
+                  fontWeight: "bold",
+                }}
+              >
                 🎮 Total games tonight
               </label>
-              <div style={{
-                padding: "0.35rem",
-                backgroundColor: "rgba(255,255,255,0.05)",
-                borderRadius: "4px",
-                fontSize: "0.85rem",
-              }}>
+              <div
+                style={{
+                  padding: "0.35rem",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  borderRadius: "4px",
+                  fontSize: "0.85rem",
+                }}
+              >
                 {showBundle?.config?.totalGamesThisNight || 1}
               </div>
             </div>
 
             {/* Start time (from Airtable, read-only) */}
             <div style={{ marginBottom: "0.75rem" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: "bold" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.25rem",
+                  fontWeight: "bold",
+                }}
+              >
                 ⏰ Start time
               </label>
-              <div style={{
-                padding: "0.35rem",
-                backgroundColor: "rgba(255,255,255,0.05)",
-                borderRadius: "4px",
-                fontSize: "0.85rem",
-              }}>
+              <div
+                style={{
+                  padding: "0.35rem",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  borderRadius: "4px",
+                  fontSize: "0.85rem",
+                }}
+              >
                 {showBundle?.config?.startTime || "Not set"}
               </div>
             </div>
