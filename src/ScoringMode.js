@@ -94,7 +94,7 @@ export default function ScoringMode({
       questionId: (Array.isArray(q.questionId) && q.questionId[0]) || null,
       order: q.questionOrder,
       text: q.questionText || "",
-      flavor: q.flavorText || "",
+      notes: q.questionNotes || "",
       answer: q.answer || "",
       pubPerQuestion:
         typeof q.pointsPerQuestion === "number" ? q.pointsPerQuestion : null,

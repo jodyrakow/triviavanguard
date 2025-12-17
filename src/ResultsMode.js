@@ -38,7 +38,7 @@ export default function ResultsMode({
   selectedShowId,
   prizes: prizesString = "", // NEW: prizes from shared state (newline-separated string)
   setPrizes: setPrizesString, // NEW: setter for shared prizes
-  questionEdits = {}, // { [showQuestionId]: { question?, flavorText?, answer? } }
+  questionEdits = {}, // { [showQuestionId]: { question?, notes?, pronunciationGuide?, answer? } }
   sendToDisplay, // Function to send content to display mode
 }) {
   // New architecture is ALWAYS cumulative (all data in one flat structure)
@@ -2195,6 +2195,19 @@ export default function ResultsMode({
 
             {/* Body */}
             <div style={{ padding: ".9rem .9rem 0" }}>
+              {(() => {
+                // 🔍 DEBUG: detect duplicate keys
+                const ids = standings.map((x) => String(x.showTeamId));
+                const dups = ids.filter((id, i) => ids.indexOf(id) !== i);
+                if (dups.length) {
+                  console.warn(
+                    "❌ Duplicate showTeamId keys in standings:",
+                    dups
+                  );
+                  console.warn("Full standings:", standings);
+                }
+                return null;
+              })()}
               {otfStage === "pick" && (
                 <>
                   <div style={{ marginBottom: ".6rem", fontWeight: 700 }}>

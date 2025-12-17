@@ -283,16 +283,23 @@ export async function handler(event) {
           ? questionIdArray[0]
           : questionIdArray || null;
 
+      // Check for host edits - use edited versions if they exist
+      const editedByHost = f["Edited by host"] || false;
+      const hasEditedQuestion = f["Edited question"] !== undefined && f["Edited question"] !== null;
+      const hasEditedNotes = f["Edited notes"] !== undefined && f["Edited notes"] !== null;
+      const hasEditedPronunciation = f["Edited pronunciation guide"] !== undefined && f["Edited pronunciation guide"] !== null;
+      const hasEditedAnswer = f["Edited answer"] !== undefined && f["Edited answer"] !== null;
+
       const q = {
         showQuestionId: rec.id,
         showId: normalizedShowId,
         questionId: questionId, // ✅ Add the linked Question ID from Airtable
         questionOrder: f["Question order"] || "",
         sortOrder: typeof f["Sort order"] === "number" ? f["Sort order"] : null,
-        questionText: f["Question text"] || "",
-        questionNotes: f["Notes"] || "",
-        questionPronunciationGuide: f["Pronunciation guide"] || "",
-        answer: f["Answer"] || "",
+        questionText: hasEditedQuestion ? f["Edited question"] : (f["Question text"] || ""),
+        questionNotes: hasEditedNotes ? f["Edited notes"] : (f["Notes"] || ""),
+        questionPronunciationGuide: hasEditedPronunciation ? f["Edited pronunciation guide"] : (f["Pronunciation guide"] || ""),
+        answer: hasEditedAnswer ? f["Edited answer"] : (f["Answer"] || ""),
         tiebreakerNumber: f["Tiebreaker number"] || "",
         questionImages: toAttachmentArray(f["Question image attachments"]),
         questionAudio: toAttachmentArray(f["Question audio attachments"]),
@@ -300,6 +307,7 @@ export async function handler(event) {
           typeof f["Points per question"] === "number"
             ? f["Points per question"]
             : null,
+        _edited: editedByHost, // Flag to show "edited" indicator in UI
       };
 
       // Initialize round if needed

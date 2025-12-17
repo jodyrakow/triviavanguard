@@ -1,5 +1,5 @@
 // SidebarMenu.js - Menu contents for the sidebar drawer
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { tokens } from "./styles/index.js";
 
 export default function SidebarMenu({
@@ -25,12 +25,17 @@ export default function SidebarMenu({
   setPoolPerQuestion,
   poolContribution,
   setPoolContribution,
+  prizes,
+  setPrizes,
 }) {
   const [expandedSections, setExpandedSections] = useState({
     hostTools: false,
     showSettings: false,
-    scoringOptions: false,
-    prizes: false,
+
+    // nested inside Show settings:
+    showDetailsSettings: false,
+    scoringSettings: false,
+    prizesSettings: false,
   });
 
   const toggleSection = (section) => {
@@ -57,6 +62,26 @@ export default function SidebarMenu({
     alignItems: "center",
   };
 
+  const nestedHeaderStyle = {
+    cursor: "pointer",
+    padding: "0.55rem 0.6rem",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: "4px",
+    fontWeight: "bold",
+    fontSize: "0.95rem",
+    fontFamily: tokens.font.body,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: "0.65rem",
+    border: "1px solid rgba(255,255,255,0.10)",
+  };
+
+  const nestedContentStyle = {
+    padding: "0.6rem 0.65rem 0.2rem",
+    fontSize: "0.85rem",
+  };
+
   const contentStyle = {
     padding: "0.5rem 0.75rem",
     fontSize: "0.9rem",
@@ -70,6 +95,29 @@ export default function SidebarMenu({
     fontFamily: tokens.font.body,
   };
 
+  // --- Prizes editor (shared newline string) ---
+  const normalizedPrizeLines = (prizes || "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const [prizeCount, setPrizeCount] = useState(normalizedPrizeLines.length);
+  const [prizeDrafts, setPrizeDrafts] = useState(normalizedPrizeLines);
+
+  useEffect(() => {
+    setPrizeCount(normalizedPrizeLines.length);
+    setPrizeDrafts(normalizedPrizeLines);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prizes]);
+
+  const commitPrizes = (nextDrafts) => {
+    const next = (nextDrafts || [])
+      .map((s) => String(s || "").trim())
+      .filter(Boolean)
+      .join("\n");
+    setPrizes?.(next);
+  };
+
   return (
     <div style={{ color: "#fff" }}>
       {/* Host tools */}
@@ -80,199 +128,62 @@ export default function SidebarMenu({
         </div>
         {expandedSections.hostTools && (
           <div style={contentStyle}>
-            {/* Host details (editable) */}
-            <div
-              style={{ ...itemStyle, borderBottom: "none", paddingBottom: 0 }}
-            >
-              <strong>👤 Host Details</strong>
-            </div>
-            <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>
-                  Host name:
-                </span>
-                <input
-                  type="text"
-                  value={hostInfo?.host || ""}
-                  onChange={(e) =>
-                    setHostInfo({ ...hostInfo, host: e.target.value })
-                  }
-                  placeholder="From show config"
-                  style={{
-                    width: "100%",
-                    padding: "0.35rem",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    fontSize: "0.85rem",
-                    fontFamily: tokens.font.body,
-                  }}
-                />
-              </label>
-              <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>
-                  Co-host name:
-                </span>
-                <input
-                  type="text"
-                  value={hostInfo?.cohost || ""}
-                  onChange={(e) =>
-                    setHostInfo({ ...hostInfo, cohost: e.target.value })
-                  }
-                  placeholder="From show config"
-                  style={{
-                    width: "100%",
-                    padding: "0.35rem",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    fontSize: "0.85rem",
-                    fontFamily: tokens.font.body,
-                  }}
-                />
-              </label>
-              <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>
-                  Location:
-                </span>
-                <input
-                  type="text"
-                  value={hostInfo?.location || ""}
-                  onChange={(e) =>
-                    setHostInfo({ ...hostInfo, location: e.target.value })
-                  }
-                  placeholder="From show config"
-                  style={{
-                    width: "100%",
-                    padding: "0.35rem",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    fontSize: "0.85rem",
-                    fontFamily: tokens.font.body,
-                  }}
-                />
-              </label>
-              <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>
-                  Total games tonight:
-                </span>
-                <input
-                  type="number"
-                  min="1"
-                  value={hostInfo?.totalGames || ""}
-                  onChange={(e) =>
-                    setHostInfo({ ...hostInfo, totalGames: e.target.value })
-                  }
-                  placeholder="1"
-                  style={{
-                    width: "80px",
-                    padding: "0.35rem",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    fontSize: "0.85rem",
-                    fontFamily: tokens.font.body,
-                  }}
-                />
-              </label>
-              <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>
-                  Start times:
-                </span>
-                <input
-                  type="text"
-                  value={hostInfo?.startTimesText || ""}
-                  onChange={(e) =>
-                    setHostInfo({ ...hostInfo, startTimesText: e.target.value })
-                  }
-                  placeholder="7:00, 8:30"
-                  style={{
-                    width: "100%",
-                    padding: "0.35rem",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    fontSize: "0.85rem",
-                    fontFamily: tokens.font.body,
-                  }}
-                />
-              </label>
-              <label style={{ display: "block", marginBottom: "0.75rem" }}>
-                <span style={{ display: "block", marginBottom: "0.25rem" }}>
-                  Announcements:
-                </span>
-                <textarea
-                  value={hostInfo?.announcements || ""}
-                  onChange={(e) =>
-                    setHostInfo({ ...hostInfo, announcements: e.target.value })
-                  }
-                  placeholder="Specials, birthdays, upcoming events, etc."
-                  rows={2}
-                  style={{
-                    width: "100%",
-                    padding: "0.35rem",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    fontSize: "0.85rem",
-                    fontFamily: tokens.font.body,
-                    resize: "vertical",
-                  }}
-                />
-              </label>
-            </div>
-
             {/* Timer controls */}
             <div
-              style={{ ...itemStyle, borderBottom: "none", paddingBottom: 0 }}
+              style={{
+                ...itemStyle,
+                paddingBottom: showTimer ? "0.75rem" : "0.5rem",
+              }}
+              onClick={() => setShowTimer((prev) => !prev)}
             >
-              <strong>⏱️ Timer</strong>
+              ⏱️ {showTimer ? "Hide timer" : "Show timer"}
             </div>
-            <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}>
-              <label
+
+            {showTimer && (
+              <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  marginBottom: "0.5rem",
+                  padding: "0.5rem 0.75rem",
+                  fontSize: "0.85rem",
+                  borderBottom: "1px solid rgba(255,255,255,0.1)",
                 }}
               >
-                <input
-                  type="checkbox"
-                  checked={showTimer}
-                  onChange={(e) => setShowTimer(e.target.checked)}
-                />
-                Show timer
-              </label>
-              <label
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-              >
-                <span>Default time:</span>
-                <input
-                  type="number"
-                  min="5"
-                  max="300"
-                  value={timerDuration}
-                  onChange={(e) => setTimerDuration(Number(e.target.value))}
+                <label
                   style={{
-                    width: "60px",
-                    padding: "0.25rem",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    justifyContent: "space-between",
                   }}
-                />
-                <span>seconds</span>
-              </label>
-            </div>
+                >
+                  <span style={{ opacity: 0.9 }}>Default time</span>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                    }}
+                  >
+                    <input
+                      type="number"
+                      min="5"
+                      max="300"
+                      value={timerDuration}
+                      onChange={(e) => setTimerDuration(Number(e.target.value))}
+                      style={{
+                        width: "35px",
+                        padding: "0.25rem",
+                        border: "1px solid rgba(255,255,255,0.3)",
+                        borderRadius: "4px",
+                        backgroundColor: "rgba(255,255,255,0.1)",
+                        color: "#fff",
+                        textAlign: "right",
+                      }}
+                    />
+                    <span style={{ opacity: 0.85 }}>sec</span>
+                  </div>
+                </label>
+              </div>
+            )}
 
             {/* Answer key */}
             <div
@@ -284,7 +195,7 @@ export default function SidebarMenu({
 
             {/* Show script */}
             <div style={itemStyle} onClick={() => setScriptOpen(true)}>
-              🎤 Show script
+              🎤 Script
             </div>
 
             {/* Refresh questions */}
@@ -322,277 +233,430 @@ export default function SidebarMenu({
           <span>Show settings</span>
           <span>{expandedSections.showSettings ? "▼" : "▶"}</span>
         </div>
+
         {expandedSections.showSettings && (
           <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}>
-            {/* Scoring mode */}
-            <div style={{ marginBottom: "0.75rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.25rem",
-                  fontWeight: "bold",
-                }}
-              >
-                🎯 Scoring type
-              </label>
-              <select
-                value={scoringMode}
-                onChange={(e) => setScoringMode(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.35rem",
-                  border: "1px solid rgba(255,255,255,0.3)",
-                  borderRadius: "4px",
-                  backgroundColor: "rgba(255,255,255,0.1)",
-                  color: "#fff",
-                  fontSize: "0.85rem",
-                  fontFamily: tokens.font.body,
-                }}
-              >
-                <option value="pub" style={{ backgroundColor: "#2B394A" }}>
-                  Pub (fixed points)
-                </option>
-                <option value="pooled" style={{ backgroundColor: "#2B394A" }}>
-                  Pooled (static)
-                </option>
-                <option
-                  value="pooled-adaptive"
-                  style={{ backgroundColor: "#2B394A" }}
-                >
-                  Adaptive (pooled per team)
-                </option>
-              </select>
-            </div>
-
-            {/* Pub points per question (only show if pub mode) */}
-            {scoringMode === "pub" && (
-              <div style={{ marginBottom: "0.75rem" }}>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.25rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  💰 Points per question
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={pubPoints}
-                  onChange={(e) => setPubPoints(Number(e.target.value))}
-                  style={{
-                    width: "80px",
-                    padding: "0.35rem",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    fontSize: "0.85rem",
-                    fontFamily: tokens.font.body,
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Pool per question (only show if pooled static mode) */}
-            {scoringMode === "pooled" && (
-              <div style={{ marginBottom: "0.75rem" }}>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.25rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  💰 Points in pool per question
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={poolPerQuestion}
-                  onChange={(e) => setPoolPerQuestion(Number(e.target.value))}
-                  style={{
-                    width: "80px",
-                    padding: "0.35rem",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    fontSize: "0.85rem",
-                    fontFamily: tokens.font.body,
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Pool contribution per team (only show if adaptive mode) */}
-            {scoringMode === "pooled-adaptive" && (
-              <div style={{ marginBottom: "0.75rem" }}>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.25rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  💰 Points contributed per team
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={poolContribution}
-                  onChange={(e) => setPoolContribution(Number(e.target.value))}
-                  style={{
-                    width: "80px",
-                    padding: "0.35rem",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    fontSize: "0.85rem",
-                    fontFamily: tokens.font.body,
-                  }}
-                />
-              </div>
-            )}
-
+            {/* === Show details (nested) === */}
             <div
-              style={{
-                borderTop: "1px solid rgba(255,255,255,0.1)",
-                marginTop: "0.75rem",
-                paddingTop: "0.75rem",
-              }}
-            />
-
-            {/* Location (read-only from show config) */}
-            <div style={{ marginBottom: "0.75rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.25rem",
-                  fontWeight: "bold",
-                }}
-              >
-                📍 Location
-              </label>
-              <div
-                style={{
-                  padding: "0.35rem",
-                  backgroundColor: "rgba(255,255,255,0.05)",
-                  borderRadius: "4px",
-                  fontSize: "0.85rem",
-                }}
-              >
-                {showBundle?.config?.location || "Not set"}
-              </div>
+              style={nestedHeaderStyle}
+              onClick={() => toggleSection("showDetailsSettings")}
+            >
+              <span>🧾 Show details</span>
+              <span>{expandedSections.showDetailsSettings ? "▼" : "▶"}</span>
             </div>
 
-            {/* Host name (read-only from show config) */}
-            <div style={{ marginBottom: "0.75rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.25rem",
-                  fontWeight: "bold",
-                }}
-              >
-                👤 Host name
-              </label>
-              <div
-                style={{
-                  padding: "0.35rem",
-                  backgroundColor: "rgba(255,255,255,0.05)",
-                  borderRadius: "4px",
-                  fontSize: "0.85rem",
-                }}
-              >
-                {showBundle?.config?.hostName || "Not set"}
+            {expandedSections.showDetailsSettings && (
+              <div style={nestedContentStyle}>
+                <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                  <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                    Location:
+                  </span>
+                  <input
+                    type="text"
+                    value={hostInfo?.location || ""}
+                    onChange={(e) =>
+                      setHostInfo({ ...hostInfo, location: e.target.value })
+                    }
+                    placeholder="From show config"
+                    style={{
+                      width: "100%",
+                      padding: "0.35rem",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontFamily: tokens.font.body,
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                  <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                    Host name:
+                  </span>
+                  <input
+                    type="text"
+                    value={hostInfo?.host || ""}
+                    onChange={(e) =>
+                      setHostInfo({ ...hostInfo, host: e.target.value })
+                    }
+                    placeholder="From show config"
+                    style={{
+                      width: "100%",
+                      padding: "0.35rem",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontFamily: tokens.font.body,
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                  <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                    Co-host name:
+                  </span>
+                  <input
+                    type="text"
+                    value={hostInfo?.cohost || ""}
+                    onChange={(e) =>
+                      setHostInfo({ ...hostInfo, cohost: e.target.value })
+                    }
+                    placeholder="From show config"
+                    style={{
+                      width: "100%",
+                      padding: "0.35rem",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontFamily: tokens.font.body,
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                  <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                    Total games tonight:
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={hostInfo?.totalGames || ""}
+                    onChange={(e) =>
+                      setHostInfo({ ...hostInfo, totalGames: e.target.value })
+                    }
+                    placeholder="1"
+                    style={{
+                      width: "90px",
+                      padding: "0.35rem",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontFamily: tokens.font.body,
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                  <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                    Start times:
+                  </span>
+                  <input
+                    type="text"
+                    value={hostInfo?.startTimesText || ""}
+                    onChange={(e) =>
+                      setHostInfo({
+                        ...hostInfo,
+                        startTimesText: e.target.value,
+                      })
+                    }
+                    placeholder="7:00, 8:30"
+                    style={{
+                      width: "100%",
+                      padding: "0.35rem",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontFamily: tokens.font.body,
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: "block", marginBottom: "0.65rem" }}>
+                  <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                    Announcements:
+                  </span>
+                  <textarea
+                    value={hostInfo?.announcements || ""}
+                    onChange={(e) =>
+                      setHostInfo({
+                        ...hostInfo,
+                        announcements: e.target.value,
+                      })
+                    }
+                    placeholder="Specials, birthdays, upcoming events, etc."
+                    rows={2}
+                    style={{
+                      width: "100%",
+                      padding: "0.35rem",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontFamily: tokens.font.body,
+                      resize: "vertical",
+                    }}
+                  />
+                </label>
               </div>
+            )}
+
+            {/* === Scoring (nested) === */}
+            <div
+              style={nestedHeaderStyle}
+              onClick={() => toggleSection("scoringSettings")}
+            >
+              <span>🎯 Scoring</span>
+              <span>{expandedSections.scoringSettings ? "▼" : "▶"}</span>
             </div>
 
-            {/* Cohost name (read-only from show config) */}
-            <div style={{ marginBottom: "0.75rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.25rem",
-                  fontWeight: "bold",
-                }}
-              >
-                👥 Cohost name
-              </label>
-              <div
-                style={{
-                  padding: "0.35rem",
-                  backgroundColor: "rgba(255,255,255,0.05)",
-                  borderRadius: "4px",
-                  fontSize: "0.85rem",
-                }}
-              >
-                {showBundle?.config?.cohostName || "Not set"}
+            {expandedSections.scoringSettings && (
+              <div style={nestedContentStyle}>
+                <div style={{ marginBottom: "0.6rem" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Scoring type
+                  </label>
+                  <select
+                    value={scoringMode}
+                    onChange={(e) => setScoringMode(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "0.35rem",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontFamily: tokens.font.body,
+                    }}
+                  >
+                    <option value="pub" style={{ backgroundColor: "#2B394A" }}>
+                      Pub (fixed points)
+                    </option>
+                    <option
+                      value="pooled"
+                      style={{ backgroundColor: "#2B394A" }}
+                    >
+                      Pooled (static)
+                    </option>
+                    <option
+                      value="pooled-adaptive"
+                      style={{ backgroundColor: "#2B394A" }}
+                    >
+                      Adaptive (pooled per team)
+                    </option>
+                  </select>
+                </div>
+
+                {scoringMode === "pub" && (
+                  <div style={{ marginBottom: "0.65rem" }}>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "0.25rem",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Points per question
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={pubPoints}
+                      onChange={(e) => setPubPoints(Number(e.target.value))}
+                      style={{
+                        width: "90px",
+                        padding: "0.35rem",
+                        border: "1px solid rgba(255,255,255,0.3)",
+                        borderRadius: "4px",
+                        backgroundColor: "rgba(255,255,255,0.1)",
+                        color: "#fff",
+                        fontSize: "0.85rem",
+                        fontFamily: tokens.font.body,
+                      }}
+                    />
+                  </div>
+                )}
+
+                {scoringMode === "pooled" && (
+                  <div style={{ marginBottom: "0.65rem" }}>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "0.25rem",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Pool per question
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={poolPerQuestion}
+                      onChange={(e) =>
+                        setPoolPerQuestion(Number(e.target.value))
+                      }
+                      style={{
+                        width: "110px",
+                        padding: "0.35rem",
+                        border: "1px solid rgba(255,255,255,0.3)",
+                        borderRadius: "4px",
+                        backgroundColor: "rgba(255,255,255,0.1)",
+                        color: "#fff",
+                        fontSize: "0.85rem",
+                        fontFamily: tokens.font.body,
+                      }}
+                    />
+                  </div>
+                )}
+
+                {scoringMode === "pooled-adaptive" && (
+                  <div style={{ marginBottom: "0.65rem" }}>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "0.25rem",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Pool contribution per team
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={poolContribution}
+                      onChange={(e) =>
+                        setPoolContribution(Number(e.target.value))
+                      }
+                      style={{
+                        width: "110px",
+                        padding: "0.35rem",
+                        border: "1px solid rgba(255,255,255,0.3)",
+                        borderRadius: "4px",
+                        backgroundColor: "rgba(255,255,255,0.1)",
+                        color: "#fff",
+                        fontSize: "0.85rem",
+                        fontFamily: tokens.font.body,
+                      }}
+                    />
+                  </div>
+                )}
               </div>
+            )}
+
+            {/* === Prizes (nested inside show settings) === */}
+            <div
+              style={nestedHeaderStyle}
+              onClick={() => toggleSection("prizesSettings")}
+            >
+              <span>🏆 Prizes</span>
+              <span>{expandedSections.prizesSettings ? "▼" : "▶"}</span>
             </div>
 
-            {/* Total games (from Airtable, read-only) */}
-            <div style={{ marginBottom: "0.75rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.25rem",
-                  fontWeight: "bold",
-                }}
-              >
-                🎮 Total games tonight
-              </label>
-              <div
-                style={{
-                  padding: "0.35rem",
-                  backgroundColor: "rgba(255,255,255,0.05)",
-                  borderRadius: "4px",
-                  fontSize: "0.85rem",
-                }}
-              >
-                {showBundle?.config?.totalGamesThisNight || 1}
-              </div>
-            </div>
+            {expandedSections.prizesSettings && (
+              <div style={nestedContentStyle}>
+                <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                  <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                    Prize provider:
+                  </span>
+                  <input
+                    type="text"
+                    value={hostInfo?.prizeProvider || ""}
+                    onChange={(e) =>
+                      setHostInfo({
+                        ...hostInfo,
+                        prizeProvider: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., Ciao Thyme"
+                    style={{
+                      width: "100%",
+                      padding: "0.35rem",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontFamily: tokens.font.body,
+                    }}
+                  />
+                </label>
 
-            {/* Start time (from Airtable, read-only) */}
-            <div style={{ marginBottom: "0.75rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.25rem",
-                  fontWeight: "bold",
-                }}
-              >
-                ⏰ Start time
-              </label>
-              <div
-                style={{
-                  padding: "0.35rem",
-                  backgroundColor: "rgba(255,255,255,0.05)",
-                  borderRadius: "4px",
-                  fontSize: "0.85rem",
-                }}
-              >
-                {showBundle?.config?.startTime || "Not set"}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+                <label style={{ display: "block", marginBottom: "0.65rem" }}>
+                  <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                    Number of prizes:
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={prizeCount}
+                    onChange={(e) => {
+                      const n = Math.max(0, Number(e.target.value || 0));
+                      setPrizeCount(n);
 
-      {/* Prizes */}
-      <div style={sectionStyle}>
-        <div style={headerStyle} onClick={() => toggleSection("prizes")}>
-          <span>Prizes</span>
-          <span>{expandedSections.prizes ? "▼" : "▶"}</span>
-        </div>
-        {expandedSections.prizes && (
-          <div style={contentStyle}>
-            <div style={itemStyle}>🏆 Prize provider</div>
-            <div style={itemStyle}>🎁 Prize details</div>
+                      const nextDrafts = [...prizeDrafts];
+                      while (nextDrafts.length < n) nextDrafts.push("");
+                      while (nextDrafts.length > n) nextDrafts.pop();
+
+                      setPrizeDrafts(nextDrafts);
+                      commitPrizes(nextDrafts);
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "0.35rem",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontFamily: tokens.font.body,
+                    }}
+                  />
+                </label>
+
+                {Array.from({ length: prizeCount }).map((_, idx) => (
+                  <label
+                    key={idx}
+                    style={{ display: "block", marginBottom: "0.5rem" }}
+                  >
+                    <span style={{ display: "block", marginBottom: "0.25rem" }}>
+                      Prize {idx + 1}:
+                    </span>
+                    <input
+                      type="text"
+                      value={prizeDrafts[idx] || ""}
+                      onChange={(e) => {
+                        const next = [...prizeDrafts];
+                        next[idx] = e.target.value;
+                        setPrizeDrafts(next);
+                        commitPrizes(next);
+                      }}
+                      placeholder={
+                        idx === 0
+                          ? "e.g., $25 gift card"
+                          : "e.g., $10 gift card"
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "0.35rem",
+                        border: "1px solid rgba(255,255,255,0.3)",
+                        borderRadius: "4px",
+                        backgroundColor: "rgba(255,255,255,0.1)",
+                        color: "#fff",
+                        fontSize: "0.85rem",
+                        fontFamily: tokens.font.body,
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

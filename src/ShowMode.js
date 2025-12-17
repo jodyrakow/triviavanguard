@@ -2260,7 +2260,7 @@ export default function ShowMode({
                     editQuestionField(
                       editingQuestion.showQuestionId,
                       "pronunciationGuide",
-                      safeTrim(editingQuestion.questionPronunciationGuide)
+                      safeTrim(editingQuestion.pronunciationGuide)
                     );
                   }
                   setEditingQuestion(null);

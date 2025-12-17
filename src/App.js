@@ -108,7 +108,7 @@ export default function App() {
     }
   }, []);
 
-  // Question edits cache: { [showId]: { [showQuestionId]: { question?, flavorText?, answer? } } }
+  // Question edits cache: { [showId]: { [showQuestionId]: { question?, notes?, pronunciationGuide?, answer? } } }
   const [questionEdits, setQuestionEdits] = useState({});
   // Restore question edits backup (if any) on app load
   useEffect(() => {
@@ -651,8 +651,14 @@ export default function App() {
     // QUESTION EDIT
     ch.on("broadcast", { event: "questionEdit" }, (msg) => {
       const data = msg?.payload ?? msg;
-      const { showId, showQuestionId, question, flavorText, answer } =
-        data || {};
+      const {
+        showId,
+        showQuestionId,
+        question,
+        notes,
+        pronunciationGuide,
+        answer,
+      } = data || {};
       if (!showId || !showQuestionId) return;
       if (showId !== currentShowIdRef.current) return;
 
@@ -663,7 +669,8 @@ export default function App() {
         const updatedEdit = {
           ...questionEdit,
           ...(question !== undefined && { question }),
-          ...(flavorText !== undefined && { flavorText }),
+          ...(notes !== undefined && { notes }),
+          ...(pronunciationGuide !== undefined && { pronunciationGuide }),
           ...(answer !== undefined && { answer }),
         };
 
@@ -913,6 +920,8 @@ export default function App() {
           );
         }
 
+        console.log("showBundle.config", showBundle?.config);
+
         setShowBundle(bundle);
 
         // Pre-populate settings from Airtable config (if available)
@@ -920,11 +929,17 @@ export default function App() {
           const config = bundle.config;
 
           // DEBUG: Log the entire config to see what we're getting
-          console.log("[App] Bundle config received:", JSON.stringify(config, null, 2));
+          console.log(
+            "[App] Bundle config received:",
+            JSON.stringify(config, null, 2)
+          );
 
           // Only set scoring mode if it's provided and valid
           if (config.scoringMode) {
-            console.log("[App] Applying scoring mode from config:", config.scoringMode);
+            console.log(
+              "[App] Applying scoring mode from config:",
+              config.scoringMode
+            );
             const mode = config.scoringMode
               .toLowerCase()
               .replace(/\s*\(.*?\)\s*/g, "");
@@ -939,26 +954,47 @@ export default function App() {
 
           // Set pub points if provided
           if (typeof config.pubPoints === "number") {
-            console.log("[App] Setting pubPoints from config:", config.pubPoints);
+            console.log(
+              "[App] Setting pubPoints from config:",
+              config.pubPoints
+            );
             setPubPoints(config.pubPoints);
           } else {
-            console.log("[App] pubPoints not a number, got:", typeof config.pubPoints, config.pubPoints);
+            console.log(
+              "[App] pubPoints not a number, got:",
+              typeof config.pubPoints,
+              config.pubPoints
+            );
           }
 
           // Set pool per question if provided
           if (typeof config.poolPerQuestion === "number") {
-            console.log("[App] Setting poolPerQuestion from config:", config.poolPerQuestion);
+            console.log(
+              "[App] Setting poolPerQuestion from config:",
+              config.poolPerQuestion
+            );
             setPoolPerQuestion(config.poolPerQuestion);
           } else {
-            console.log("[App] poolPerQuestion not a number, got:", typeof config.poolPerQuestion, config.poolPerQuestion);
+            console.log(
+              "[App] poolPerQuestion not a number, got:",
+              typeof config.poolPerQuestion,
+              config.poolPerQuestion
+            );
           }
 
           // Set pool contribution if provided
           if (typeof config.poolContribution === "number") {
-            console.log("[App] Setting poolContribution from config:", config.poolContribution);
+            console.log(
+              "[App] Setting poolContribution from config:",
+              config.poolContribution
+            );
             setPoolContribution(config.poolContribution);
           } else {
-            console.log("[App] poolContribution not a number, got:", typeof config.poolContribution, config.poolContribution);
+            console.log(
+              "[App] poolContribution not a number, got:",
+              typeof config.poolContribution,
+              config.poolContribution
+            );
           }
 
           // Set timer default if provided
@@ -1142,9 +1178,14 @@ export default function App() {
 
             return {
               ...q,
-              ...(edit.question !== undefined && { questionText: edit.question }),
-              ...(edit.flavorText !== undefined && {
-                flavorText: edit.flavorText,
+              ...(edit.question !== undefined && {
+                questionText: edit.question,
+              }),
+              ...(edit.notes !== undefined && {
+                questionNotes: edit.notes,
+              }),
+              ...(edit.pronunciationGuide !== undefined && {
+                questionPronunciationGuide: edit.pronunciationGuide,
               }),
               ...(edit.answer !== undefined && { answer: edit.answer }),
               _edited: true, // flag for UI to show indicator
@@ -1160,8 +1201,11 @@ export default function App() {
           return {
             ...q,
             ...(edit.question !== undefined && { questionText: edit.question }),
-            ...(edit.flavorText !== undefined && {
-              flavorText: edit.flavorText,
+            ...(edit.notes !== undefined && {
+              questionNotes: edit.notes,
+            }),
+            ...(edit.pronunciationGuide !== undefined && {
+              questionPronunciationGuide: edit.pronunciationGuide,
             }),
             ...(edit.answer !== undefined && { answer: edit.answer }),
             _edited: true, // flag for UI to show indicator
@@ -1235,7 +1279,7 @@ export default function App() {
       questionId: [`tb-${Date.now()}`],
       questionOrder: "TB",
       questionText,
-      flavorText: "",
+      questionNotes: "",
       answer,
       questionType: "Tiebreaker",
       sortOrder: 9999, // Put it at the end
@@ -1351,6 +1395,8 @@ export default function App() {
           timerDuration={timerDuration}
           setTimerDuration={setTimerDuration}
           setScriptOpen={setScriptOpen}
+          prizes={composedCachedState?.prizes ?? ""}
+          setPrizes={(val) => patchShared({ prizes: String(val || "") })}
           hostInfo={
             composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo
           }
