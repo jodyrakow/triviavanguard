@@ -982,6 +982,17 @@ export default function App() {
             );
           }
 
+          // Set location if provided
+
+          if (
+            config.location &&
+            (!currentHostInfo.location ||
+              config.location !== currentHostInfo.location)
+          ) {
+            updatedHostInfo.location = config.location;
+            hasChanges = true;
+          }
+
           // Set pool contribution if provided
           if (typeof config.poolContribution === "number") {
             console.log(

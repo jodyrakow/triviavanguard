@@ -37,7 +37,6 @@ export default function ResultsMode({
   poolContribution,
   selectedShowId,
   prizes: prizesString = "", // NEW: prizes from shared state (newline-separated string)
-  setPrizes: setPrizesString, // NEW: setter for shared prizes
   questionEdits = {}, // { [showQuestionId]: { question?, notes?, pronunciationGuide?, answer? } }
   sendToDisplay, // Function to send content to display mode
 }) {
@@ -238,42 +237,6 @@ export default function ResultsMode({
 
   const prizeCount = prizes.length;
   const showPrizeCol = prizeCount > 0 && prizes.some((p) => p && p.length);
-
-  const [prizeEditorOpen, setPrizeEditorOpen] = useState(false);
-  const [draftCount, setDraftCount] = useState(prizeCount);
-  const [draftPrizes, setDraftPrizes] = useState(prizes);
-
-  const openPrizeEditor = useCallback(() => {
-    setDraftCount(prizes.length || 0);
-    setDraftPrizes(prizes.length ? [...prizes] : []);
-    setPrizeEditorOpen(true);
-  }, [prizes]);
-
-  const closePrizeEditor = useCallback(() => setPrizeEditorOpen(false), []);
-
-  const applyPrizeEdits = useCallback(() => {
-    // Convert array back to newline-separated string for shared state
-    const prizesStr = draftPrizes
-      .slice(0, draftCount)
-      .filter(Boolean)
-      .join("\n");
-    setPrizesString?.(prizesStr);
-    setPrizeEditorOpen(false);
-  }, [draftCount, draftPrizes, setPrizesString]);
-
-  const clearPrizes = useCallback(() => {
-    setDraftCount(0);
-    setDraftPrizes([]);
-  }, []);
-
-  const ensureDraftLen = useCallback(
-    (n, base) => {
-      const src = Array.isArray(base) ? base.slice() : draftPrizes.slice();
-      while (src.length < n) src.push("");
-      return src.slice(0, n);
-    },
-    [draftPrizes]
-  );
 
   // --- On-the-fly TB (OTF) state ---
   const [otfOpen, setOtfOpen] = useState(false);
@@ -1223,7 +1186,7 @@ export default function ResultsMode({
         </div>
       )}
 
-      {/* Prizes control */}
+      {/* Buttons */}
       <div
         style={{
           margin: `0 12px ${tokens.spacing.sm}`,
@@ -1232,23 +1195,6 @@ export default function ResultsMode({
           gap: tokens.spacing.sm,
         }}
       >
-        <button
-          type="button"
-          onClick={openPrizeEditor}
-          style={{
-            padding: ".45rem .7rem",
-            border: `${tokens.borders.thin} ${theme.accent}`,
-            background: colors.white,
-            color: theme.accent,
-            borderRadius: ".35rem",
-            cursor: "pointer",
-            fontFamily: tokens.font.body,
-          }}
-          title="Configure prize text shown in the standings table"
-        >
-          {showPrizeCol ? "Edit prizes" : "Set prizes"}
-        </button>
-
         {/* Archive/Re-open buttons */}
         {!archiveStatus.isFinalized ? (
           <button
@@ -1401,195 +1347,6 @@ export default function ResultsMode({
           </span>
         )}
       </div>
-
-      {/* ----- Prize Editor Modal (inline; stable) ----- */}
-      {prizeEditorOpen && (
-        <div
-          onMouseDown={closePrizeEditor}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: colors.overlay,
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: tokens.spacing.md,
-          }}
-        >
-          <div
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{
-              width: "min(92vw, 560px)",
-              background: colors.white,
-              borderRadius: ".6rem",
-              border: `${tokens.borders.thin} ${theme.accent}`,
-              overflow: "hidden",
-              boxShadow: "0 10px 30px rgba(0,0,0,.25)",
-              fontFamily: tokens.font.body,
-            }}
-          >
-            {/* Header */}
-            <div
-              style={{
-                background: theme.dark,
-                color: colors.white,
-                padding: ".6rem .8rem",
-                borderBottom: `${tokens.borders.medium} ${theme.accent}`,
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: tokens.font.display,
-                  fontSize: "1.25rem",
-                  letterSpacing: ".01em",
-                }}
-              >
-                Configure Prizes
-              </div>
-              <div
-                style={{ fontSize: ".9rem", opacity: 0.9, marginTop: ".15rem" }}
-              >
-                Add prize labels for top finishers (optional)
-              </div>
-            </div>
-
-            {/* Body */}
-            <div style={{ padding: ".9rem .9rem 0" }}>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: ".5rem",
-                  marginBottom: ".75rem",
-                }}
-              >
-                <span style={{ minWidth: 160 }}>Number of prize places:</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={20}
-                  value={draftCount}
-                  onChange={(e) => {
-                    const next = Math.max(
-                      0,
-                      Math.min(20, parseInt(e.target.value || "0", 10))
-                    );
-                    setDraftCount(next);
-                    setDraftPrizes((prev) => ensureDraftLen(next, prev));
-                  }}
-                  style={{
-                    width: 90,
-                    padding: ".45rem .55rem",
-                    border: `${tokens.borders.thin} ${colors.gray.border}`,
-                    borderRadius: ".35rem",
-                  }}
-                />
-                {draftCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={clearPrizes}
-                    style={{
-                      marginLeft: "auto",
-                      padding: ".35rem .6rem",
-                      border: `${tokens.borders.thin} ${colors.gray.border}`,
-                      background: colors.gray.bg,
-                      borderRadius: ".35rem",
-                      cursor: "pointer",
-                    }}
-                    title="Clear all prizes"
-                  >
-                    Clear
-                  </button>
-                )}
-              </label>
-
-              {Array.from({ length: draftCount }).map((_, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: ".5rem",
-                    marginBottom: ".55rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 92,
-                      textAlign: "right",
-                      paddingRight: ".25rem",
-                      color: theme.accent,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {ordinal(i + 1)}:
-                  </div>
-                  <input
-                    type="text"
-                    value={draftPrizes[i] || ""}
-                    placeholder={`Prize for ${ordinal(i + 1)} place (e.g., $25 gift card)`}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setDraftPrizes((prev) => {
-                        const arr = ensureDraftLen(draftCount, prev);
-                        arr[i] = val;
-                        return arr;
-                      });
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: ".45rem .55rem",
-                      border: `${tokens.borders.thin} ${colors.gray.border}`,
-                      borderRadius: ".35rem",
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-
-            {/* Footer */}
-            <div
-              style={{
-                display: "flex",
-                gap: tokens.spacing.sm,
-                justifyContent: "flex-end",
-                padding: ".8rem .9rem .9rem",
-                borderTop: `${tokens.borders.thin} ${colors.gray.borderLighter}`,
-              }}
-            >
-              <button
-                type="button"
-                onClick={closePrizeEditor}
-                style={{
-                  padding: `${tokens.spacing.sm} .75rem`,
-                  border: `${tokens.borders.thin} ${colors.gray.border}`,
-                  background: colors.gray.bg,
-                  borderRadius: ".35rem",
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={applyPrizeEdits}
-                style={{
-                  padding: `${tokens.spacing.sm} .8rem`,
-                  border: `${tokens.borders.thin} ${theme.accent}`,
-                  background: theme.accent,
-                  color: colors.white,
-                  borderRadius: ".35rem",
-                  cursor: "pointer",
-                  fontWeight: 700,
-                }}
-              >
-                Save prizes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ===== Final standings ===== */}
       <div
