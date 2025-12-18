@@ -1034,20 +1034,20 @@ export default function App() {
             hasChanges = true;
           }
 
+          // Set location if provided
+
+          if (
+            config.location &&
+            (!currentHostInfo.location ||
+              config.location !== currentHostInfo.location)
+          ) {
+            updatedHostInfo.location = config.location;
+            hasChanges = true;
+          }
+
           if (hasChanges) {
             patchShared({ hostInfo: updatedHostInfo });
           }
-        }
-
-        // Set location if provided
-
-        if (
-          config.location &&
-          (!currentHostInfo.location ||
-            config.location !== currentHostInfo.location)
-        ) {
-          updatedHostInfo.location = config.location;
-          hasChanges = true;
         }
 
         // set default round if needed
