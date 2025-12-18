@@ -210,6 +210,7 @@ export default function DisplayMode() {
             <ImageOverlay
               images={imageOverlay.images}
               currentIndex={imageOverlay.currentIndex || 0}
+              autoCycle={imageOverlay.autoCycle || false}
               onClose={() => setImageOverlay(null)}
             />
           )}
@@ -537,13 +538,24 @@ function StandingsDisplay({ content }) {
   );
 }
 
-function ImageOverlay({ images, currentIndex, onClose }) {
+function ImageOverlay({ images, currentIndex, autoCycle = false, onClose }) {
   const [idx, setIdx] = useState(currentIndex);
 
   // Update index when host changes the current image
   useEffect(() => {
     setIdx(currentIndex);
   }, [currentIndex, images]);
+
+  // Auto-cycle through images every 10 seconds when autoCycle is true
+  useEffect(() => {
+    if (!autoCycle || images.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setIdx((prevIdx) => (prevIdx + 1) % images.length);
+    }, 8000); // 10 seconds
+
+    return () => clearInterval(interval);
+  }, [autoCycle, images.length]);
 
   return (
     <div
@@ -576,16 +588,8 @@ function ImageOverlay({ images, currentIndex, onClose }) {
           objectFit: "contain",
           border: `4px solid ${theme.white}`,
           boxShadow: "0 0 20px rgba(0,0,0,0.5)",
-          marginBottom: "1rem",
         }}
       />
-
-      {/* Image counter only (no navigation - host controls this) */}
-      {images.length > 1 && (
-        <span style={{ color: theme.white, fontSize: "1.2rem", fontFamily: tokens.font.body }}>
-          {idx + 1} / {images.length}
-        </span>
-      )}
     </div>
   );
 }

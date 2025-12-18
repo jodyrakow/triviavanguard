@@ -6,6 +6,7 @@ export default function SidebarMenu({
   showBundle,
   showTimer,
   setShowTimer,
+  setTimerPosition,
   showDetails,
   setShowDetails,
   timerDuration,
@@ -15,6 +16,7 @@ export default function SidebarMenu({
   setHostInfo,
   displayControlsOpen,
   setDisplayControlsOpen,
+  setDisplayControlsPosition,
   setShowAnswerKey,
   refreshBundle,
   scoringMode,
@@ -182,6 +184,26 @@ export default function SidebarMenu({
                     <span style={{ opacity: 0.85 }}>sec</span>
                   </div>
                 </label>
+                <button
+                  onClick={() => {
+                    setTimerPosition({ x: 0, y: 0 });
+                    localStorage.removeItem("timerPosition");
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem",
+                    marginTop: "0.5rem",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                    fontFamily: tokens.font.body,
+                  }}
+                >
+                  Reset timer position
+                </button>
               </div>
             )}
 
@@ -207,7 +229,10 @@ export default function SidebarMenu({
 
             {/* Display controls toggle */}
             <div
-              style={itemStyle}
+              style={{
+                ...itemStyle,
+                paddingBottom: displayControlsOpen ? "0.75rem" : "0.5rem",
+              }}
               onClick={() => setDisplayControlsOpen((prev) => !prev)}
             >
               📺{" "}
@@ -215,6 +240,36 @@ export default function SidebarMenu({
                 ? "Hide display controls"
                 : "Show display controls"}
             </div>
+
+            {displayControlsOpen && (
+              <div
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  fontSize: "0.85rem",
+                  borderBottom: "1px solid rgba(255,255,255,0.1)",
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setDisplayControlsPosition({ x: 0, y: 0 });
+                    localStorage.removeItem("displayControlsPosition");
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                    fontFamily: tokens.font.body,
+                  }}
+                >
+                  Reset display controls position
+                </button>
+              </div>
+            )}
 
             {/* Show/hide all answers */}
             <div

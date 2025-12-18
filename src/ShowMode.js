@@ -10,10 +10,7 @@ import {
   colors as theme,
   tokens,
 } from "./styles";
-import {
-  buildCorrectCountMap,
-  computeAutoEarned,
-} from "./scoring/compute.js";
+import { buildCorrectCountMap, computeAutoEarned } from "./scoring/compute.js";
 
 export default function ShowMode({
   showBundle = { rounds: [], teams: [] },
@@ -50,6 +47,7 @@ export default function ShowMode({
   scriptOpen,
   setScriptOpen,
   sendToDisplay,
+  displayControlsOpen = false,
   refreshBundle,
 }) {
   // Unified question editor modal state
@@ -60,7 +58,8 @@ export default function ShowMode({
   const [imageOverlayActive, setImageOverlayActive] = React.useState(false);
 
   // Track current image index for category images
-  const [currentCategoryImageIndex, setCurrentCategoryImageIndex] = React.useState({});
+  const [currentCategoryImageIndex, setCurrentCategoryImageIndex] =
+    React.useState({});
 
   // Add Tiebreaker modal state
   const [addingTiebreaker, setAddingTiebreaker] = React.useState(false);
@@ -208,6 +207,10 @@ export default function ShowMode({
               "Category audio": Array.isArray(cat?.categoryAudio)
                 ? cat.categoryAudio
                 : [],
+              // hold image carousel
+              "Image carousel": Array.isArray(cat?.imageCarousel)
+                ? cat.imageCarousel
+                : [],
             },
             questions: {},
           };
@@ -217,7 +220,7 @@ export default function ShowMode({
         for (const q of questions) {
           grouped[key].questions[q.showQuestionId || q.id] = {
             "Show Question ID": q.showQuestionId || q.id,
-            "Question ID": q?.questionId?.[0] || q?.id,
+            "Question ID": q?.questionId || q?.id,
             "Question order": q?.questionOrder,
             "Question text": q?.questionText || "",
             "Question notes": q?.questionNotes || "",
@@ -277,7 +280,13 @@ export default function ShowMode({
       poolContribution: Number(poolContribution || 0),
       teamCount: cachedState?.teams?.length || 0,
     }),
-    [scoringMode, pubPoints, poolPerQuestion, poolContribution, cachedState?.teams?.length]
+    [
+      scoringMode,
+      pubPoints,
+      poolPerQuestion,
+      poolContribution,
+      cachedState?.teams?.length,
+    ]
   );
 
   // Helper to calculate points per team for a question
@@ -291,9 +300,10 @@ export default function ShowMode({
         const mockCell = { isCorrect: true };
 
         // For adaptive mode, override teamCount with activeTeamCount
-        const config = scoringMode === "pooled-adaptive"
-          ? { ...scoringConfig, teamCount: activeTeamCount }
-          : scoringConfig;
+        const config =
+          scoringMode === "pooled-adaptive"
+            ? { ...scoringConfig, teamCount: activeTeamCount }
+            : scoringConfig;
 
         return computeAutoEarned(mockCell, config, correctCount);
       }
@@ -348,7 +358,11 @@ export default function ShowMode({
       }
 
       // Use utility to get correct counts
-      const correctCountMap = buildCorrectCountMap(teams, roundQuestions, adaptedGrid);
+      const correctCountMap = buildCorrectCountMap(
+        teams,
+        roundQuestions,
+        adaptedGrid
+      );
 
       // For adaptive pooled mode: count only teams active in THIS round
       let activeTeamCount = teams.length;
@@ -685,6 +699,14 @@ export default function ShowMode({
             ? [catAudio]
             : [];
 
+        // Image carousel
+        const imageCarousel = categoryInfo?.["Image carousel"];
+        const imageCarouselArr = Array.isArray(imageCarousel)
+          ? imageCarousel
+          : imageCarousel
+            ? [imageCarousel]
+            : [];
+
         const CategoryHeader = ({ secret, number }) => (
           <div style={{ backgroundColor: theme.dark, padding: 0 }}>
             <hr
@@ -725,7 +747,7 @@ export default function ShowMode({
             />
 
             {/* Push category to display button */}
-            {sendToDisplay && (
+            {sendToDisplay && displayControlsOpen && (
               <div style={{ marginLeft: "1rem", marginBottom: "0.5rem" }}>
                 <Button
                   onClick={() => {
@@ -763,7 +785,7 @@ export default function ShowMode({
                 >
                   Show category image{catImagesArr.length > 1 ? "s" : ""}
                 </Button>
-                {sendToDisplay && (
+                {sendToDisplay && displayControlsOpen && (
                   <>
                     <Button
                       onClick={() => {
@@ -775,7 +797,9 @@ export default function ShowMode({
                           // Send image to display
                           const idx = currentCategoryImageIndex[groupKey] || 0;
                           sendToDisplay("imageOverlay", {
-                            images: catImagesArr.map((img) => ({ url: img.url })),
+                            images: catImagesArr.map((img) => ({
+                              url: img.url,
+                            })),
                             currentIndex: idx,
                           });
                           setImageOverlayActive(true);
@@ -787,19 +811,38 @@ export default function ShowMode({
                         marginBottom: "0.25rem",
                         marginLeft: "0.5rem",
                       }}
-                      title={imageOverlayActive ? "Close image on display" : "Push category image to display"}
+                      title={
+                        imageOverlayActive
+                          ? "Close image on display"
+                          : "Push category image to display"
+                      }
                     >
-                      {imageOverlayActive ? "Close image" : "Push image to display"}
+                      {imageOverlayActive
+                        ? "Close image"
+                        : "Push image to display"}
                     </Button>
                     {imageOverlayActive && catImagesArr.length > 1 && (
-                      <div style={{ display: "inline-block", marginLeft: "0.5rem" }}>
+                      <div
+                        style={{
+                          display: "inline-block",
+                          marginLeft: "0.5rem",
+                        }}
+                      >
                         <button
                           onClick={() => {
-                            const currentIdx = currentCategoryImageIndex[groupKey] || 0;
-                            const newIdx = (currentIdx - 1 + catImagesArr.length) % catImagesArr.length;
-                            setCurrentCategoryImageIndex(prev => ({ ...prev, [groupKey]: newIdx }));
+                            const currentIdx =
+                              currentCategoryImageIndex[groupKey] || 0;
+                            const newIdx =
+                              (currentIdx - 1 + catImagesArr.length) %
+                              catImagesArr.length;
+                            setCurrentCategoryImageIndex((prev) => ({
+                              ...prev,
+                              [groupKey]: newIdx,
+                            }));
                             sendToDisplay("imageOverlay", {
-                              images: catImagesArr.map((img) => ({ url: img.url })),
+                              images: catImagesArr.map((img) => ({
+                                url: img.url,
+                              })),
                               currentIndex: newIdx,
                             });
                           }}
@@ -816,11 +859,18 @@ export default function ShowMode({
                         </button>
                         <button
                           onClick={() => {
-                            const currentIdx = currentCategoryImageIndex[groupKey] || 0;
-                            const newIdx = (currentIdx + 1) % catImagesArr.length;
-                            setCurrentCategoryImageIndex(prev => ({ ...prev, [groupKey]: newIdx }));
+                            const currentIdx =
+                              currentCategoryImageIndex[groupKey] || 0;
+                            const newIdx =
+                              (currentIdx + 1) % catImagesArr.length;
+                            setCurrentCategoryImageIndex((prev) => ({
+                              ...prev,
+                              [groupKey]: newIdx,
+                            }));
                             sendToDisplay("imageOverlay", {
-                              images: catImagesArr.map((img) => ({ url: img.url })),
+                              images: catImagesArr.map((img) => ({
+                                url: img.url,
+                              })),
                               currentIndex: newIdx,
                             });
                           }}
@@ -861,6 +911,42 @@ export default function ShowMode({
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Image carousel button */}
+            {imageCarouselArr.length > 0 && sendToDisplay && displayControlsOpen && (
+              <div style={{ marginTop: "0.5rem", marginLeft: "1rem" }}>
+                <Button
+                  onClick={() => {
+                    if (imageOverlayActive) {
+                      sendToDisplay("closeImageOverlay", null);
+                      setImageOverlayActive(false);
+                    } else {
+                      sendToDisplay("imageOverlay", {
+                        images: imageCarouselArr.map((img) => ({
+                          url: img.url,
+                        })),
+                        currentIndex: 0,
+                        autoCycle: true,
+                      });
+                      setImageOverlayActive(true);
+                    }
+                  }}
+                  style={{
+                    fontSize: tokens.font.size,
+                    fontFamily: tokens.font.body,
+                  }}
+                  title={
+                    imageOverlayActive
+                      ? "Close image carousel on display"
+                      : "Push image carousel to display (auto-cycles every 10 seconds)"
+                  }
+                >
+                  {imageOverlayActive
+                    ? "Close image carousel"
+                    : "Push image carousel to display"}
+                </Button>
               </div>
             )}
 
@@ -1018,32 +1104,6 @@ export default function ShowMode({
                           marginTop: "1.75rem",
                           marginBottom: 0,
                         }}
-                        onContextMenu={(e) => {
-                          if (editQuestionField) {
-                            e.preventDefault();
-                            setEditingQuestion({
-                              showQuestionId: q["Show Question ID"],
-                              questionText: q["Question text"] || "",
-                              questionNotes: q["Question notes"] || "",
-                              questionPronunciationGuideronunciationGuide:
-                                q["Question pronunciation guide"] || "",
-                              answer: q["Answer"] || "",
-                            });
-                          }
-                        }}
-                        onClick={(e) => {
-                          if (editQuestionField && (e.ctrlKey || e.metaKey)) {
-                            e.preventDefault();
-                            setEditingQuestion({
-                              showQuestionId: q["Show Question ID"],
-                              questionText: q["Question text"] || "",
-                              questionNotes: q["Question notes"] || "",
-                              questionPronunciationGuide:
-                                q["Question pronunciation guide"] || "",
-                              answer: q["Answer"] || "",
-                            });
-                          }
-                        }}
                       >
                         <strong>
                           {isTB(q) ? (
@@ -1063,7 +1123,7 @@ export default function ShowMode({
                             <>Question {q["Question order"]}:</>
                           )}
                         </strong>
-                        {sendToDisplay && (
+                        {sendToDisplay && displayControlsOpen && (
                           <Button
                             onClick={() => {
                               // Never automatically push images - user must explicitly use "Push image to display"
@@ -1085,34 +1145,58 @@ export default function ShowMode({
                             Push to display
                           </Button>
                         )}
-                        {q._edited && (
-                          <span
-                            style={{
-                              marginLeft: ".4rem",
-                              fontSize: ".75rem",
-                              fontWeight: 600,
-                              color: theme.accent,
-                              opacity: 0.8,
-                            }}
-                            title="This question has been edited by the host"
-                          >
-                            ✏️ edited
-                          </span>
-                        )}
                         <br />
                         <div
                           style={{
                             display: "block",
                             paddingLeft: "1.5rem",
                             paddingTop: "0.25rem",
-                            cursor: editQuestionField ? "pointer" : "default",
+                            position: "relative",
                           }}
-                          title={
-                            editQuestionField
-                              ? "Right-click or Ctrl+Click to edit"
-                              : ""
-                          }
                         >
+                          {editQuestionField && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingQuestion({
+                                  showQuestionId: q["Show Question ID"],
+                                  questionText: q["Question text"] || "",
+                                  questionNotes: q["Question notes"] || "",
+                                  questionPronunciationGuide:
+                                    q["Question pronunciation guide"] || "",
+                                  answer: q["Answer"] || "",
+                                });
+                              }}
+                              style={{
+                                position: "absolute",
+                                left: "0.1rem",
+                                top: "0.3rem",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: "0",
+                                fontSize: "0.9rem",
+                                color: q._edited ? theme.accent : "#8B9DC3",
+                                opacity: q._edited ? 1 : 0.4,
+                                transition: "opacity 0.2s, color 0.2s",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.opacity = "1";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.opacity = q._edited
+                                  ? "1"
+                                  : "0.7";
+                              }}
+                              title={
+                                q._edited
+                                  ? "Edit this question (edited)"
+                                  : "Edit this question"
+                              }
+                            >
+                              ✏️
+                            </button>
+                          )}
                           <span
                             dangerouslySetInnerHTML={{
                               __html: marked.parseInline(
@@ -1135,38 +1219,6 @@ export default function ShowMode({
                             paddingTop: "0.25rem",
                             marginTop: 0,
                             marginBottom: "0.01rem",
-                            cursor: editQuestionField ? "pointer" : "default",
-                          }}
-                          title={
-                            editQuestionField
-                              ? "Right-click or Ctrl+Click to edit"
-                              : ""
-                          }
-                          onContextMenu={(e) => {
-                            if (editQuestionField) {
-                              e.preventDefault();
-                              setEditingQuestion({
-                                showQuestionId: q["Show Question ID"],
-                                questionText: q["Question text"] || "",
-                                questionNotes: q["Question notes"] || "",
-                                questionPronunciationGuide:
-                                  q["Question pronunciation guide"] || "",
-                                answer: q["Answer"] || "",
-                              });
-                            }
-                          }}
-                          onClick={(e) => {
-                            if (editQuestionField && (e.ctrlKey || e.metaKey)) {
-                              e.preventDefault();
-                              setEditingQuestion({
-                                showQuestionId: q["Show Question ID"],
-                                questionText: q["Question text"] || "",
-                                questionNotes: q["Question notes"] || "",
-                                questionPronunciationGuide:
-                                  q["Question pronunciation guide"] || "",
-                                answer: q["Answer"] || "",
-                              });
-                            }
                           }}
                         >
                           <span
@@ -1192,41 +1244,6 @@ export default function ShowMode({
                               paddingTop: "0.25rem",
                               marginTop: 0,
                               marginBottom: "0.01rem",
-                              cursor: editQuestionField ? "pointer" : "default",
-                            }}
-                            title={
-                              editQuestionField
-                                ? "Right-click or Ctrl+Click to edit"
-                                : ""
-                            }
-                            onContextMenu={(e) => {
-                              if (editQuestionField) {
-                                e.preventDefault();
-                                setEditingQuestion({
-                                  showQuestionId: q["Show Question ID"],
-                                  questionText: q["Question text"] || "",
-                                  questionNotes: q["Question notes"] || "",
-                                  questionPronunciationGuide:
-                                    q["Question pronunciation guide"] || "",
-                                  answer: q["Answer"] || "",
-                                });
-                              }
-                            }}
-                            onClick={(e) => {
-                              if (
-                                editQuestionField &&
-                                (e.ctrlKey || e.metaKey)
-                              ) {
-                                e.preventDefault();
-                                setEditingQuestion({
-                                  showQuestionId: q["Show Question ID"],
-                                  questionText: q["Question text"] || "",
-                                  questionNotes: q["Question notes"] || "",
-                                  questionPronunciationGuide:
-                                    q["Question pronunciation guide"] || "",
-                                  answer: q["Answer"] || "",
-                                });
-                              }
                             }}
                           >
                             <span
@@ -1260,7 +1277,7 @@ export default function ShowMode({
                           >
                             Show image
                           </Button>
-                          {sendToDisplay && (
+                          {sendToDisplay && displayControlsOpen && (
                             <>
                               <Button
                                 onClick={() => {
@@ -1285,19 +1302,39 @@ export default function ShowMode({
                                   marginBottom: "0.25rem",
                                   marginLeft: "0.5rem",
                                 }}
-                                title={imageOverlayActive ? "Close image on display" : "Push image to display"}
+                                title={
+                                  imageOverlayActive
+                                    ? "Close image on display"
+                                    : "Push image to display"
+                                }
                               >
-                                {imageOverlayActive ? "Close image" : "Push image to display"}
+                                {imageOverlayActive
+                                  ? "Close image"
+                                  : "Push image to display"}
                               </Button>
                               {imageOverlayActive && q.Images.length > 1 && (
-                                <div style={{ display: "inline-block", marginLeft: "0.5rem" }}>
+                                <div
+                                  style={{
+                                    display: "inline-block",
+                                    marginLeft: "0.5rem",
+                                  }}
+                                >
                                   <button
                                     onClick={() => {
-                                      const currentIdx = currentImageIndex[q["Question ID"]] || 0;
-                                      const newIdx = (currentIdx - 1 + q.Images.length) % q.Images.length;
-                                      setCurrentImageIndex({ ...currentImageIndex, [q["Question ID"]]: newIdx });
+                                      const currentIdx =
+                                        currentImageIndex[q["Question ID"]] ||
+                                        0;
+                                      const newIdx =
+                                        (currentIdx - 1 + q.Images.length) %
+                                        q.Images.length;
+                                      setCurrentImageIndex({
+                                        ...currentImageIndex,
+                                        [q["Question ID"]]: newIdx,
+                                      });
                                       sendToDisplay("imageOverlay", {
-                                        images: q.Images.map((img) => ({ url: img.url })),
+                                        images: q.Images.map((img) => ({
+                                          url: img.url,
+                                        })),
                                         currentIndex: newIdx,
                                       });
                                     }}
@@ -1314,11 +1351,19 @@ export default function ShowMode({
                                   </button>
                                   <button
                                     onClick={() => {
-                                      const currentIdx = currentImageIndex[q["Question ID"]] || 0;
-                                      const newIdx = (currentIdx + 1) % q.Images.length;
-                                      setCurrentImageIndex({ ...currentImageIndex, [q["Question ID"]]: newIdx });
+                                      const currentIdx =
+                                        currentImageIndex[q["Question ID"]] ||
+                                        0;
+                                      const newIdx =
+                                        (currentIdx + 1) % q.Images.length;
+                                      setCurrentImageIndex({
+                                        ...currentImageIndex,
+                                        [q["Question ID"]]: newIdx,
+                                      });
                                       sendToDisplay("imageOverlay", {
-                                        images: q.Images.map((img) => ({ url: img.url })),
+                                        images: q.Images.map((img) => ({
+                                          url: img.url,
+                                        })),
                                         currentIndex: newIdx,
                                       });
                                     }}
@@ -1482,38 +1527,6 @@ export default function ShowMode({
                             marginBottom: "1rem",
                             marginLeft: "1.5rem",
                             marginRight: "1.5rem",
-                            cursor: editQuestionField ? "pointer" : "default",
-                          }}
-                          title={
-                            editQuestionField
-                              ? "Right-click or Ctrl+Click to edit"
-                              : ""
-                          }
-                          onContextMenu={(e) => {
-                            if (editQuestionField) {
-                              e.preventDefault();
-                              setEditingQuestion({
-                                showQuestionId: q["Show Question ID"],
-                                questionText: q["Question text"] || "",
-                                questionNotes: q["Question notes"] || "",
-                                questionPronunciationGuide:
-                                  q["Question pronunciation guide"] || "",
-                                answer: q["Answer"] || "",
-                              });
-                            }
-                          }}
-                          onClick={(e) => {
-                            if (editQuestionField && (e.ctrlKey || e.metaKey)) {
-                              e.preventDefault();
-                              setEditingQuestion({
-                                showQuestionId: q["Show Question ID"],
-                                questionText: q["Question text"] || "",
-                                questionNotes: q["Question notes"] || "",
-                                questionPronunciationGuide:
-                                  q["Question pronunciation guide"] || "",
-                                answer: q["Answer"] || "",
-                              });
-                            }
                           }}
                         >
                           <span
@@ -1524,6 +1537,7 @@ export default function ShowMode({
                             }}
                           />
                           {sendToDisplay &&
+                            displayControlsOpen &&
                             (() => {
                               // Calculate stats for this question (same logic as STATS PILL below)
                               const m = /^(\d+)/.exec(String(categoryId));
@@ -1535,7 +1549,10 @@ export default function ShowMode({
 
                               // Calculate points for pooled scoring modes
                               const qPointsPerTeam = qStats
-                                ? calculatePointsPerTeam(qStats.correctCount, qStats.activeTeamCount)
+                                ? calculatePointsPerTeam(
+                                    qStats.correctCount,
+                                    qStats.activeTeamCount
+                                  )
                                 : null;
 
                               return (
@@ -1627,7 +1644,10 @@ export default function ShowMode({
 
                         // Calculate points for pooled scoring modes (not pub)
                         const qPointsPerTeam = qStats
-                          ? calculatePointsPerTeam(qStats.correctCount, qStats.activeTeamCount)
+                          ? calculatePointsPerTeam(
+                              qStats.correctCount,
+                              qStats.activeTeamCount
+                            )
                           : null;
 
                         const isTiebreaker =

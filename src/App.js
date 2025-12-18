@@ -79,6 +79,7 @@ export default function App() {
   const [activeMode, setActiveMode] = useState("show");
   const [currentImageIndex, setCurrentImageIndex] = useState({});
   const timerRef = useRef(null);
+  const displayControlsRef = useRef(null);
   const [rtStatus, setRtStatus] = useState("INIT"); // ✅ moved inside
 
   // Bundle (rounds+questions+teams)
@@ -140,6 +141,7 @@ export default function App() {
 
   // Display controls state
   const [displayControlsOpen, setDisplayControlsOpen] = useState(false);
+  const [displayControlsPosition, setDisplayControlsPosition] = useState({ x: 0, y: 0 });
   const [displayPreviewOpen, setDisplayPreviewOpen] = useState(false);
   const [displayFontSize, setDisplayFontSize] = useState(100);
   const [customMessages, setCustomMessages] = useState(["", "", ""]);
@@ -274,6 +276,16 @@ export default function App() {
     );
     return () => clearTimeout(t);
   }, [timerRunning, timeLeft, timerDuration]);
+
+  // Restore display controls position from localStorage
+  useEffect(() => {
+    const savedPosition = localStorage.getItem("displayControlsPosition");
+    if (savedPosition) {
+      try {
+        setDisplayControlsPosition(JSON.parse(savedPosition));
+      } catch {}
+    }
+  }, []);
 
   const handleStartPause = () => setTimerRunning((p) => !p);
   const handleReset = () => {
@@ -1401,6 +1413,7 @@ export default function App() {
           showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
           showTimer={showTimer}
           setShowTimer={setShowTimer}
+          setTimerPosition={setTimerPosition}
           showDetails={showDetails}
           setShowDetails={setshowDetails}
           timerDuration={timerDuration}
@@ -1414,6 +1427,7 @@ export default function App() {
           setHostInfo={(val) => patchShared({ hostInfo: val })}
           displayControlsOpen={displayControlsOpen}
           setDisplayControlsOpen={setDisplayControlsOpen}
+          setDisplayControlsPosition={setDisplayControlsPosition}
           setShowAnswerKey={setShowAnswerKey}
           refreshBundle={refreshBundle}
           scoringMode={scoringMode}
@@ -1452,21 +1466,39 @@ export default function App() {
         <div
           style={{
             position: "fixed",
-            right: "1rem",
-            top: "1rem",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
             zIndex: 1000,
-            pointerEvents: "auto",
-            display: "flex",
-            flexDirection: "column",
-            gap: ".5rem",
-            maxWidth: "200px",
-            backgroundColor: "#fff",
-            padding: "1rem",
-            borderRadius: "8px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-            border: `2px solid ${colors.accent}`,
           }}
         >
+          <Draggable
+            nodeRef={displayControlsRef}
+            position={displayControlsPosition}
+            onStop={(e, data) => {
+              const newPos = { x: data.x, y: data.y };
+              setDisplayControlsPosition(newPos);
+              localStorage.setItem("displayControlsPosition", JSON.stringify(newPos));
+            }}
+          >
+            <div
+              ref={displayControlsRef}
+              style={{
+                position: "absolute",
+                pointerEvents: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: ".5rem",
+                maxWidth: "200px",
+                backgroundColor: "#fff",
+                padding: "1rem",
+                borderRadius: "8px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                border: `2px solid ${colors.accent}`,
+              }}
+            >
           <div
             style={{
               fontSize: "1rem",
@@ -1505,6 +1537,7 @@ export default function App() {
 
           <Button
             onClick={() => {
+              sendToDisplay("closeImageOverlay", null);
               sendToDisplay("standby", null);
             }}
             title="Clear the display (standby screen)"
@@ -1608,6 +1641,8 @@ export default function App() {
               </div>
             ))}
           </div>
+            </div>
+          </Draggable>
         </div>
       )}
 
@@ -1922,6 +1957,7 @@ export default function App() {
             setPrizes={(val) => patchShared({ prizes: String(val || "") })}
             setHostInfo={(val) => patchShared({ hostInfo: val })}
             editQuestionField={editQuestionField}
+            displayControlsOpen={displayControlsOpen}
             addTiebreaker={addTiebreaker}
             scriptOpen={scriptOpen}
             setScriptOpen={setScriptOpen}
@@ -2028,6 +2064,7 @@ export default function App() {
             setPrizes={(val) => patchShared({ prizes: String(val || "") })}
             questionEdits={questionEdits[selectedShowId] ?? {}}
             sendToDisplay={sendToDisplay}
+            displayControlsOpen={displayControlsOpen}
           />
         )}
 
@@ -2153,7 +2190,7 @@ export default function App() {
           >
             <Draggable
               nodeRef={timerRef}
-              defaultPosition={timerPosition}
+              position={timerPosition}
               onStop={(e, data) => {
                 const newPos = { x: data.x, y: data.y };
                 setTimerPosition(newPos);

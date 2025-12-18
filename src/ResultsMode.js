@@ -39,6 +39,7 @@ export default function ResultsMode({
   prizes: prizesString = "", // NEW: prizes from shared state (newline-separated string)
   questionEdits = {}, // { [showQuestionId]: { question?, notes?, pronunciationGuide?, answer? } }
   sendToDisplay, // Function to send content to display mode
+  displayControlsOpen = false,
 }) {
   // New architecture is ALWAYS cumulative (all data in one flat structure)
   const usingCumulative = true;
@@ -1504,7 +1505,7 @@ export default function ResultsMode({
                       Tiebreaker
                     </th>
                   )}
-                  {sendToDisplay && (
+                  {sendToDisplay && displayControlsOpen && (
                     <th
                       style={{
                         padding: tokens.spacing.sm,
@@ -1661,7 +1662,7 @@ export default function ResultsMode({
                         )}
 
                         {/* Display push buttons column */}
-                        {sendToDisplay && (
+                        {sendToDisplay && displayControlsOpen && (
                           <td
                             style={{
                               padding: tokens.spacing.sm,
