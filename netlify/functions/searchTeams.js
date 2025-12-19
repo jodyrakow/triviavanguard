@@ -56,7 +56,7 @@ export async function handler(event) {
 
     // ---- INPUT ----
     const q = (event.queryStringParameters?.q || "").trim();
-    if (q.length < 2) {
+    if (q.length < 3) {
       return {
         statusCode: 200,
         headers: {
@@ -70,16 +70,19 @@ export async function handler(event) {
     // Normalize query: lowercase and remove leading "the " if present
     const normalizedQuery = q.toLowerCase().replace(/^the\s+/, '');
 
-    // 1) Exact match search (case-insensitive, with optional "the" prefix)
-    //    Formula: normalize team name by removing leading "the ", then compare exactly
+    // 1) Prefix match search (case-insensitive, with optional "the" prefix)
+    //    Formula: normalize team name by removing leading "the ", then check if it starts with query
     const exactFilter = `
-      LOWER(
-        IF(
-          FIND('the ', LOWER(ARRAYJOIN({Team name}))) = 1,
-          MID(ARRAYJOIN({Team name}), 5, LEN(ARRAYJOIN({Team name}))),
-          ARRAYJOIN({Team name})
+      FIND(
+        '${esc(normalizedQuery)}',
+        LOWER(
+          IF(
+            FIND('the ', LOWER(ARRAYJOIN({Team name}))) = 1,
+            MID(ARRAYJOIN({Team name}), 5, LEN(ARRAYJOIN({Team name}))),
+            ARRAYJOIN({Team name})
+          )
         )
-      ) = '${esc(normalizedQuery)}'
+      ) = 1
     `;
     const initial = await fetchPage("ShowTeams", {
       filterByFormula: exactFilter,

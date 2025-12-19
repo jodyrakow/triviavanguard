@@ -954,13 +954,13 @@ export default function App() {
             );
             const mode = config.scoringMode
               .toLowerCase()
-              .replace(/\s*\(.*?\)\s*/g, "");
+              .replace(/[\s()]/g, ""); // Remove spaces and parentheses but keep all words
             if (mode === "pub") {
               setScoringMode("pub");
+            } else if (mode === "pooledadaptive" || mode === "adaptive") {
+              setScoringMode("pooled-adaptive");
             } else if (mode === "pooled" || mode === "pooledstatic") {
               setScoringMode("pooled");
-            } else if (mode === "adaptive" || mode === "pooledadaptive") {
-              setScoringMode("pooled-adaptive");
             }
           }
 

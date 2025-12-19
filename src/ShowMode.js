@@ -495,9 +495,10 @@ export default function ShowMode({
       for (const cat of r?.categories || []) {
         for (const q of cat?.questions || []) {
           const typ = String(
-            q?.questionType || q?.["Question type"] || ""
+            q?.questionType || q?.["Question type"] || cat?.questionType || ""
           ).toLowerCase();
-          if (typ.includes("tiebreaker")) continue;
+          const order = String(q?.questionOrder || "").toUpperCase();
+          if (typ.includes("tiebreaker") || order === "TB") continue;
           count += 1;
         }
       }
@@ -596,8 +597,9 @@ export default function ShowMode({
       text += `\n${hostInfo.announcements.trim()}\n`;
     }
 
-    // --- Multi-game intro (only for multiple games) ---
-    if (isMultiGame) {
+    // --- Multi-game intro (only for multiple games AND only for the first game) ---
+    const isFirstGame = multiGameMeta.gameIndex === 1 || multiGameMeta.gameIndex === null;
+    if (isMultiGame && isFirstGame) {
       const time1 = startTimes[0] || "[TIME1]";
       const time2 = startTimes[1] || "[TIME2]";
 
@@ -609,6 +611,21 @@ export default function ShowMode({
       text += `\nWe'll be asking you ${X} questions in each game ${timeOfDay}.\n`;
     } else {
       text += `\nWe'll be asking you ${X} questions ${timeOfDay}.\n`;
+    }
+
+    // --- Scoring explanation (based on scoring mode) ---
+    if (scoringMode === "pub") {
+      const perQuestion = Number.isFinite(pubPoints) ? pubPoints : 10;
+      const totalPossible = X * perQuestion;
+      text += `\nEach question is worth ${perQuestion} point${perQuestion === 1 ? "" : "s"}, for a total of ${totalPossible} possible points${isMultiGame ? " in each game" : ""}.\n`;
+    } else if (scoringMode === "pooled") {
+      // Pooled static
+      const poolSize = Number.isFinite(poolPerQuestion) ? poolPerQuestion : 150;
+      text += `\nEach question ${timeOfDay} has a point pool of ${poolSize} points that will be divided up evenly among the teams that answer it correctly; in other words, you'll be rewarded if you know stuff that nobody else knows.\n`;
+    } else if (scoringMode === "pooled-adaptive") {
+      // Pooled adaptive
+      const contribution = Number.isFinite(poolContribution) ? poolContribution : 10;
+      text += `\nEach question ${timeOfDay} has a point pool that contains ${contribution} point${contribution === 1 ? "" : "s"} for each team that is playing the game. The pool for each question will be divided up evenly among the teams that answer it correctly; in other words, you'll be rewarded if you know stuff that nobody else knows.\n`;
     }
 
     // --- Prizes ---
@@ -641,12 +658,17 @@ export default function ShowMode({
     hostInfo.startTimesText,
     hostInfo.announcements,
     multiGameMeta.venue,
+    multiGameMeta.gameIndex,
     showBundle?.config?.location,
     showBundle?.config?.hostName,
     showBundle?.config?.cohostName,
     showBundle?.config?.totalGamesThisNight,
     showBundle?.config?.showTemplate,
     showBundle?.config?.allStartTimes,
+    scoringMode,
+    pubPoints,
+    poolPerQuestion,
+    poolContribution,
   ]);
 
   return (
