@@ -1,5 +1,5 @@
 // src/DisplayMode.js
-import React, { useLayoutEffect, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { colors as theme, tokens } from "./styles";
 import triviaVanguardLogo from "./trivia-vanguard-logo-white.png";
 import { marked } from "marked";
@@ -214,7 +214,6 @@ function QuestionDisplay({ content, fontSize = 100 }) {
   const H_QNUM = "11.111vh"; // 75px
   const H_QBOX = "47.222vh"; // 450px
   const H_LINE = "8.333vh"; // 75px
-  const H_BOTTOM = "5.556vh"; // 50px
 
   // Convenience: cumulative tops
 
@@ -225,9 +224,6 @@ function QuestionDisplay({ content, fontSize = 100 }) {
 
   const GAP_AFTER_CAT = "0.75vh"; // ← adjust this number
   const TOP_QNUM = `calc(${H_CAT} + ${GAP_AFTER_CAT})`;
-
-  const showStats =
-    (correctCount != null && totalTeams != null) || pointsPerTeam != null;
 
   return (
     <>

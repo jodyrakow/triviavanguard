@@ -1718,10 +1718,9 @@ export default function ResultsMode({
                                         sendToDisplay("results", {
                                           place: placeStr,
                                           teams: null, // No team names
-                                          prize: null,
                                           isTied: false,
                                           points, // Add points to display
-                                          prize: prizeText,
+                                          prize: prizeText ?? null,
                                         });
                                       }}
                                       style={{
