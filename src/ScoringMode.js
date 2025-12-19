@@ -1162,6 +1162,8 @@ export default function ScoringMode({
               color: "#fff",
               fontFamily: tokens.font.body,
               fontSize: "1rem",
+              marginLeft: "0.5rem",
+              marginTop: "0.25rem",
               marginRight: "1rem",
             }}
           >
