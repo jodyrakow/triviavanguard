@@ -346,7 +346,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
       {images && images.length > 0 && (
         <div
           style={{
-            marginBottom: "1rem", // less extra space under the image
+            marginBottom: "1rem",
             display: "flex",
             justifyContent: "center",
           }}

@@ -46,7 +46,12 @@ const isValidRecordId = (id) => {
 
 async function ensureTeamRecord(team) {
   // team: { teamId|null, teamName }
-  if (team.teamId) return team.teamId;
+  // Only use teamId if it's a valid Airtable record ID
+  if (team.teamId && isValidRecordId(team.teamId)) {
+    return team.teamId;
+  }
+
+  // teamId is missing or invalid - create new team
   const created = await base(TBL_TEAMS).create([
     { fields: { [F_TEAMS_NAME]: team.teamName || "(Unnamed team)" } },
   ]);

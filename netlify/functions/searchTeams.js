@@ -67,11 +67,22 @@ export async function handler(event) {
       };
     }
 
-    // 1) "fuzzy-ish" search within ShowTeams on the lookup field {Team name}
-    //    (case-insensitive substring match)
-    const fuzzyFilter = `SEARCH(LOWER('${esc(q)}'), LOWER(ARRAYJOIN({Team name})))`;
+    // Normalize query: lowercase and remove leading "the " if present
+    const normalizedQuery = q.toLowerCase().replace(/^the\s+/, '');
+
+    // 1) Exact match search (case-insensitive, with optional "the" prefix)
+    //    Formula: normalize team name by removing leading "the ", then compare exactly
+    const exactFilter = `
+      LOWER(
+        IF(
+          FIND('the ', LOWER(ARRAYJOIN({Team name}))) = 1,
+          MID(ARRAYJOIN({Team name}), 5, LEN(ARRAYJOIN({Team name}))),
+          ARRAYJOIN({Team name})
+        )
+      ) = '${esc(normalizedQuery)}'
+    `;
     const initial = await fetchPage("ShowTeams", {
-      filterByFormula: fuzzyFilter,
+      filterByFormula: exactFilter,
       pageSize: 50,
     });
 

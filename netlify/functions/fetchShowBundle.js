@@ -370,7 +370,13 @@ export async function handler(event) {
     const teams = teamRows.map((r) => {
       const f = r.fields || {};
       const teamLinked = Array.isArray(f["Team"]) ? f["Team"][0] : null;
-      const teamIdLookup = f["Team ID"] || null;
+
+      // Extract teamId from array (lookup fields return arrays)
+      const teamIdRaw = f["Team ID"];
+      const teamId = Array.isArray(teamIdRaw) && teamIdRaw.length > 0
+        ? teamIdRaw[0]
+        : teamIdRaw || null;
+
       const showIdArray = f["Show ID"];
       const normalizedShowId =
         Array.isArray(showIdArray) && showIdArray.length > 0
@@ -381,7 +387,7 @@ export async function handler(event) {
         showTeamId: r.id,
         showId: normalizedShowId,
         team: teamLinked || null,
-        teamId: teamIdLookup || null,
+        teamId: teamId,
         teamName: f["Team name"] ?? "(Unnamed team)",
         showBonus: Number(f["Show bonus"] || 0),
         isLeague: !!f["League"],
