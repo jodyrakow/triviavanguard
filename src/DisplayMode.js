@@ -180,6 +180,9 @@ function AutoFitText({ html, maxRem = 2.8, minRem = 1.6, style = {} }) {
         width: "100%",
         height: "100%",
         overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
       <div
