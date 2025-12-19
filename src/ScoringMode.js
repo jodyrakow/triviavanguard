@@ -15,7 +15,6 @@ import {
 } from "./styles/index.js";
 import {
   buildCorrectCountMap,
-  buildAnsweredAllMap,
   computeCellPoints,
   buildTeamTotals,
   computeSolosForRound,
@@ -1106,16 +1105,11 @@ export default function ScoringMode({
   };
 
   // --------- Solos calculation ---------
-  const answeredAllMap = useMemo(() => {
-    return buildAnsweredAllMap(teams, questions, adaptedGrid);
-  }, [teams, questions, adaptedGrid]);
-
   const solosData = useMemo(() => {
     const result = computeSolosForRound(
       teams,
       questions,
-      adaptedGrid,
-      answeredAllMap
+      adaptedGrid
     );
     // Convert to format expected by UI (array of team names, sorted)
     const formatted = {
@@ -1125,12 +1119,11 @@ export default function ScoringMode({
     console.log('[ScoringMode] Solos calculation:', {
       questionCount: questions.length,
       teamCount: teams.length,
-      answeredAllCount: Object.values(answeredAllMap).filter(Boolean).length,
       solosCount: formatted.count,
       soloTeams: formatted.teams,
     });
     return formatted;
-  }, [teams, questions, adaptedGrid, answeredAllMap]);
+  }, [teams, questions, adaptedGrid]);
 
   // ---------------- Render ----------------
 

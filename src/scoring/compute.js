@@ -44,14 +44,11 @@ export function buildCorrectCountMap(teams, questions, grid) {
   return out;
 }
 
-export function buildSoloMap(teams, questions, grid, answeredAllMap) {
+export function buildSoloMap(teams, questions, grid) {
   const out = {};
   for (const q of questions) {
     const sqid = q.showQuestionId;
-    if (!answeredAllMap[sqid]) {
-      out[sqid] = null;
-      continue;
-    }
+    // Count how many teams answered correctly (regardless of whether all teams answered)
     let soloTeamId = null,
       count = 0;
     for (const t of teams) {
@@ -134,11 +131,10 @@ export function buildTeamTotals(
  * @param {Array} teams - teams array
  * @param {Array} questions - questions for the round
  * @param {Object} grid - answer grid
- * @param {Object} answeredAllMap - map of which questions have all teams answered
  * @returns {{ count: number, teams: Array<{showTeamId: string, teamName: string}> }}
  */
-export function computeSolosForRound(teams, questions, grid, answeredAllMap) {
-  const soloMap = buildSoloMap(teams, questions, grid, answeredAllMap);
+export function computeSolosForRound(teams, questions, grid) {
+  const soloMap = buildSoloMap(teams, questions, grid);
 
   let count = 0;
   const soloTeamSet = new Set();
