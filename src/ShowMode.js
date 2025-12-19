@@ -915,40 +915,42 @@ export default function ShowMode({
             )}
 
             {/* Image carousel button */}
-            {imageCarouselArr.length > 0 && sendToDisplay && displayControlsOpen && (
-              <div style={{ marginTop: "0.5rem", marginLeft: "1rem" }}>
-                <Button
-                  onClick={() => {
-                    if (imageOverlayActive) {
-                      sendToDisplay("closeImageOverlay", null);
-                      setImageOverlayActive(false);
-                    } else {
-                      sendToDisplay("imageOverlay", {
-                        images: imageCarouselArr.map((img) => ({
-                          url: img.url,
-                        })),
-                        currentIndex: 0,
-                        autoCycle: true,
-                      });
-                      setImageOverlayActive(true);
+            {imageCarouselArr.length > 0 &&
+              sendToDisplay &&
+              displayControlsOpen && (
+                <div style={{ marginTop: "0.5rem", marginLeft: "1rem" }}>
+                  <Button
+                    onClick={() => {
+                      if (imageOverlayActive) {
+                        sendToDisplay("closeImageOverlay", null);
+                        setImageOverlayActive(false);
+                      } else {
+                        sendToDisplay("imageOverlay", {
+                          images: imageCarouselArr.map((img) => ({
+                            url: img.url,
+                          })),
+                          currentIndex: 0,
+                          autoCycle: true,
+                        });
+                        setImageOverlayActive(true);
+                      }
+                    }}
+                    style={{
+                      fontSize: tokens.font.size,
+                      fontFamily: tokens.font.body,
+                    }}
+                    title={
+                      imageOverlayActive
+                        ? "Close image carousel on display"
+                        : "Push image carousel to display (auto-cycles every 10 seconds)"
                     }
-                  }}
-                  style={{
-                    fontSize: tokens.font.size,
-                    fontFamily: tokens.font.body,
-                  }}
-                  title={
-                    imageOverlayActive
-                      ? "Close image carousel on display"
-                      : "Push image carousel to display (auto-cycles every 10 seconds)"
-                  }
-                >
-                  {imageOverlayActive
-                    ? "Close image carousel"
-                    : "Push image carousel to display"}
-                </Button>
-              </div>
-            )}
+                  >
+                    {imageOverlayActive
+                      ? "Close image carousel"
+                      : "Push image carousel to display"}
+                  </Button>
+                </div>
+              )}
 
             {/* Category audio (optional) */}
             {catAudioArr.length > 0 && (
@@ -1578,10 +1580,7 @@ export default function ShowMode({
                                         "[ShowMode] Push answer - sending:",
                                         payload
                                       );
-                                      sendToDisplay(
-                                        "questionWithAnswer",
-                                        payload
-                                      );
+                                      sendToDisplay("question", payload);
                                     }}
                                     style={{
                                       marginLeft: ".5rem",
@@ -1611,10 +1610,7 @@ export default function ShowMode({
                                         "[ShowMode] Push stats - sending:",
                                         payload
                                       );
-                                      sendToDisplay(
-                                        "questionWithAnswer",
-                                        payload
-                                      );
+                                      sendToDisplay("question", payload);
                                     }}
                                     style={{
                                       marginLeft: ".5rem",

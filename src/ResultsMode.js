@@ -1721,6 +1721,7 @@ export default function ResultsMode({
                                           prize: null,
                                           isTied: false,
                                           points, // Add points to display
+                                          prize: prizeText,
                                         });
                                       }}
                                       style={{
