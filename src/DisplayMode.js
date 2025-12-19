@@ -664,7 +664,13 @@ function ResultsDisplay({ content, fontSize = 100 }) {
             boxSizing: "border-box",
           }}
         >
-          <div style={{ width: "90vw", height: "100%" }}>
+          <div style={{
+            width: "90vw",
+            height: "100%",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}>
             <AutoFitText
               html={teamsHtml}
               maxRem={5.2 * scale}
