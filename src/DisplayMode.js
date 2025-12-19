@@ -569,7 +569,6 @@ function ResultsDisplay({ content, fontSize = 100 }) {
   const H_POINTS = "12vh"; // points line
   const H_TEAMS = "48vh"; // big teams box (auto-fit)
   const H_PRIZE = "14vh"; // prize line
-  const H_BOTTOM = "8vh"; // breathing room
 
   const TOP_PLACE = `calc(${H_TOP})`;
   const TOP_POINTS = `calc(${H_TOP} + ${H_PLACE})`;
