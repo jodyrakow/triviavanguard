@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Scores by Show</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 14px;
+        }
+        th {
+            background: #4CAF50;
+            color: white;
+            font-weight: 600;
+            padding: 12px 8px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        th.team-col {
+            min-width: 140px;
+        }
+        td {
+            padding: 10px 8px;
+            text-align: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        td.date-col {
+            font-weight: 600;
+            background: #f8f8f8;
+            text-align: left;
+            padding-left: 12px;
+        }
+        td.showid-col {
+            font-size: 11px;
+            color: #666;
+            text-align: left;
+        }
+        tr:hover {
+            background: #f5f5f5;
+        }
+        .score {
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .score.high {
+            background: #4CAF50;
+            color: white;
+        }
+        .score.low {
+            background: #F44336;
+            color: white;
+        }
+        .score.missing {
+            color: #999;
+        }
+        .legend {
+            text-align: center;
+            margin: 20px 0;
+            color: #666;
+            font-size: 13px;
+        }
+        .legend span {
+            margin: 0 15px;
+        }
+        .stats-summary {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stats-summary h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4CAF50;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Team Scores by Show</h1>
+    <p class="subtitle">October - December 2025 (18 shows, excluding November 28)</p>
+
+    <div class="stats-summary">
+        <h3>Summary Statistics</h3>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value">18</div>
+                <div class="stat-label">Total Shows</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">7</div>
+                <div class="stat-label">Teams Tracked</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">16</div>
+                <div class="stat-label">Shows per Team</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">703</div>
+                <div class="stat-label">Highest Score</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">105</div>
+                <div class="stat-label">Lowest Score</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="legend">
+        <span><span class="score high">Green</span> = Highest score for that show</span>
+        <span><span class="score low">Red</span> = Lowest score for that show</span>
+        <span><span class="score missing">-</span> = No data</span>
+    </div>
+
+    <table id="scoresTable">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Show ID</th>
+                <th class="team-col">Artful Codgers</th>
+                <th class="team-col">The Leftovers</th>
+                <th class="team-col">Shortbus</th>
+                <th class="team-col">We Will School You</th>
+                <th class="team-col">Jeopardy Rejects</th>
+                <th class="team-col">Space Mountain</th>
+                <th class="team-col">Triviots</th>
+            </tr>
+        </thead>
+        <tbody id="scoresBody">
+        </tbody>
+    </table>
+
+    <script>
+        const data = [
+            ['2025-10-03','rec8YMRvwPh7S1wSC',438,336,226,386,637,395,137],
+            ['2025-10-03','reczwxHSA7vdki1GS',224,168,105,160,227,137,113],
+            ['2025-10-10','rec77iOrjAs4PTyAP',424,308,358,334,294,383,260],
+            ['2025-10-10','recXTQTpA9ci5N8Gd',465,423,503,508,434,585,344],
+            ['2025-10-17','recIO1y5uPmNofrBf',541,584,324,591,479,467,274],
+            ['2025-10-17','recnDymnQAko2qQKT',null,null,null,null,null,null,null],
+            ['2025-10-24','recJFUX8QFSZf62Ro',318,382,340,287,421,384,276],
+            ['2025-10-24','recrMACfmWG7gqOBD',241,286,286,361,452,479,222],
+            ['2025-11-07','recFZOmryydr7Z5Cg',376,354,304,375,393,390,122],
+            ['2025-11-07','recQvSHw1j45D60uu',null,null,null,null,null,null,null],
+            ['2025-11-15','recG5PTnC30R8LNcr',345,357,424,532,489,481,219],
+            ['2025-11-15','recfCrRrk8n2sNnFs',468,422,360,508,617,703,169],
+            ['2025-11-21','recDBH9a3oL0mFLpf',210,270,250,270,270,270,140],
+            ['2025-11-21','recNDIB0Rt3oBOjPp',220,280,300,300,280,270,170],
+            ['2025-12-05','recGhDR7ivfj5ArEY',425,428,404,517,546,410,253],
+            ['2025-12-05','recbE4mTjJYIZIhAk',442,374,354,371,379,404,197],
+            ['2025-12-12','rec9Lk7Oy2G0zKk5C',289,335,494,475,425,334,200],
+            ['2025-12-12','recynezay65GOYXqk',250,220,240,270,240,260,180],
+        ];
+
+        const tbody = document.getElementById('scoresBody');
+
+        data.forEach(row => {
+            const tr = document.createElement('tr');
+            const [date, showId, ...scores] = row;
+
+            // Date cell
+            const dateCell = document.createElement('td');
+            dateCell.className = 'date-col';
+            dateCell.textContent = date;
+            tr.appendChild(dateCell);
+
+            // Show ID cell
+            const showIdCell = document.createElement('td');
+            showIdCell.className = 'showid-col';
+            showIdCell.textContent = showId.substring(0, 10) + '...';
+            showIdCell.title = showId;
+            tr.appendChild(showIdCell);
+
+            // If all scores are null, it's a missing show
+            const hasData = scores.some(s => s !== null);
+
+            if (hasData) {
+                // Find max and min for highlighting
+                const validScores = scores.filter(s => s !== null);
+                const maxScore = Math.max(...validScores);
+                const minScore = Math.min(...validScores);
+
+                // Score cells
+                scores.forEach(score => {
+                    const cell = document.createElement('td');
+                    if (score === null) {
+                        const span = document.createElement('span');
+                        span.className = 'score missing';
+                        span.textContent = '-';
+                        cell.appendChild(span);
+                    } else {
+                        const span = document.createElement('span');
+                        span.className = 'score';
+                        if (score === maxScore) {
+                            span.classList.add('high');
+                        } else if (score === minScore) {
+                            span.classList.add('low');
+                        }
+                        span.textContent = score;
+                        cell.appendChild(span);
+                    }
+                    tr.appendChild(cell);
+                });
+            } else {
+                // Missing show - all dashes
+                scores.forEach(() => {
+                    const cell = document.createElement('td');
+                    const span = document.createElement('span');
+                    span.className = 'score missing';
+                    span.textContent = '-';
+                    cell.appendChild(span);
+                    tr.appendChild(cell);
+                });
+            }
+
+            tbody.appendChild(tr);
+        });
+    </script>
+</body>
+</html>

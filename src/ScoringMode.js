@@ -1118,10 +1118,18 @@ export default function ScoringMode({
       answeredAllMap
     );
     // Convert to format expected by UI (array of team names, sorted)
-    return {
+    const formatted = {
       count: result.count,
       teams: result.teams.map((t) => t.teamName).sort(),
     };
+    console.log('[ScoringMode] Solos calculation:', {
+      questionCount: questions.length,
+      teamCount: teams.length,
+      answeredAllCount: Object.values(answeredAllMap).filter(Boolean).length,
+      solosCount: formatted.count,
+      soloTeams: formatted.teams,
+    });
+    return formatted;
   }, [teams, questions, adaptedGrid, answeredAllMap]);
 
   // ---------------- Render ----------------
