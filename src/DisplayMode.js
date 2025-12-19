@@ -1,7 +1,7 @@
 // src/DisplayMode.js
 import React, { useState, useEffect } from "react";
 import { colors as theme, tokens } from "./styles";
-import triviaVanguardLogo from "./trivia-vanguard-logo-white.png";
+import triviaVanguardLogo from "./trivia-vanguard-logo-white.svg";
 import { marked } from "marked";
 
 export default function DisplayMode() {
