@@ -4,7 +4,7 @@ import axios from "axios";
 import "./App.css";
 import "react-h5-audio-player/lib/styles.css";
 import Draggable from "react-draggable";
-import ShowMode from "./ShowMode";
+import QuestionsMode from "./QuestionsMode";
 import ScoringMode from "./ScoringMode";
 import ResultsMode from "./ResultsMode";
 import Sidebar from "./Sidebar";
@@ -1953,7 +1953,7 @@ export default function App() {
         )}
 
         {activeMode === "show" && (
-          <ShowMode
+          <QuestionsMode
             showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
             selectedRoundId={selectedRoundId}
             showDetails={showDetails}

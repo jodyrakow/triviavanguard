@@ -1,4 +1,4 @@
-// src/ShowMode.js
+// src/QuestionsMode.js
 import React, { useMemo } from "react";
 import AudioPlayer from "react-h5-audio-player";
 import { marked } from "marked";
@@ -12,7 +12,7 @@ import {
 } from "./styles";
 import { buildCorrectCountMap, computeAutoEarned } from "./scoring/compute.js";
 
-export default function ShowMode({
+export default function QuestionsMode({
   showBundle = { rounds: [], teams: [] },
   selectedRoundId,
   groupedQuestions: groupedQuestionsProp,
@@ -1585,7 +1585,7 @@ export default function ShowMode({
                                     onClick={() => {
                                       // Push answer only (no stats) - explicitly set stats to undefined to clear any old values
                                       console.log(
-                                        "[ShowMode] Question object:",
+                                        "[QuestionsMode] Question object:",
                                         q
                                       );
                                       const payload = {
@@ -1599,7 +1599,7 @@ export default function ShowMode({
                                         totalTeams: null,
                                       };
                                       console.log(
-                                        "[ShowMode] Push answer - sending:",
+                                        "[QuestionsMode] Push answer - sending:",
                                         payload
                                       );
                                       sendToDisplay("question", payload);
@@ -1629,7 +1629,7 @@ export default function ShowMode({
                                         totalTeams: qStats?.totalTeams ?? null,
                                       };
                                       console.log(
-                                        "[ShowMode] Push stats - sending:",
+                                        "[QuestionsMode] Push stats - sending:",
                                         payload
                                       );
                                       sendToDisplay("question", payload);
