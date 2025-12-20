@@ -52,8 +52,8 @@ export default function DisplayMode() {
         alt="Trivia Vanguard"
         style={{
           position: "absolute",
-          top: "1vh",
-          right: "2vh",
+          top: "3vh",
+          right: "4vh",
           height: "8vh",
           zIndex: 100,
         }}
@@ -114,24 +114,42 @@ function CategoryDisplay({ content, fontSize = 100 }) {
   const scale = fontSize / 100;
 
   return (
-    <>
-      {/* Category name - large, uppercase, same style as question display but bigger */}
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center", // horizontal centering
+        textAlign: "center",
+
+        padding: "0 6vw",
+      }}
+    >
+      {/* Spacer to push content down ~1/4–1/3 of screen */}
+      <div style={{ height: "28vh" }} />
+
+      {/* Category name */}
       {categoryName && (
         <div
           style={{
             fontSize: `${5 * scale}rem`,
             fontWeight: 700,
             color: theme.accent,
-
             textTransform: "uppercase",
-            letterSpacing: "0.025rem",
+            letterSpacing: "0.05em",
+            marginBottom: "2vh",
           }}
         >
           {categoryName}
         </div>
       )}
 
-      {/* Category description - italic serif font for contrast */}
+      {/* Category description */}
       {categoryDescription && (
         <div
           style={{
@@ -140,15 +158,14 @@ function CategoryDisplay({ content, fontSize = 100 }) {
             fontStyle: "italic",
             lineHeight: 1.5,
             color: theme.dark,
-            maxWidth: "900px",
-            margin: "0 auto",
+            maxWidth: "60vw",
           }}
           dangerouslySetInnerHTML={{
             __html: marked.parseInline(categoryDescription || ""),
           }}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -213,7 +230,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
   const scale = fontSize / 100;
 
   // 16:9 grid (based on 900px tall mock)
-  const H_CAT = "11.111vh"; // 100px
+  const H_CAT = "13.888vh"; // 125px
   const H_QNUM = "11.111vh"; // 75px
   const H_QBOX = "47.222vh"; // 450px
   const H_LINE = "8.333vh"; // 75px
@@ -667,13 +684,15 @@ function ResultsDisplay({ content, fontSize = 100 }) {
             boxSizing: "border-box",
           }}
         >
-          <div style={{
-            width: "90vw",
-            height: "100%",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}>
+          <div
+            style={{
+              width: "90vw",
+              height: "100%",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
             <AutoFitText
               html={teamsHtml}
               maxRem={5.2 * scale}
