@@ -141,7 +141,10 @@ export default function App() {
 
   // Display controls state
   const [displayControlsOpen, setDisplayControlsOpen] = useState(false);
-  const [displayControlsPosition, setDisplayControlsPosition] = useState({ x: 0, y: 0 });
+  const [displayControlsPosition, setDisplayControlsPosition] = useState({
+    x: 0,
+    y: 0,
+  });
   const [displayPreviewOpen, setDisplayPreviewOpen] = useState(false);
   const [displayFontSize, setDisplayFontSize] = useState(100);
   const [customMessages, setCustomMessages] = useState(["", "", ""]);
@@ -1480,7 +1483,10 @@ export default function App() {
             onStop={(e, data) => {
               const newPos = { x: data.x, y: data.y };
               setDisplayControlsPosition(newPos);
-              localStorage.setItem("displayControlsPosition", JSON.stringify(newPos));
+              localStorage.setItem(
+                "displayControlsPosition",
+                JSON.stringify(newPos)
+              );
             }}
           >
             <div
@@ -1499,148 +1505,164 @@ export default function App() {
                 border: `2px solid ${colors.accent}`,
               }}
             >
-          <div
-            style={{
-              fontSize: "1rem",
-              fontWeight: 600,
-              marginBottom: "0.5rem",
-              color: colors.dark,
-            }}
-          >
-            Display Controls
-          </div>
-
-          <ButtonPrimary
-            onClick={() => {
-              const newWindow = window.open(
-                window.location.origin + "?display",
-                "displayMode",
-                "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no"
-              );
-              if (newWindow) {
-                newWindow.focus();
-              }
-            }}
-            title="Open Display Mode in new window"
-            style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
-          >
-            Open Display
-          </ButtonPrimary>
-
-          <ButtonPrimary
-            onClick={() => setDisplayPreviewOpen((v) => !v)}
-            title="Toggle preview of what's showing on display"
-            style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
-          >
-            {displayPreviewOpen ? "Hide Preview" : "Show Preview"}
-          </ButtonPrimary>
-
-          <Button
-            onClick={() => {
-              sendToDisplay("closeImageOverlay", null);
-              sendToDisplay("standby", null);
-            }}
-            title="Clear the display (standby screen)"
-            style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
-          >
-            Clear Display
-          </Button>
-
-          <Button
-            onClick={() => {
-              sendToDisplay("closeImageOverlay", null);
-            }}
-            title="Close any image overlay on the display"
-            style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
-          >
-            Close Image
-          </Button>
-
-          {/* Font size controls */}
-          <div
-            style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}
-          >
-            <Button
-              onClick={() => {
-                const newSize = Math.max(50, displayFontSize - 10);
-                setDisplayFontSize(newSize);
-                sendToDisplay("fontSize", { size: newSize });
-              }}
-              title="Decrease display text size"
-              style={{ fontSize: "0.9rem", padding: "0.5rem 0.5rem", flex: 1 }}
-            >
-              A-
-            </Button>
-            <Button
-              onClick={() => {
-                const newSize = Math.min(400, displayFontSize + 10);
-                setDisplayFontSize(newSize);
-                sendToDisplay("fontSize", { size: newSize });
-              }}
-              title="Increase display text size"
-              style={{ fontSize: "0.9rem", padding: "0.5rem 0.5rem", flex: 1 }}
-            >
-              A+
-            </Button>
-          </div>
-
-          {/* Custom messages */}
-          <div style={{ marginTop: "0.5rem" }}>
-            <div
-              style={{
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                marginBottom: "0.25rem",
-                color: colors.dark,
-              }}
-            >
-              Custom Messages:
-            </div>
-            {customMessages.map((msg, idx) => (
               <div
-                key={idx}
                 style={{
-                  marginBottom: "0.25rem",
-                  display: "flex",
-                  gap: "0.25rem",
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  marginBottom: "0.5rem",
+                  color: colors.dark,
                 }}
               >
-                <input
-                  type="text"
-                  value={msg}
-                  onChange={(e) => {
-                    const newMessages = [...customMessages];
-                    newMessages[idx] = e.target.value;
-                    setCustomMessages(newMessages);
-                  }}
-                  placeholder={`Message ${idx + 1}`}
-                  style={{
-                    flex: 1,
-                    fontSize: "0.8rem",
-                    padding: "0.3rem",
-                    border: `1px solid ${colors.gray?.border || "#ccc"}`,
-                    borderRadius: "4px",
-                  }}
-                />
+                Display Controls
+              </div>
+
+              <ButtonPrimary
+                onClick={() => {
+                  const newWindow = window.open(
+                    window.location.origin + "?display",
+                    "displayMode",
+                    "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no"
+                  );
+                  if (newWindow) {
+                    newWindow.focus();
+                  }
+                }}
+                title="Open Display Mode in new window"
+                style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
+              >
+                Open Display
+              </ButtonPrimary>
+
+              <ButtonPrimary
+                onClick={() => setDisplayPreviewOpen((v) => !v)}
+                title="Toggle preview of what's showing on display"
+                style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
+              >
+                {displayPreviewOpen ? "Hide Preview" : "Show Preview"}
+              </ButtonPrimary>
+
+              <Button
+                onClick={() => {
+                  sendToDisplay("closeImageOverlay", null);
+                  sendToDisplay("standby", null);
+                }}
+                title="Clear the display (standby screen)"
+                style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
+              >
+                Clear Display
+              </Button>
+
+              <Button
+                onClick={() => {
+                  sendToDisplay("closeImageOverlay", null);
+                }}
+                title="Close any image overlay on the display"
+                style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
+              >
+                Close Image
+              </Button>
+
+              <Button onClick={() => sendToDisplay("toggleGuide")}>
+                📐 Guide
+              </Button>
+
+              {/* Font size controls */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: "0.25rem",
+                  alignItems: "center",
+                }}
+              >
                 <Button
                   onClick={() => {
-                    if (msg.trim()) {
-                      sendToDisplay("message", { text: msg });
-                    }
+                    const newSize = Math.max(50, displayFontSize - 10);
+                    setDisplayFontSize(newSize);
+                    sendToDisplay("fontSize", { size: newSize });
                   }}
-                  disabled={!msg.trim()}
-                  title="Push this message to display"
+                  title="Decrease display text size"
                   style={{
-                    fontSize: "0.7rem",
-                    padding: "0.3rem 0.5rem",
-                    opacity: msg.trim() ? 1 : 0.5,
+                    fontSize: "0.9rem",
+                    padding: "0.5rem 0.5rem",
+                    flex: 1,
                   }}
                 >
-                  📺
+                  A-
+                </Button>
+                <Button
+                  onClick={() => {
+                    const newSize = Math.min(400, displayFontSize + 10);
+                    setDisplayFontSize(newSize);
+                    sendToDisplay("fontSize", { size: newSize });
+                  }}
+                  title="Increase display text size"
+                  style={{
+                    fontSize: "0.9rem",
+                    padding: "0.5rem 0.5rem",
+                    flex: 1,
+                  }}
+                >
+                  A+
                 </Button>
               </div>
-            ))}
-          </div>
+
+              {/* Custom messages */}
+              <div style={{ marginTop: "0.5rem" }}>
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    marginBottom: "0.25rem",
+                    color: colors.dark,
+                  }}
+                >
+                  Custom Messages:
+                </div>
+                {customMessages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      marginBottom: "0.25rem",
+                      display: "flex",
+                      gap: "0.25rem",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={msg}
+                      onChange={(e) => {
+                        const newMessages = [...customMessages];
+                        newMessages[idx] = e.target.value;
+                        setCustomMessages(newMessages);
+                      }}
+                      placeholder={`Message ${idx + 1}`}
+                      style={{
+                        flex: 1,
+                        fontSize: "0.8rem",
+                        padding: "0.3rem",
+                        border: `1px solid ${colors.gray?.border || "#ccc"}`,
+                        borderRadius: "4px",
+                      }}
+                    />
+                    <Button
+                      onClick={() => {
+                        if (msg.trim()) {
+                          sendToDisplay("message", { text: msg });
+                        }
+                      }}
+                      disabled={!msg.trim()}
+                      title="Push this message to display"
+                      style={{
+                        fontSize: "0.7rem",
+                        padding: "0.3rem 0.5rem",
+                        opacity: msg.trim() ? 1 : 0.5,
+                      }}
+                    >
+                      📺
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </div>
           </Draggable>
         </div>

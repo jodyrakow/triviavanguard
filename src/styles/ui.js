@@ -14,6 +14,7 @@ export const colors = {
     bgLight: "#f9f9f9",
     bgLightest: "#fafafa",
     pill: "#f3f3f3",
+    neutral: "#c0c0c0",
   },
   overlay: "rgba(43, 57, 74, 0.65)",
   overlayDark: "rgba(43, 57, 74, 0.7)",
@@ -24,7 +25,13 @@ export const colors = {
 
 export const tokens = {
   radius: { sm: 4, md: 8, pill: 999 },
-  spacing: { xs: "0.25rem", sm: "0.5rem", md: "1rem", lg: "1.5rem", xl: "2rem" },
+  spacing: {
+    xs: "0.25rem",
+    sm: "0.5rem",
+    md: "1rem",
+    lg: "1.5rem",
+    xl: "2rem",
+  },
   font: {
     body: "Questrial, sans-serif",
     display: "Antonio, sans-serif",
@@ -272,7 +279,15 @@ export const ui = {
   statText: { fontSize: ".95rem", opacity: 0.9 },
 
   // Modal component - unified modal pattern
-  Modal: ({ isOpen, onClose, title, subtitle, children, style, contentStyle }) =>
+  Modal: ({
+    isOpen,
+    onClose,
+    title,
+    subtitle,
+    children,
+    style,
+    contentStyle,
+  }) =>
     isOpen ? (
       <div
         onMouseDown={onClose}

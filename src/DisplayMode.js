@@ -9,8 +9,10 @@ export default function DisplayMode() {
     type: "standby", // "standby" | "question" | "standings" | "message" | "break"
     content: null,
   });
-  const [fontSize, setFontSize] = useState(100); // percentage
+  const [fontSize, setFontSize] = useState(150); // percentage
   const [imageOverlay, setImageOverlay] = useState(null); // { images: [], currentIndex: 0 }
+
+  const [showGuide, setShowGuide] = useState(true);
 
   // Listen for display updates via BroadcastChannel
   useEffect(() => {
@@ -22,6 +24,10 @@ export default function DisplayMode() {
 
       if (type === "fontSize") {
         setFontSize(content.size);
+      } else if (type === "toggleGuide") {
+        setShowGuide((v) => !v);
+      } else if (type === "setGuide") {
+        setShowGuide(!!content?.show);
       } else if (type === "imageOverlay") {
         setImageOverlay(content);
       } else if (type === "closeImageOverlay") {
@@ -43,6 +49,7 @@ export default function DisplayMode() {
         backgroundColor: theme.bg,
         overflow: "hidden",
         fontFamily: tokens.font.body,
+        fontSize: "32px",
         color: theme.dark,
       }}
     >
@@ -52,8 +59,8 @@ export default function DisplayMode() {
         alt="Trivia Vanguard"
         style={{
           position: "absolute",
-          top: "3vh",
-          right: "4vh",
+          top: "4vh",
+          right: "5vh",
           height: "8vh",
           zIndex: 100,
         }}
@@ -76,6 +83,8 @@ export default function DisplayMode() {
         <ResultsDisplay content={displayState.content} fontSize={fontSize} />
       )}
 
+      {showGuide && <DesignGuideOverlay />}
+
       {/* Image overlay */}
       {imageOverlay &&
         imageOverlay.images &&
@@ -87,6 +96,32 @@ export default function DisplayMode() {
             onClose={() => setImageOverlay(null)}
           />
         )}
+    </div>
+  );
+}
+function DesignGuideOverlay() {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 999999,
+        pointerEvents: "none",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <div
+        style={{
+          width: "100vw",
+          maxHeight: "100vh",
+          aspectRatio: "16 / 9",
+          border: "3px dashed rgba(255,255,255,1)", // TEMP: red so you can see it
+          borderRadius: 10,
+          boxSizing: "border-box",
+        }}
+      />
     </div>
   );
 }
@@ -102,7 +137,7 @@ function StandbyScreen() {
         left: "50%",
         transform: "translate(-50%, -50%)",
         width: "60vw",
-        height: "60vh",
+        height: "auto",
         objectFit: "contain",
       }}
     />
@@ -131,17 +166,17 @@ function CategoryDisplay({ content, fontSize = 100 }) {
       }}
     >
       {/* Spacer to push content down ~1/4–1/3 of screen */}
-      <div style={{ height: "28vh" }} />
+      <div style={{ height: "33vh" }} />
 
       {/* Category name */}
       {categoryName && (
         <div
           style={{
-            fontSize: `${5 * scale}rem`,
+            fontSize: `${4.5 * scale}rem`,
             fontWeight: 700,
             color: theme.accent,
             textTransform: "uppercase",
-            letterSpacing: "0.05em",
+            letterSpacing: "0.02em",
             marginBottom: "2vh",
           }}
         >
@@ -156,9 +191,9 @@ function CategoryDisplay({ content, fontSize = 100 }) {
             fontSize: `${2.5 * scale}rem`,
             fontFamily: tokens.font.flavor,
             fontStyle: "italic",
-            lineHeight: 1.5,
+            lineHeight: 1.25,
             color: theme.dark,
-            maxWidth: "60vw",
+            maxWidth: "80vw",
           }}
           dangerouslySetInnerHTML={{
             __html: marked.parseInline(categoryDescription || ""),
@@ -230,10 +265,10 @@ function QuestionDisplay({ content, fontSize = 100 }) {
   const scale = fontSize / 100;
 
   // 16:9 grid (based on 900px tall mock)
-  const H_CAT = "13.888vh"; // 125px
-  const H_QNUM = "11.111vh"; // 75px
-  const H_QBOX = "47.222vh"; // 450px
-  const H_LINE = "8.333vh"; // 75px
+  const H_CAT = "14vh"; // 125px
+  const H_QNUM = "10vh"; // 75px
+  const H_QBOX = "48vh"; // 450px
+  const H_LINE = "8vh"; // 75px
 
   // Convenience: cumulative tops
 
@@ -256,20 +291,21 @@ function QuestionDisplay({ content, fontSize = 100 }) {
             left: 0,
             right: 0,
             height: H_CAT,
-            backgroundColor: theme.gray.border,
+            backgroundColor: theme.gray.neutral,
             display: "flex",
             justifyContent: "flex-start",
             alignItems: "center",
-            paddingLeft: "2rem",
+            paddingLeft: "3rem",
             zIndex: 50,
           }}
         >
           <div
             style={{
-              fontSize: `${2 * scale}rem`,
+              fontSize: `${2.5 * scale}rem`,
               fontWeight: 600,
               color: theme.dark,
               textTransform: "uppercase",
+              paddingTop: "2rem",
               letterSpacing: "0.05rem",
               maxWidth: "calc(100% - 200px)",
             }}
@@ -455,7 +491,7 @@ function MessageDisplay({ content, fontSize = 100 }) {
         textAlign: "center",
         padding: "4vh",
 
-        fontSize: `${4 * scale}rem`,
+        fontSize: `${5 * scale}rem`,
         fontWeight: 600,
         lineHeight: 1.5,
         color: theme.dark,
@@ -586,7 +622,7 @@ function ResultsDisplay({ content, fontSize = 100 }) {
   // Total = 100vh
   const H_TOP = "4vh"; // breathing room
   const H_PLACE = "14vh"; // big place line
-  const H_POINTS = "12vh"; // points line
+  const H_POINTS = "14vh"; // points line
   const H_TEAMS = "48vh"; // big teams box (auto-fit)
   const H_PRIZE = "14vh"; // prize line
 
@@ -621,16 +657,18 @@ function ResultsDisplay({ content, fontSize = 100 }) {
       >
         <div
           style={{
-            fontSize: `${5.2 * scale}rem`,
+            fontSize: `${4.75 * scale}rem`,
             fontFamily: tokens.font.display,
             color: theme.accent,
             textTransform: "uppercase",
-            letterSpacing: "0.06em",
+            letterSpacing: "0.15rem",
             fontWeight: 800,
             lineHeight: 1.05,
           }}
         >
-          {isTied ? `TIED FOR ${place}` : String(place || "").toUpperCase()}
+          {isTied
+            ? `TIED FOR ${place} place`
+            : `${place} place` || "".toUpperCase()}
         </div>
       </div>
 
@@ -654,7 +692,7 @@ function ResultsDisplay({ content, fontSize = 100 }) {
         >
           <div
             style={{
-              fontSize: `${4 * scale}rem`,
+              fontSize: `${3.75 * scale}rem`,
               fontFamily: tokens.font.body,
               color: theme.dark,
               fontWeight: 600,
@@ -695,8 +733,8 @@ function ResultsDisplay({ content, fontSize = 100 }) {
           >
             <AutoFitText
               html={teamsHtml}
-              maxRem={5.2 * scale}
-              minRem={2.0 * scale}
+              maxRem={4.75 * scale}
+              minRem={1.5 * scale}
               style={{
                 color: theme.dark,
                 fontFamily: tokens.font.body,

@@ -1711,20 +1711,27 @@ export default function ResultsMode({
                                     {/* NEW: Push place + points only (no team names) */}
                                     <Button
                                       onClick={() => {
-                                        const placeStr =
-                                          ordinal(highestPlaceInTie);
+                                        const placeStr = `${ordinal(highestPlaceInTie)}`;
+                                        const isTied =
+                                          Array.isArray(allTiedByScore) &&
+                                          allTiedByScore.length > 1;
                                         const points =
                                           allTiedByScore[0]?.total || 0;
+                                        const finalPrizeText = prizeText?.trim()
+                                          ? isTied
+                                            ? `Vying for ${prizeText}`
+                                            : prizeText
+                                          : null;
                                         sendToDisplay("results", {
                                           place: placeStr,
                                           teams: null, // No team names
-                                          isTied: false,
+                                          isTied,
                                           points, // Add points to display
-                                          prize: prizeText ?? null,
+                                          prize: finalPrizeText,
                                         });
                                       }}
                                       style={{
-                                        fontSize: "0.7rem",
+                                        fontSize: ".8rem",
                                         padding: "0.25rem 0.5rem",
                                         whiteSpace: "nowrap",
                                         background: theme.dark,
@@ -1732,7 +1739,7 @@ export default function ResultsMode({
                                       }}
                                       title="Push place and points only (no team names)"
                                     >
-                                      📊 Place+Pts
+                                      📺#️⃣ Place + Pts
                                     </Button>
 
                                     {/* Randomize ALL tied teams (if tied by score) */}
@@ -1748,51 +1755,26 @@ export default function ResultsMode({
                                           ].sort(() => Math.random() - 0.5);
                                           const points =
                                             allTiedByScore[0]?.total || 0;
+
                                           sendToDisplay("results", {
                                             place: highestPlaceStr,
                                             teams: shuffled,
-                                            prize: null,
+                                            prize:
+                                              `Vying for ${prizeText}` ?? null,
                                             isTied: true,
                                             points, // Add points to display
                                           });
                                         }}
                                         style={{
-                                          fontSize: "0.7rem",
+                                          fontSize: "0.8rem",
                                           padding: "0.25rem 0.5rem",
                                           whiteSpace: "nowrap",
-                                          background: theme.accent,
+                                          background: theme.dark,
                                           color: "#fff",
                                         }}
                                         title={`Randomize ALL tied teams`}
                                       >
-                                        🔀 Rand All
-                                      </Button>
-                                    )}
-
-                                    {/* Push button for "unlucky" teams (tied but no prize) */}
-                                    {unluckyTeams.length > 0 && (
-                                      <Button
-                                        onClick={() => {
-                                          const unluckyTeamNames =
-                                            unluckyTeams.map((t) => t.teamName);
-                                          const points =
-                                            unluckyTeams[0]?.total || 0;
-                                          sendToDisplay("results", {
-                                            place: highestPlaceStr,
-                                            teams: unluckyTeamNames,
-                                            prize: null,
-                                            isTied: true,
-                                            points, // Add points to display
-                                          });
-                                        }}
-                                        style={{
-                                          fontSize: "0.7rem",
-                                          padding: "0.25rem 0.5rem",
-                                          whiteSpace: "nowrap",
-                                        }}
-                                        title={`Push unlucky tied teams (no prizes)`}
-                                      >
-                                        😢 Unlucky
+                                        📺🌪️ Scramble
                                       </Button>
                                     )}
 
@@ -1826,16 +1808,48 @@ export default function ResultsMode({
                                             });
                                           }}
                                           style={{
-                                            fontSize: "0.7rem",
+                                            fontSize: "0.8rem",
                                             padding: "0.25rem 0.5rem",
                                             whiteSpace: "nowrap",
+                                            fontWeight: 700,
+                                            background: theme.accent,
+                                            color: "#fff",
                                           }}
                                           title={`Push ${placeStr} place: ${teamNames.join(", ")}`}
                                         >
-                                          📺 {placeStr}
+                                          📺🏅 {placeStr}
                                         </Button>
                                       );
                                     })}
+
+                                    {/* Push button for "unlucky" teams (tied but no prize) */}
+                                    {unluckyTeams.length > 0 && (
+                                      <Button
+                                        onClick={() => {
+                                          const unluckyTeamNames =
+                                            unluckyTeams.map((t) => t.teamName);
+                                          const points =
+                                            unluckyTeams[0]?.total || 0;
+                                          sendToDisplay("results", {
+                                            place: highestPlaceStr,
+                                            teams: unluckyTeamNames,
+                                            prize: null,
+                                            isTied: true,
+                                            points, // Add points to display
+                                          });
+                                        }}
+                                        style={{
+                                          fontSize: "0.8rem",
+                                          padding: "0.25rem 0.5rem",
+                                          whiteSpace: "nowrap",
+                                          background: theme.dark,
+                                          color: "#fff",
+                                        }}
+                                        title={`Push unlucky tied teams (no prizes)`}
+                                      >
+                                        📺💔 Non-winners
+                                      </Button>
+                                    )}
                                   </div>
                                 );
                               })()}
