@@ -11,7 +11,7 @@ import {
   tokens,
 } from "./styles";
 import { buildCorrectCountMap, computeAutoEarned } from "./scoring/compute.js";
-
+marked.setOptions({ breaks: true });
 export default function QuestionsMode({
   showBundle = { rounds: [], teams: [] },
   selectedRoundId,
@@ -44,8 +44,6 @@ export default function QuestionsMode({
   setHostInfo: setHostInfoProp,
   editQuestionField,
   addTiebreaker,
-  scriptOpen,
-  setScriptOpen,
   sendToDisplay,
   displayControlsOpen = false,
   refreshBundle,
@@ -461,215 +459,7 @@ export default function QuestionsMode({
     return out;
   }, [sortedGroupedEntries]);
 
-  // Parse prizes passed as a string (supports newline- or comma-separated)
-  // Parse prizes from the resolved string (prop or localStorage)
-  const prizeList = useMemo(() => {
-    const raw = (prizesText || "").toString();
-    const parts = raw.includes("\n") ? raw.split(/\r?\n/) : raw.split(/,\s*/);
-    return parts.map((s) => s.trim()).filter(Boolean);
-  }, [prizesText]);
 
-  const ordinal = (n) => {
-    const j = n % 10,
-      k = n % 100;
-    if (j === 1 && k !== 11) return `${n}st`;
-    if (j === 2 && k !== 12) return `${n}nd`;
-    if (j === 3 && k !== 13) return `${n}rd`;
-    return `${n}th`;
-  };
-
-  // count non-tiebreaker questions from groupedQuestions
-  const totalQuestions = useMemo(() => {
-    let count = 0;
-    for (const r of allRounds) {
-      // Check both flat questions array (host-added) and nested categories structure
-      // First check flat questions array
-      for (const q of r?.questions || []) {
-        const typ = String(
-          q?.questionType || q?.["Question type"] || ""
-        ).toLowerCase();
-        if (typ.includes("tiebreaker")) continue;
-        count += 1;
-      }
-      // Then check nested categories structure
-      for (const cat of r?.categories || []) {
-        for (const q of cat?.questions || []) {
-          const typ = String(
-            q?.questionType || q?.["Question type"] || cat?.questionType || ""
-          ).toLowerCase();
-          const order = String(q?.questionOrder || "").toUpperCase();
-          if (typ.includes("tiebreaker") || order === "TB") continue;
-          count += 1;
-        }
-      }
-    }
-    return count;
-  }, [allRounds]);
-
-  // Default-per-question and count of special questions (non-TB with overrides)
-  useMemo(() => {
-    const allRounds = Array.isArray(showBundle?.rounds)
-      ? showBundle.rounds
-      : [];
-    const def =
-      scoringMode === "pooled"
-        ? Number.isFinite(poolPerQuestion)
-          ? poolPerQuestion
-          : 0
-        : Number.isFinite(pubPoints)
-          ? pubPoints
-          : 0;
-
-    let specials = 0;
-    for (const r of allRounds) {
-      for (const q of r?.questions || []) {
-        const type = String(
-          q?.questionType || q?.["Question type"] || ""
-        ).toLowerCase();
-        if (type.includes("tiebreaker")) continue;
-        const perQ =
-          typeof q?.pointsPerQuestion === "number" ? q.pointsPerQuestion : null;
-        if (perQ !== null && perQ !== def) specials += 1;
-      }
-    }
-    return { defaultPer: def, specialCount: specials };
-  }, [showBundle?.rounds, scoringMode, pubPoints, poolPerQuestion]);
-
-  const hostScript = useMemo(() => {
-    const X = totalQuestions;
-
-    const hName = (
-      hostInfo.host ||
-      showBundle?.config?.hostName ||
-      "your host"
-    ).trim();
-    const cName = (
-      hostInfo.cohost ||
-      showBundle?.config?.cohostName ||
-      "your co-host"
-    ).trim();
-
-    // Prefer explicit location, else show config location, else parsed venue, else fallback
-    const loc = (
-      hostInfo.location ||
-      showBundle?.config?.location ||
-      multiGameMeta.venue ||
-      "your venue"
-    ).trim();
-
-    // Get total games count from Airtable config (preferred) or fall back to host input
-    const totalGamesFromConfig = showBundle?.config?.totalGamesThisNight;
-    const totalGamesInput = Number(hostInfo.totalGames);
-    const totalGames =
-      Number.isFinite(totalGamesFromConfig) && totalGamesFromConfig > 0
-        ? totalGamesFromConfig
-        : Number.isFinite(totalGamesInput) && totalGamesInput > 0
-          ? totalGamesInput
-          : 1;
-
-    const isMultiGame = totalGames >= 2;
-
-    // Get start times from Airtable config (preferred) or manual input
-    const configStartTimes = showBundle?.config?.allStartTimes || [];
-    const manualStartTimes = (hostInfo.startTimesText || "")
-      .split(/[,;\n]/)
-      .map((t) => t.trim())
-      .filter(Boolean);
-
-    const startTimes =
-      configStartTimes.length > 0 ? configStartTimes : manualStartTimes;
-
-    // Determine time of day
-    const timeOfDay = "tonight"; // Could be "today" or "tonight" based on show time
-
-    // Check if template includes "tipsy"
-    const showTemplate = showBundle?.config?.showTemplate || "";
-    const isTipsy = showTemplate.toLowerCase().includes("tipsy");
-
-    // --- Intro ---
-    const triviaType = isTipsy ? "tipsy team trivia" : "team trivia";
-    let text =
-      `Hey, everybody! It's time for ${triviaType} at ${loc}!\n\n` +
-      `I'm ${hName} and this is ${cName}, and we're your hosts ${timeOfDay} as you play for trivia glory and some pretty awesome prizes.\n`;
-
-    // --- Announcements (if provided) ---
-    if (hostInfo.announcements && hostInfo.announcements.trim()) {
-      text += `\n${hostInfo.announcements.trim()}\n`;
-    }
-
-    // --- Multi-game intro (only for multiple games AND only for the first game) ---
-    const isFirstGame = multiGameMeta.gameIndex === 1 || multiGameMeta.gameIndex === null;
-    if (isMultiGame && isFirstGame) {
-      const time1 = startTimes[0] || "[TIME1]";
-      const time2 = startTimes[1] || "[TIME2]";
-
-      text += `\nWe'll be playing ${totalGames} games of trivia ${timeOfDay} - one starting right now at ${time1}, and the next starting right around ${time2}. The slate will be wiped clean after the first game; that means you can play one OR both games with us. How long you choose to hang out with us ${timeOfDay} is up to you.\n`;
-    }
-
-    // --- Question count ---
-    if (isMultiGame) {
-      text += `\nWe'll be asking you ${X} questions in each game ${timeOfDay}.\n`;
-    } else {
-      text += `\nWe'll be asking you ${X} questions ${timeOfDay}.\n`;
-    }
-
-    // --- Scoring explanation (based on scoring mode) ---
-    if (scoringMode === "pub") {
-      const perQuestion = Number.isFinite(pubPoints) ? pubPoints : 10;
-      const totalPossible = X * perQuestion;
-      text += `\nEach question is worth ${perQuestion} point${perQuestion === 1 ? "" : "s"}, for a total of ${totalPossible} possible points${isMultiGame ? " in each game" : ""}.\n`;
-    } else if (scoringMode === "pooled") {
-      // Pooled static
-      const poolSize = Number.isFinite(poolPerQuestion) ? poolPerQuestion : 150;
-      text += `\nEach question ${timeOfDay} has a point pool of ${poolSize} points that will be divided up evenly among the teams that answer it correctly; in other words, you'll be rewarded if you know stuff that nobody else knows.\n`;
-    } else if (scoringMode === "pooled-adaptive") {
-      // Pooled adaptive
-      const contribution = Number.isFinite(poolContribution) ? poolContribution : 10;
-      text += `\nEach question ${timeOfDay} has a point pool that contains ${contribution} point${contribution === 1 ? "" : "s"} for each team that is playing the game. The pool for each question will be divided up evenly among the teams that answer it correctly; in other words, you'll be rewarded if you know stuff that nobody else knows.\n`;
-    }
-
-    // --- Prizes ---
-    if (prizeList.length > 0) {
-      text += `\n${loc} is awarding prizes for the top ${prizeList.length} team${prizeList.length === 1 ? "" : "s"}:\n`;
-      prizeList.forEach((p, i) => {
-        text += `  • ${ordinal(i + 1)}: ${p}\n`;
-      });
-    }
-
-    // --- Rules (exact wording from PDFs) ---
-    text +=
-      `\nNow before we get going with the game, here are the rules.\n` +
-      `● To keep things fair, no electronic devices may be out during the round. And that's not just when you're with your team at your table. If you have to step away from your table for any reason, please return with only your charming personality, and NOT with answers that you looked up while you were away. Because there are prizes at stake, if it looks like cheating, we have to treat it like cheating.\n` +
-      `● Don't shout out the answers; you might accidentally give answers away to other teams. Use those handy dandy notepads to share ideas with your team instead.\n` +
-      `● Spelling doesn't count unless we say it does.\n` +
-      `● Unless we say otherwise, when we ask for someone's name, we want their last name. Give us the first name, too, if you like, but just remember that if any part of your answer is wrong, the whole thing is wrong. It's always safest to just give us last names.\n` +
-      `● For fictional characters, either the first or last name is okay unless we say otherwise.\n` +
-      `● Our answer is the correct answer. Dispute if you like and we'll consider it, but our decisions are final.\n` +
-      `● Finally, be generous to the staff; they're working hard to ensure you have a great time. Don't be afraid to ask them for answers to our questions; they may know some that you don't.`;
-
-    return text;
-  }, [
-    totalQuestions,
-    prizeList,
-    hostInfo.host,
-    hostInfo.cohost,
-    hostInfo.location,
-    hostInfo.totalGames,
-    hostInfo.startTimesText,
-    hostInfo.announcements,
-    multiGameMeta.venue,
-    multiGameMeta.gameIndex,
-    showBundle?.config?.location,
-    showBundle?.config?.hostName,
-    showBundle?.config?.cohostName,
-    showBundle?.config?.totalGamesThisNight,
-    showBundle?.config?.showTemplate,
-    showBundle?.config?.allStartTimes,
-    scoringMode,
-    pubPoints,
-    poolPerQuestion,
-    poolContribution,
-  ]);
 
   return (
     <>
@@ -877,7 +667,7 @@ export default function QuestionsMode({
                             borderRadius: "0.25rem 0 0 0.25rem",
                           }}
                         >
-                          ◄
+                          ←
                         </button>
                         <button
                           onClick={() => {
@@ -906,7 +696,7 @@ export default function QuestionsMode({
                             marginLeft: "-1px",
                           }}
                         >
-                          ►
+                          →
                         </button>
                       </div>
                     )}
@@ -1371,7 +1161,7 @@ export default function QuestionsMode({
                                       borderRadius: "0.25rem 0 0 0.25rem",
                                     }}
                                   >
-                                    ◄
+                                    ←
                                   </button>
                                   <button
                                     onClick={() => {
@@ -1401,7 +1191,7 @@ export default function QuestionsMode({
                                       marginLeft: "-1px",
                                     }}
                                   >
-                                    ►
+                                    →
                                   </button>
                                 </div>
                               )}
@@ -1742,99 +1532,6 @@ export default function QuestionsMode({
           </div>
         );
       })}
-
-      {scriptOpen && (
-        <div
-          onMouseDown={() => setScriptOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(43,57,74,.65)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem",
-          }}
-        >
-          <div
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{
-              width: "75vw",
-              height: "75vh",
-              maxWidth: "100vw",
-              maxHeight: "100vh",
-              background: "#fff",
-              borderRadius: ".6rem",
-              border: `1px solid ${theme.accent}`,
-              overflow: "auto",
-              resize: "both",
-              boxShadow: "0 10px 30px rgba(0,0,0,.25)",
-              fontFamily: tokens.font.body,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <div
-              style={{
-                background: theme.dark,
-                color: "#fff",
-                padding: ".6rem .8rem",
-                borderBottom: `2px solid ${theme.accent}`,
-                fontFamily: tokens.font.display,
-                fontSize: "1.5rem",
-                letterSpacing: ".01em",
-              }}
-            >
-              Host Script
-            </div>
-
-            <textarea
-              readOnly
-              value={hostScript}
-              style={{
-                width: "100%",
-                flex: 1,
-                resize: "none",
-                padding: "1rem",
-                border: "none",
-                borderTop: "1px solid #ddd",
-                borderBottom: "1px solid #ddd",
-                fontFamily: tokens.font.body,
-                lineHeight: 1.35,
-                fontSize: "1.25rem",
-                whiteSpace: "pre-wrap",
-                wordWrap: "break-word",
-                boxSizing: "border-box",
-              }}
-            />
-
-            <div
-              style={{
-                display: "flex",
-                gap: ".5rem",
-                justifyContent: "flex-end",
-                padding: ".8rem .9rem .9rem",
-                borderTop: "1px solid #eee",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setScriptOpen(false)}
-                style={{
-                  padding: ".5rem .75rem",
-                  border: "1px solid #ccc",
-                  background: "#f7f7f7",
-                  borderRadius: ".35rem",
-                  cursor: "pointer",
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {hostModalOpen && (
         <div

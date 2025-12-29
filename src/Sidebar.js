@@ -19,7 +19,7 @@ export default function Sidebar({
           position: "fixed",
           top: "80px", // Below the header
           left: 0,
-          width: isOpen ? "280px" : "50px", // Narrow tab when closed
+          width: isOpen ? "250px" : "50px", // Narrow tab when closed
           height: "calc(100vh - 80px)",
           backgroundColor: theme.accent, // Orange
           color: "#fff",
@@ -153,7 +153,7 @@ export default function Sidebar({
           style={{
             position: "fixed",
             top: "80px",
-            left: "280px",
+            left: "250px",
             right: 0,
             bottom: 0,
             backgroundColor: "rgba(0,0,0,0.3)",

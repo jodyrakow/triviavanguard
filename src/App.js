@@ -72,7 +72,6 @@ export default function App() {
   const [olderShows, setOlderShows] = useState([]);
   const [selectedRoundId, setSelectedRoundId] = useState(""); // string (e.g. "1")
   const [showDetails, setshowDetails] = useState(true);
-  const [scriptOpen, setScriptOpen] = useState(false);
   const [visibleImages, setVisibleImages] = useState({});
   const questionRefs = useRef({});
   const [visibleCategoryImages, setVisibleCategoryImages] = useState({});
@@ -1421,7 +1420,6 @@ export default function App() {
           setShowDetails={setshowDetails}
           timerDuration={timerDuration}
           setTimerDuration={setTimerDuration}
-          setScriptOpen={setScriptOpen}
           prizes={composedCachedState?.prizes ?? ""}
           setPrizes={(val) => patchShared({ prizes: String(val || "") })}
           hostInfo={
@@ -1981,8 +1979,6 @@ export default function App() {
             editQuestionField={editQuestionField}
             displayControlsOpen={displayControlsOpen}
             addTiebreaker={addTiebreaker}
-            scriptOpen={scriptOpen}
-            setScriptOpen={setScriptOpen}
             sendToDisplay={sendToDisplay}
             refreshBundle={refreshBundle}
           />

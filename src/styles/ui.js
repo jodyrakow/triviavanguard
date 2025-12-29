@@ -55,6 +55,9 @@ const baseBtn = {
   border: `${tokens.borders.thin} ${colors.gray.border}`,
   background: colors.white,
   color: colors.dark,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 export const Button = ({ style, children, type = "button", ...props }) => (

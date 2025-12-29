@@ -285,10 +285,15 @@ export async function handler(event) {
 
       // Check for host edits - use edited versions if they exist
       const editedByHost = f["Edited by host"] || false;
-      const hasEditedQuestion = f["Edited question"] !== undefined && f["Edited question"] !== null;
-      const hasEditedNotes = f["Edited notes"] !== undefined && f["Edited notes"] !== null;
-      const hasEditedPronunciation = f["Edited pronunciation guide"] !== undefined && f["Edited pronunciation guide"] !== null;
-      const hasEditedAnswer = f["Edited answer"] !== undefined && f["Edited answer"] !== null;
+      const hasEditedQuestion =
+        f["Edited question"] !== undefined && f["Edited question"] !== null;
+      const hasEditedNotes =
+        f["Edited notes"] !== undefined && f["Edited notes"] !== null;
+      const hasEditedPronunciation =
+        f["Edited pronunciation guide"] !== undefined &&
+        f["Edited pronunciation guide"] !== null;
+      const hasEditedAnswer =
+        f["Edited answer"] !== undefined && f["Edited answer"] !== null;
 
       const q = {
         showQuestionId: rec.id,
@@ -296,10 +301,15 @@ export async function handler(event) {
         questionId: questionId, // ✅ Add the linked Question ID from Airtable
         questionOrder: f["Question order"] || "",
         sortOrder: typeof f["Sort order"] === "number" ? f["Sort order"] : null,
-        questionText: hasEditedQuestion ? f["Edited question"] : (f["Question text"] || ""),
-        questionNotes: hasEditedNotes ? f["Edited notes"] : (f["Notes"] || ""),
-        questionPronunciationGuide: hasEditedPronunciation ? f["Edited pronunciation guide"] : (f["Pronunciation guide"] || ""),
-        answer: hasEditedAnswer ? f["Edited answer"] : (f["Answer"] || ""),
+        questionType: f["Question type"] || null,
+        questionText: hasEditedQuestion
+          ? f["Edited question"]
+          : f["Question text"] || "",
+        questionNotes: hasEditedNotes ? f["Edited notes"] : f["Notes"] || "",
+        questionPronunciationGuide: hasEditedPronunciation
+          ? f["Edited pronunciation guide"]
+          : f["Pronunciation guide"] || "",
+        answer: hasEditedAnswer ? f["Edited answer"] : f["Answer"] || "",
         tiebreakerNumber: f["Tiebreaker number"] || "",
         questionImages: toAttachmentArray(f["Question image attachments"]),
         questionAudio: toAttachmentArray(f["Question audio attachments"]),
@@ -373,9 +383,10 @@ export async function handler(event) {
 
       // Extract teamId from array (lookup fields return arrays)
       const teamIdRaw = f["Team ID"];
-      const teamId = Array.isArray(teamIdRaw) && teamIdRaw.length > 0
-        ? teamIdRaw[0]
-        : teamIdRaw || null;
+      const teamId =
+        Array.isArray(teamIdRaw) && teamIdRaw.length > 0
+          ? teamIdRaw[0]
+          : teamIdRaw || null;
 
       const showIdArray = f["Show ID"];
       const normalizedShowId =

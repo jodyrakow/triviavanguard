@@ -3,13 +3,13 @@ import React, { useState, useEffect } from "react";
 import { colors as theme, tokens } from "./styles";
 import triviaVanguardLogo from "./trivia-vanguard-logo-white.svg";
 import { marked } from "marked";
-
+marked.setOptions({ breaks: true });
 export default function DisplayMode() {
   const [displayState, setDisplayState] = useState({
     type: "standby", // "standby" | "question" | "standings" | "message" | "break"
     content: null,
   });
-  const [fontSize, setFontSize] = useState(150); // percentage
+  const [fontSize, setFontSize] = useState(170); // percentage
   const [imageOverlay, setImageOverlay] = useState(null); // { images: [], currentIndex: 0 }
 
   const [showGuide, setShowGuide] = useState(true);
