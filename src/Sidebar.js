@@ -8,6 +8,8 @@ export default function Sidebar({
   setDisplayControlsOpen,
   showTimer,
   setShowTimer,
+  getClosestQuestionKey,
+  questionRefs,
 }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -58,7 +60,22 @@ export default function Sidebar({
 
         {/* Ninja button - Show/hide all answers */}
         <button
-          onClick={() => setShowDetails((prev) => !prev)}
+          onClick={() => {
+            // Preserve scroll position
+            const closestKey = getClosestQuestionKey?.();
+            setShowDetails((prev) => !prev);
+            if (closestKey && questionRefs?.current?.[closestKey]?.current) {
+              // Use requestAnimationFrame to wait for DOM update, then scroll instantly
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  questionRefs.current[closestKey]?.current?.scrollIntoView({
+                    behavior: "instant",
+                    block: "center",
+                  });
+                });
+              });
+            }
+          }}
           style={{
             position: "absolute",
             top: "55px",
@@ -86,7 +103,22 @@ export default function Sidebar({
 
         {/* TV button - Show/hide display controls */}
         <button
-          onClick={() => setDisplayControlsOpen((prev) => !prev)}
+          onClick={() => {
+            // Preserve scroll position
+            const closestKey = getClosestQuestionKey?.();
+            setDisplayControlsOpen((prev) => !prev);
+            if (closestKey && questionRefs?.current?.[closestKey]?.current) {
+              // Use requestAnimationFrame to wait for DOM update, then scroll instantly
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  questionRefs.current[closestKey]?.current?.scrollIntoView({
+                    behavior: "instant",
+                    block: "center",
+                  });
+                });
+              });
+            }
+          }}
           style={{
             position: "absolute",
             top: "100px",

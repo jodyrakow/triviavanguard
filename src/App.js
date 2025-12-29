@@ -1410,6 +1410,8 @@ export default function App() {
         setDisplayControlsOpen={setDisplayControlsOpen}
         showTimer={showTimer}
         setShowTimer={setShowTimer}
+        getClosestQuestionKey={getClosestQuestionKey}
+        questionRefs={questionRefs}
       >
         <SidebarMenu
           showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
@@ -1439,6 +1441,8 @@ export default function App() {
           setPoolPerQuestion={setPoolPerQuestion}
           poolContribution={poolContribution}
           setPoolContribution={setPoolContribution}
+          getClosestQuestionKey={getClosestQuestionKey}
+          questionRefs={questionRefs}
         />
       </Sidebar>
 

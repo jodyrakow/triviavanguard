@@ -28,6 +28,8 @@ export default function SidebarMenu({
   setPoolContribution,
   prizes,
   setPrizes,
+  getClosestQuestionKey,
+  questionRefs,
 }) {
   const [expandedSections, setExpandedSections] = useState({
     hostTools: false,
@@ -540,7 +542,22 @@ export default function SidebarMenu({
                 ...itemStyle,
                 paddingBottom: displayControlsOpen ? "0.75rem" : "0.5rem",
               }}
-              onClick={() => setDisplayControlsOpen((prev) => !prev)}
+              onClick={() => {
+                // Preserve scroll position
+                const closestKey = getClosestQuestionKey?.();
+                setDisplayControlsOpen((prev) => !prev);
+                if (closestKey && questionRefs?.current?.[closestKey]?.current) {
+                  // Use requestAnimationFrame to wait for DOM update, then scroll instantly
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      questionRefs.current[closestKey]?.current?.scrollIntoView({
+                        behavior: "instant",
+                        block: "center",
+                      });
+                    });
+                  });
+                }
+              }}
             >
               📺{" "}
               {displayControlsOpen
@@ -581,7 +598,22 @@ export default function SidebarMenu({
             {/* Show/hide all answers */}
             <div
               style={itemStyle}
-              onClick={() => setShowDetails((prev) => !prev)}
+              onClick={() => {
+                // Preserve scroll position
+                const closestKey = getClosestQuestionKey?.();
+                setShowDetails((prev) => !prev);
+                if (closestKey && questionRefs?.current?.[closestKey]?.current) {
+                  // Use requestAnimationFrame to wait for DOM update, then scroll instantly
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      questionRefs.current[closestKey]?.current?.scrollIntoView({
+                        behavior: "instant",
+                        block: "center",
+                      });
+                    });
+                  });
+                }
+              }}
             >
               🥷 {showDetails ? "Hide all answers" : "Show all answers"}
             </div>
