@@ -11,6 +11,7 @@ export default function DisplayMode() {
   });
   const [fontSize, setFontSize] = useState(170); // percentage
   const [imageOverlay, setImageOverlay] = useState(null); // { images: [], currentIndex: 0 }
+  const [inlineImageIndex, setInlineImageIndex] = useState(0); // Current inline image index
 
   const [showGuide, setShowGuide] = useState(true);
 
@@ -32,8 +33,14 @@ export default function DisplayMode() {
         setImageOverlay(content);
       } else if (type === "closeImageOverlay") {
         setImageOverlay(null);
+      } else if (type === "updateInlineImageIndex") {
+        setInlineImageIndex(content.currentIndex || 0);
       } else {
         setDisplayState({ type, content });
+        // Reset inline image index when new content is displayed
+        if (type === "question" && content?.currentInlineImageIndex != null) {
+          setInlineImageIndex(content.currentInlineImageIndex);
+        }
       }
     };
 
@@ -68,7 +75,7 @@ export default function DisplayMode() {
 
       {displayState.type === "standby" && <StandbyScreen />}
       {displayState.type === "question" && (
-        <QuestionDisplay content={displayState.content} fontSize={fontSize} />
+        <QuestionDisplay content={displayState.content} fontSize={fontSize} inlineImageIndex={inlineImageIndex} />
       )}
       {displayState.type === "category" && (
         <CategoryDisplay content={displayState.content} fontSize={fontSize} />
@@ -251,7 +258,7 @@ function AutoFitText({ html, maxRem = 2.8, minRem = 1.6, style = {} }) {
   );
 }
 
-function QuestionDisplay({ content, fontSize = 100 }) {
+function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
   const {
     questionNumber,
     questionText,
@@ -260,6 +267,7 @@ function QuestionDisplay({ content, fontSize = 100 }) {
     pointsPerTeam,
     correctCount,
     totalTeams,
+    inlineImages,
   } = content || {};
 
   const scale = fontSize / 100;
@@ -343,8 +351,8 @@ function QuestionDisplay({ content, fontSize = 100 }) {
         </div>
       )}
 
-      {/* Question text */}
-      {questionText && (
+      {/* Question text or inline image for Visual questions */}
+      {(questionText || (inlineImages && inlineImages.length > 0)) && (
         <div
           style={{
             position: "absolute",
@@ -359,17 +367,31 @@ function QuestionDisplay({ content, fontSize = 100 }) {
             zIndex: 50,
           }}
         >
-          <div style={{ width: "90vw", height: "100%" }}>
-            <AutoFitText
-              html={marked.parseInline(questionText || "")}
-              maxRem={2.8 * scale}
-              minRem={1.8 * scale}
+          {inlineImages && inlineImages.length > 0 ? (
+            // Show inline image for Visual questions
+            <img
+              src={inlineImages[inlineImageIndex]?.url}
+              alt={`Visual question ${questionNumber}`}
               style={{
-                color: theme.dark,
-                fontWeight: 500,
+                maxWidth: "90vw",
+                maxHeight: "100%",
+                objectFit: "contain",
               }}
             />
-          </div>
+          ) : (
+            // Show question text for regular questions
+            <div style={{ width: "90vw", height: "100%" }}>
+              <AutoFitText
+                html={marked.parseInline(questionText || "")}
+                maxRem={2.8 * scale}
+                minRem={1.8 * scale}
+                style={{
+                  color: theme.dark,
+                  fontWeight: 500,
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
 

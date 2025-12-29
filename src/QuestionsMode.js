@@ -55,6 +55,9 @@ export default function QuestionsMode({
   // Track if image overlay is active on display
   const [imageOverlayActive, setImageOverlayActive] = React.useState(false);
 
+  // Track which question ID has inline visual images active on display
+  const [inlineVisualQuestionId, setInlineVisualQuestionId] = React.useState(null);
+
   // Track current image index for category images
   const [currentCategoryImageIndex, setCurrentCategoryImageIndex] =
     React.useState({});
@@ -940,13 +943,29 @@ export default function QuestionsMode({
                         {sendToDisplay && displayControlsOpen && (
                           <Button
                             onClick={() => {
-                              // Never automatically push images - user must explicitly use "Push image to display"
-                              sendToDisplay("question", {
-                                questionNumber: q["Question order"],
-                                questionText: q["Question text"] || "",
-                                categoryName: categoryName,
-                                images: [],
-                              });
+                              const isVisual = (q?.["Question type"] || "").toLowerCase().includes("visual");
+                              const hasImages = Array.isArray(q.Images) && q.Images.length > 0;
+
+                              // For Visual questions with images, send as inline images
+                              if (isVisual && hasImages) {
+                                sendToDisplay("question", {
+                                  questionNumber: q["Question order"],
+                                  questionText: q["Question text"] || "",
+                                  categoryName: categoryName,
+                                  inlineImages: q.Images.map((img) => ({ url: img.url })),
+                                  currentInlineImageIndex: currentImageIndex[q["Question ID"]] || 0,
+                                });
+                                setInlineVisualQuestionId(q["Question ID"]);
+                              } else {
+                                // Regular questions
+                                sendToDisplay("question", {
+                                  questionNumber: q["Question order"],
+                                  questionText: q["Question text"] || "",
+                                  categoryName: categoryName,
+                                  images: [],
+                                });
+                                setInlineVisualQuestionId(null);
+                              }
                             }}
                             style={{
                               marginLeft: ".5rem",
@@ -1126,7 +1145,7 @@ export default function QuestionsMode({
                                   ? "Close image"
                                   : "Push image to display"}
                               </Button>
-                              {imageOverlayActive && q.Images.length > 1 && (
+                              {((imageOverlayActive || inlineVisualQuestionId === q["Question ID"]) && q.Images.length > 1) && (
                                 <div
                                   style={{
                                     display: "inline-block",
@@ -1145,12 +1164,20 @@ export default function QuestionsMode({
                                         ...currentImageIndex,
                                         [q["Question ID"]]: newIdx,
                                       });
-                                      sendToDisplay("imageOverlay", {
-                                        images: q.Images.map((img) => ({
-                                          url: img.url,
-                                        })),
-                                        currentIndex: newIdx,
-                                      });
+
+                                      // Update overlay or inline image depending on which is active
+                                      if (imageOverlayActive) {
+                                        sendToDisplay("imageOverlay", {
+                                          images: q.Images.map((img) => ({
+                                            url: img.url,
+                                          })),
+                                          currentIndex: newIdx,
+                                        });
+                                      } else if (inlineVisualQuestionId === q["Question ID"]) {
+                                        sendToDisplay("updateInlineImageIndex", {
+                                          currentIndex: newIdx,
+                                        });
+                                      }
                                     }}
                                     style={{
                                       fontSize: "1rem",
@@ -1174,12 +1201,20 @@ export default function QuestionsMode({
                                         ...currentImageIndex,
                                         [q["Question ID"]]: newIdx,
                                       });
-                                      sendToDisplay("imageOverlay", {
-                                        images: q.Images.map((img) => ({
-                                          url: img.url,
-                                        })),
-                                        currentIndex: newIdx,
-                                      });
+
+                                      // Update overlay or inline image depending on which is active
+                                      if (imageOverlayActive) {
+                                        sendToDisplay("imageOverlay", {
+                                          images: q.Images.map((img) => ({
+                                            url: img.url,
+                                          })),
+                                          currentIndex: newIdx,
+                                        });
+                                      } else if (inlineVisualQuestionId === q["Question ID"]) {
+                                        sendToDisplay("updateInlineImageIndex", {
+                                          currentIndex: newIdx,
+                                        });
+                                      }
                                     }}
                                     style={{
                                       fontSize: "1rem",
@@ -1369,6 +1404,9 @@ export default function QuestionsMode({
                                   )
                                 : null;
 
+                              const isVisual = (q?.["Question type"] || "").toLowerCase().includes("visual");
+                              const hasImages = Array.isArray(q.Images) && q.Images.length > 0;
+
                               return (
                                 <>
                                   <Button
@@ -1388,6 +1426,16 @@ export default function QuestionsMode({
                                         correctCount: null,
                                         totalTeams: null,
                                       };
+
+                                      // Preserve inline images for Visual questions
+                                      if (isVisual && hasImages) {
+                                        payload.inlineImages = q.Images.map((img) => ({ url: img.url }));
+                                        payload.currentInlineImageIndex = currentImageIndex[q["Question ID"]] || 0;
+                                        setInlineVisualQuestionId(q["Question ID"]);
+                                      } else {
+                                        setInlineVisualQuestionId(null);
+                                      }
+
                                       console.log(
                                         "[QuestionsMode] Push answer - sending:",
                                         payload
@@ -1418,6 +1466,16 @@ export default function QuestionsMode({
                                           qStats?.correctCount ?? null,
                                         totalTeams: qStats?.totalTeams ?? null,
                                       };
+
+                                      // Preserve inline images for Visual questions
+                                      if (isVisual && hasImages) {
+                                        payload.inlineImages = q.Images.map((img) => ({ url: img.url }));
+                                        payload.currentInlineImageIndex = currentImageIndex[q["Question ID"]] || 0;
+                                        setInlineVisualQuestionId(q["Question ID"]);
+                                      } else {
+                                        setInlineVisualQuestionId(null);
+                                      }
+
                                       console.log(
                                         "[QuestionsMode] Push stats - sending:",
                                         payload
