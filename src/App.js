@@ -1443,6 +1443,7 @@ export default function App() {
           setPoolContribution={setPoolContribution}
           getClosestQuestionKey={getClosestQuestionKey}
           questionRefs={questionRefs}
+          sendToDisplay={sendToDisplay}
         />
       </Sidebar>
 

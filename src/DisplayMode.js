@@ -75,7 +75,11 @@ export default function DisplayMode() {
 
       {displayState.type === "standby" && <StandbyScreen />}
       {displayState.type === "question" && (
-        <QuestionDisplay content={displayState.content} fontSize={fontSize} inlineImageIndex={inlineImageIndex} />
+        <QuestionDisplay
+          content={displayState.content}
+          fontSize={fontSize}
+          inlineImageIndex={inlineImageIndex}
+        />
       )}
       {displayState.type === "category" && (
         <CategoryDisplay content={displayState.content} fontSize={fontSize} />
@@ -494,8 +498,8 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
 }
 
 function MessageDisplay({ content, fontSize = 100 }) {
-  const { text } = content || {};
-  const scale = fontSize / 100;
+  const { text, fontSize: customFontSize } = content || {};
+  const scale = (customFontSize || fontSize) / 100;
 
   return (
     <div
@@ -515,7 +519,7 @@ function MessageDisplay({ content, fontSize = 100 }) {
 
         fontSize: `${5 * scale}rem`,
         fontWeight: 600,
-        lineHeight: 1.5,
+        lineHeight: 1.2,
         color: theme.dark,
       }}
       dangerouslySetInnerHTML={{

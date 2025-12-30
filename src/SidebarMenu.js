@@ -30,6 +30,7 @@ export default function SidebarMenu({
   setPrizes,
   getClosestQuestionKey,
   questionRefs,
+  sendToDisplay,
 }) {
   const [expandedSections, setExpandedSections] = useState({
     hostTools: false,
@@ -404,7 +405,9 @@ export default function SidebarMenu({
             : "the visual round for game #1";
       } else {
         visualDescriptor =
-          visualCategoryCount > 1 ? "the first visual round" : "the visual round";
+          visualCategoryCount > 1
+            ? "the first visual round"
+            : "the visual round";
       }
 
       if (hasCohost) {
@@ -546,14 +549,19 @@ export default function SidebarMenu({
                 // Preserve scroll position
                 const closestKey = getClosestQuestionKey?.();
                 setDisplayControlsOpen((prev) => !prev);
-                if (closestKey && questionRefs?.current?.[closestKey]?.current) {
+                if (
+                  closestKey &&
+                  questionRefs?.current?.[closestKey]?.current
+                ) {
                   // Use requestAnimationFrame to wait for DOM update, then scroll instantly
                   requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
-                      questionRefs.current[closestKey]?.current?.scrollIntoView({
-                        behavior: "instant",
-                        block: "center",
-                      });
+                      questionRefs.current[closestKey]?.current?.scrollIntoView(
+                        {
+                          behavior: "instant",
+                          block: "center",
+                        }
+                      );
                     });
                   });
                 }
@@ -602,14 +610,19 @@ export default function SidebarMenu({
                 // Preserve scroll position
                 const closestKey = getClosestQuestionKey?.();
                 setShowDetails((prev) => !prev);
-                if (closestKey && questionRefs?.current?.[closestKey]?.current) {
+                if (
+                  closestKey &&
+                  questionRefs?.current?.[closestKey]?.current
+                ) {
                   // Use requestAnimationFrame to wait for DOM update, then scroll instantly
                   requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
-                      questionRefs.current[closestKey]?.current?.scrollIntoView({
-                        behavior: "instant",
-                        block: "center",
-                      });
+                      questionRefs.current[closestKey]?.current?.scrollIntoView(
+                        {
+                          behavior: "instant",
+                          block: "center",
+                        }
+                      );
                     });
                   });
                 }
@@ -1124,26 +1137,184 @@ export default function SidebarMenu({
 
             <div
               style={{
-                display: "flex",
-                gap: ".5rem",
-                justifyContent: "flex-end",
-                padding: ".8rem .9rem .9rem",
+                padding: ".8rem .9rem",
                 borderTop: "1px solid #eee",
               }}
             >
-              <button
-                type="button"
-                onClick={() => setScriptOpen(false)}
+              {/* Push to Display buttons */}
+              {sendToDisplay && (
+                <>
+                  <div
+                    style={{
+                      marginBottom: ".75rem",
+                      fontWeight: 600,
+                      fontSize: ".9rem",
+                      color: theme.dark,
+                    }}
+                  >
+                    Push to Display:
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: ".5rem",
+                      marginBottom: ".75rem",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        sendToDisplay("message", {
+                          text: "Get ready to play!",
+                        })
+                      }
+                      style={{
+                        padding: ".5rem .75rem",
+                        border: `1px solid ${theme.accent}`,
+                        background: theme.white,
+                        borderRadius: ".35rem",
+                        cursor: "pointer",
+                        fontSize: ".85rem",
+                      }}
+                    >
+                      📺 Get ready to play!
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        sendToDisplay("message", {
+                          text: "No electronic devices may be out during the round",
+                        })
+                      }
+                      style={{
+                        padding: ".5rem .75rem",
+                        border: `1px solid ${theme.accent}`,
+                        background: theme.white,
+                        borderRadius: ".35rem",
+                        cursor: "pointer",
+                        fontSize: ".85rem",
+                      }}
+                    >
+                      📺 No devices
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        sendToDisplay("message", {
+                          text: "Don't shout out the answers",
+                        })
+                      }
+                      style={{
+                        padding: ".5rem .75rem",
+                        border: `1px solid ${theme.accent}`,
+                        background: theme.white,
+                        borderRadius: ".35rem",
+                        cursor: "pointer",
+                        fontSize: ".85rem",
+                      }}
+                    >
+                      📺 Don't shout
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        sendToDisplay("message", {
+                          text: "Spelling doesn't count unless we say it does",
+                        })
+                      }
+                      style={{
+                        padding: ".5rem .75rem",
+                        border: `1px solid ${theme.accent}`,
+                        background: theme.white,
+                        borderRadius: ".35rem",
+                        cursor: "pointer",
+                        fontSize: ".85rem",
+                      }}
+                    >
+                      📺 Spelling
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        sendToDisplay("message", {
+                          text: "Real people: Last names\nFictional people: First or last names\n(unless we say otherwise!)",
+                          fontSize: 119,
+                        })
+                      }
+                      style={{
+                        padding: ".5rem .75rem",
+                        border: `1px solid ${theme.accent}`,
+                        background: theme.white,
+                        borderRadius: ".35rem",
+                        cursor: "pointer",
+                        fontSize: ".85rem",
+                      }}
+                    >
+                      📺 Names
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        sendToDisplay("message", {
+                          text: "Our answer is the\ncorrect answer",
+                        })
+                      }
+                      style={{
+                        padding: ".5rem .75rem",
+                        border: `1px solid ${theme.accent}`,
+                        background: theme.white,
+                        borderRadius: ".35rem",
+                        cursor: "pointer",
+                        fontSize: ".85rem",
+                      }}
+                    >
+                      📺 Our answer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        sendToDisplay("message", {
+                          text: "Put those phones away, because the contest starts NOW!",
+                        })
+                      }
+                      style={{
+                        padding: ".5rem .75rem",
+                        border: `1px solid ${theme.accent}`,
+                        background: theme.white,
+                        borderRadius: ".35rem",
+                        cursor: "pointer",
+                        fontSize: ".85rem",
+                        gridColumn: "1 / -1",
+                      }}
+                    >
+                      📺 Contest starts NOW!
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Close button */}
+              <div
                 style={{
-                  padding: ".5rem .75rem",
-                  border: "1px solid #ccc",
-                  background: "#f7f7f7",
-                  borderRadius: ".35rem",
-                  cursor: "pointer",
+                  display: "flex",
+                  justifyContent: "flex-end",
                 }}
               >
-                Close
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setScriptOpen(false)}
+                  style={{
+                    padding: ".5rem .75rem",
+                    border: "1px solid #ccc",
+                    background: "#f7f7f7",
+                    borderRadius: ".35rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
