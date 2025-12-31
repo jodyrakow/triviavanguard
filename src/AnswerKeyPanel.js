@@ -112,6 +112,21 @@ export default function AnswerKeyPanel({ showBundle, onClose }) {
     }, 0);
   };
 
+  const printAnswerKey = () => {
+    try {
+      // Store showBundle in localStorage for the print page
+      localStorage.setItem(
+        "printAnswerKeyData",
+        JSON.stringify({ showBundle })
+      );
+      // Open print page in new tab
+      window.open(window.location.origin + "/?print-answer-key", "_blank");
+    } catch (err) {
+      console.error("Failed to open print window:", err);
+      alert("Failed to open print window: " + err.message);
+    }
+  };
+
   return (
     <div
       style={{
@@ -181,6 +196,7 @@ export default function AnswerKeyPanel({ showBundle, onClose }) {
       >
         <Button onClick={copyAnswerKey}>Copy</Button>
         <Button onClick={downloadAnswerKey}>Download .txt</Button>
+        <Button onClick={printAnswerKey}>Print</Button>
       </div>
 
       {/* Preview */}

@@ -1,5 +1,6 @@
 // SidebarMenu.js - Menu contents for the sidebar drawer
 import { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { tokens, colors as theme } from "./styles/index.js";
 
 export default function SidebarMenu({
@@ -1069,7 +1070,7 @@ export default function SidebarMenu({
       </div>
 
       {/* Script Modal */}
-      {scriptOpen && (
+      {scriptOpen && createPortal(
         <div
           onMouseDown={() => setScriptOpen(false)}
           style={{
@@ -1317,7 +1318,8 @@ export default function SidebarMenu({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

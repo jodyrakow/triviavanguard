@@ -1,0 +1,173 @@
+/* Print Answer Key Styles */
+
+.printPage {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #000;
+  background: #fff;
+}
+
+/* Toolbar (hidden when printing) */
+.printToolbar {
+  padding: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid #ccc;
+}
+
+.printToolbar button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #666;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.printToolbar button:hover {
+  background: #f0f0f0;
+}
+
+/* Loading/Error states */
+.printLoading,
+.printError {
+  padding: 2rem;
+  text-align: center;
+  font-size: 18px;
+}
+
+.printError {
+  color: #c00;
+}
+
+/* Print content */
+.printContent {
+  padding: 0.5in;
+  width: 8.5in;
+  min-height: 11in;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.printPage.landscape .printContent {
+  width: 11in;
+  min-height: 8.5in;
+}
+
+.printTitle {
+  font-size: 20px;
+  font-weight: bold;
+  margin: 0 0 0.5in 0;
+  text-align: center;
+}
+
+/* Column layout */
+.printColumns {
+  display: grid;
+  gap: 0.25in;
+  align-items: start;
+}
+
+.printColumn {
+  min-width: 0; /* Allow flex shrinking */
+}
+
+.columnHeader {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 0.15in;
+  text-align: left;
+}
+
+.questionList {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Question lines - Portrait (2-3 columns) */
+.printPage.portrait .questionLine {
+  font-size: 18pt;
+  line-height: 0.42in;
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Question lines - Landscape (4 columns) */
+.printPage.landscape .questionLine {
+  font-size: 18pt;
+  line-height: 0.39in;
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Print rules */
+@page {
+  margin: 0.5in;
+}
+
+@page :first {
+  margin: 0.5in;
+}
+
+/* Portrait for 2-3 columns */
+.printPage.portrait {
+  width: 8.5in;
+  height: 11in;
+}
+
+@media print {
+  .printPage.portrait {
+    size: portrait;
+  }
+}
+
+/* Landscape for 4 columns */
+.printPage.landscape {
+  width: 11in;
+  height: 8.5in;
+}
+
+@media print {
+  .printPage.landscape {
+    size: landscape;
+  }
+
+  @page {
+    size: landscape;
+    margin: 0.5in;
+  }
+}
+
+@media print {
+  .noPrint {
+    display: none !important;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .printPage {
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .printContent {
+    padding: 0;
+    margin: 0;
+  }
+
+  .printColumn {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
