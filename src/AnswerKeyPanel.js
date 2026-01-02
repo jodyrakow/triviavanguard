@@ -74,7 +74,7 @@ function buildShowAnswerKeyText(showBundle, { withLabels = true } = {}) {
   return parts.join("\n\n"); // blank line between rounds
 }
 
-export default function AnswerKeyPanel({ showBundle, onClose }) {
+export default function AnswerKeyPanel({ showBundle, showName, onClose }) {
   const [akIncludeLabels, setAkIncludeLabels] = React.useState(true);
 
   const answerKeyText = React.useMemo(() => {
@@ -114,10 +114,10 @@ export default function AnswerKeyPanel({ showBundle, onClose }) {
 
   const printAnswerKey = () => {
     try {
-      // Store showBundle in localStorage for the print page
+      // Store showBundle and showName in localStorage for the print page
       localStorage.setItem(
         "printAnswerKeyData",
-        JSON.stringify({ showBundle })
+        JSON.stringify({ showBundle, showName })
       );
       // Open print page in new tab
       window.open(window.location.origin + "/?print-answer-key", "_blank");

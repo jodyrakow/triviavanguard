@@ -1,5 +1,5 @@
 // SidebarMenu.js - Menu contents for the sidebar drawer
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { tokens, colors as theme } from "./styles/index.js";
 
@@ -112,11 +112,15 @@ export default function SidebarMenu({
   const [prizeCount, setPrizeCount] = useState(normalizedPrizeLines.length);
   const [prizeDrafts, setPrizeDrafts] = useState(normalizedPrizeLines);
 
+  // Only initialize once on mount, don't reset on every prizes change
+  const hasInitializedPrizes = useRef(false);
   useEffect(() => {
+    if (hasInitializedPrizes.current) return;
+    hasInitializedPrizes.current = true;
     setPrizeCount(normalizedPrizeLines.length);
     setPrizeDrafts(normalizedPrizeLines);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prizes]);
+  }, []);
 
   const commitPrizes = (nextDrafts) => {
     const next = (nextDrafts || [])
@@ -266,6 +270,8 @@ export default function SidebarMenu({
     let spokenQuestionCount = 0;
     let audioQuestionCount = 0;
     let visualCategoryCount = 0;
+    let spokenCategoryCount = 0;
+    const spokenCategorySizes = [];
 
     for (const r of allRounds) {
       for (const cat of r?.categories || []) {
@@ -273,22 +279,27 @@ export default function SidebarMenu({
           cat?.questionType || cat?.["Question type"] || ""
         ).toLowerCase();
 
+        const catQuestions = (cat?.questions || []).filter((q) => !isTB(q));
+
         if (catQuestionType.includes("visual")) {
           visualCategoryCount += 1;
-          visualQuestionCount += (cat?.questions || []).filter(
-            (q) => !isTB(q)
-          ).length;
+          visualQuestionCount += catQuestions.length;
         } else if (catQuestionType.includes("audio")) {
-          audioQuestionCount += (cat?.questions || []).filter(
-            (q) => !isTB(q)
-          ).length;
+          audioQuestionCount += catQuestions.length;
         } else {
-          spokenQuestionCount += (cat?.questions || []).filter(
-            (q) => !isTB(q)
-          ).length;
+          // Spoken category
+          spokenCategoryCount += 1;
+          spokenQuestionCount += catQuestions.length;
+          spokenCategorySizes.push(catQuestions.length);
         }
       }
     }
+
+    // Calculate questions per spoken category (most common size)
+    const questionsPerSpokenCategory =
+      spokenCategorySizes.length > 0
+        ? Math.round(spokenQuestionCount / spokenCategoryCount)
+        : 0;
 
     // --- Intro ---
     const triviaType = isTipsy ? "tipsy team trivia" : "team trivia";
@@ -333,9 +344,14 @@ export default function SidebarMenu({
       }
 
       if (spokenQuestionCount > 0) {
-        parts.push(
-          `${spokenQuestionCount} spoken word question${spokenQuestionCount === 1 ? "" : "s"}`
-        );
+        let spokenText = `${spokenQuestionCount} spoken word question${spokenQuestionCount === 1 ? "" : "s"}`;
+
+        // Add category breakdown if there are spoken categories
+        if (spokenCategoryCount > 0 && questionsPerSpokenCategory > 0) {
+          spokenText += ` divided into categories of ${questionsPerSpokenCategory} question${questionsPerSpokenCategory === 1 ? "" : "s"} each`;
+        }
+
+        parts.push(spokenText);
       }
 
       if (audioQuestionCount > 0) {
@@ -412,7 +428,7 @@ export default function SidebarMenu({
       }
 
       if (hasCohost) {
-        text += `${cName} is coming around ${visualDescriptor}. That's your signal to put those phones away because the contest starts now. Good luck!`;
+        text += `${cName} is coming around with ${visualDescriptor}. That's your signal to put those phones away because the contest starts now. Good luck!`;
       } else {
         text += `I'll be coming around in just a moment with ${visualDescriptor}. That's your signal to put those phones away because the contest starts now. Good luck!`;
       }
@@ -1070,257 +1086,258 @@ export default function SidebarMenu({
       </div>
 
       {/* Script Modal */}
-      {scriptOpen && createPortal(
-        <div
-          onMouseDown={() => setScriptOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(43,57,74,.65)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem",
-          }}
-        >
+      {scriptOpen &&
+        createPortal(
           <div
-            onMouseDown={(e) => e.stopPropagation()}
+            onMouseDown={() => setScriptOpen(false)}
             style={{
-              width: "75vw",
-              height: "75vh",
-              maxWidth: "100vw",
-              maxHeight: "100vh",
-              background: "#fff",
-              borderRadius: ".6rem",
-              border: `1px solid ${theme.accent}`,
-              overflow: "auto",
-              resize: "both",
-              boxShadow: "0 10px 30px rgba(0,0,0,.25)",
-              fontFamily: tokens.font.body,
+              position: "fixed",
+              inset: 0,
+              background: "rgba(43,57,74,.65)",
+              zIndex: 9999,
               display: "flex",
-              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "1rem",
             }}
           >
             <div
+              onMouseDown={(e) => e.stopPropagation()}
               style={{
-                background: theme.dark,
-                color: "#fff",
-                padding: ".6rem .8rem",
-                borderBottom: `2px solid ${theme.accent}`,
-                fontFamily: tokens.font.display,
-                fontSize: "1.5rem",
-                letterSpacing: ".01em",
-              }}
-            >
-              Host Script
-            </div>
-
-            <textarea
-              readOnly
-              value={hostScript}
-              style={{
-                width: "100%",
-                flex: 1,
-                resize: "none",
-                padding: "1rem",
-                border: "none",
-                borderTop: "1px solid #ddd",
-                borderBottom: "1px solid #ddd",
+                width: "75vw",
+                height: "75vh",
+                maxWidth: "100vw",
+                maxHeight: "100vh",
+                background: "#fff",
+                borderRadius: ".6rem",
+                border: `1px solid ${theme.accent}`,
+                overflow: "auto",
+                resize: "both",
+                boxShadow: "0 10px 30px rgba(0,0,0,.25)",
                 fontFamily: tokens.font.body,
-                lineHeight: 1.35,
-                fontSize: "1.25rem",
-                whiteSpace: "pre-wrap",
-                wordWrap: "break-word",
-                boxSizing: "border-box",
-              }}
-            />
-
-            <div
-              style={{
-                padding: ".8rem .9rem",
-                borderTop: "1px solid #eee",
+                display: "flex",
+                flexDirection: "column",
               }}
             >
-              {/* Push to Display buttons */}
-              {sendToDisplay && (
-                <>
-                  <div
-                    style={{
-                      marginBottom: ".75rem",
-                      fontWeight: 600,
-                      fontSize: ".9rem",
-                      color: theme.dark,
-                    }}
-                  >
-                    Push to Display:
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: ".5rem",
-                      marginBottom: ".75rem",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        sendToDisplay("message", {
-                          text: "Get ready to play!",
-                        })
-                      }
-                      style={{
-                        padding: ".5rem .75rem",
-                        border: `1px solid ${theme.accent}`,
-                        background: theme.white,
-                        borderRadius: ".35rem",
-                        cursor: "pointer",
-                        fontSize: ".85rem",
-                      }}
-                    >
-                      📺 Get ready to play!
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        sendToDisplay("message", {
-                          text: "No electronic devices may be out during the round",
-                        })
-                      }
-                      style={{
-                        padding: ".5rem .75rem",
-                        border: `1px solid ${theme.accent}`,
-                        background: theme.white,
-                        borderRadius: ".35rem",
-                        cursor: "pointer",
-                        fontSize: ".85rem",
-                      }}
-                    >
-                      📺 No devices
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        sendToDisplay("message", {
-                          text: "Don't shout out the answers",
-                        })
-                      }
-                      style={{
-                        padding: ".5rem .75rem",
-                        border: `1px solid ${theme.accent}`,
-                        background: theme.white,
-                        borderRadius: ".35rem",
-                        cursor: "pointer",
-                        fontSize: ".85rem",
-                      }}
-                    >
-                      📺 Don't shout
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        sendToDisplay("message", {
-                          text: "Spelling doesn't count unless we say it does",
-                        })
-                      }
-                      style={{
-                        padding: ".5rem .75rem",
-                        border: `1px solid ${theme.accent}`,
-                        background: theme.white,
-                        borderRadius: ".35rem",
-                        cursor: "pointer",
-                        fontSize: ".85rem",
-                      }}
-                    >
-                      📺 Spelling
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        sendToDisplay("message", {
-                          text: "Real people: Last names\nFictional people: First or last names\n(unless we say otherwise!)",
-                          fontSize: 119,
-                        })
-                      }
-                      style={{
-                        padding: ".5rem .75rem",
-                        border: `1px solid ${theme.accent}`,
-                        background: theme.white,
-                        borderRadius: ".35rem",
-                        cursor: "pointer",
-                        fontSize: ".85rem",
-                      }}
-                    >
-                      📺 Names
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        sendToDisplay("message", {
-                          text: "Our answer is the\ncorrect answer",
-                        })
-                      }
-                      style={{
-                        padding: ".5rem .75rem",
-                        border: `1px solid ${theme.accent}`,
-                        background: theme.white,
-                        borderRadius: ".35rem",
-                        cursor: "pointer",
-                        fontSize: ".85rem",
-                      }}
-                    >
-                      📺 Our answer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        sendToDisplay("message", {
-                          text: "Put those phones away, because the contest starts NOW!",
-                        })
-                      }
-                      style={{
-                        padding: ".5rem .75rem",
-                        border: `1px solid ${theme.accent}`,
-                        background: theme.white,
-                        borderRadius: ".35rem",
-                        cursor: "pointer",
-                        fontSize: ".85rem",
-                        gridColumn: "1 / -1",
-                      }}
-                    >
-                      📺 Contest starts NOW!
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* Close button */}
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
+                  background: theme.dark,
+                  color: "#fff",
+                  padding: ".6rem .8rem",
+                  borderBottom: `2px solid ${theme.accent}`,
+                  fontFamily: tokens.font.display,
+                  fontSize: "1.5rem",
+                  letterSpacing: ".01em",
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => setScriptOpen(false)}
+                Host Script
+              </div>
+
+              <textarea
+                readOnly
+                value={hostScript}
+                style={{
+                  width: "100%",
+                  flex: 1,
+                  resize: "none",
+                  padding: "1rem",
+                  border: "none",
+                  borderTop: "1px solid #ddd",
+                  borderBottom: "1px solid #ddd",
+                  fontFamily: tokens.font.body,
+                  lineHeight: 1.35,
+                  fontSize: "1.25rem",
+                  whiteSpace: "pre-wrap",
+                  wordWrap: "break-word",
+                  boxSizing: "border-box",
+                }}
+              />
+
+              <div
+                style={{
+                  padding: ".8rem .9rem",
+                  borderTop: "1px solid #eee",
+                }}
+              >
+                {/* Push to Display buttons */}
+                {sendToDisplay && (
+                  <>
+                    <div
+                      style={{
+                        marginBottom: ".75rem",
+                        fontWeight: 600,
+                        fontSize: ".9rem",
+                        color: theme.dark,
+                      }}
+                    >
+                      Push to Display:
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: ".5rem",
+                        marginBottom: ".75rem",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          sendToDisplay("message", {
+                            text: "Get ready to play!",
+                          })
+                        }
+                        style={{
+                          padding: ".5rem .75rem",
+                          border: `1px solid ${theme.accent}`,
+                          background: theme.white,
+                          borderRadius: ".35rem",
+                          cursor: "pointer",
+                          fontSize: ".85rem",
+                        }}
+                      >
+                        📺 Get ready to play!
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          sendToDisplay("message", {
+                            text: "No electronic devices may be out during the round",
+                          })
+                        }
+                        style={{
+                          padding: ".5rem .75rem",
+                          border: `1px solid ${theme.accent}`,
+                          background: theme.white,
+                          borderRadius: ".35rem",
+                          cursor: "pointer",
+                          fontSize: ".85rem",
+                        }}
+                      >
+                        📺 No devices
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          sendToDisplay("message", {
+                            text: "Don't shout out the answers",
+                          })
+                        }
+                        style={{
+                          padding: ".5rem .75rem",
+                          border: `1px solid ${theme.accent}`,
+                          background: theme.white,
+                          borderRadius: ".35rem",
+                          cursor: "pointer",
+                          fontSize: ".85rem",
+                        }}
+                      >
+                        📺 Don't shout
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          sendToDisplay("message", {
+                            text: "Spelling doesn't count unless we say it does",
+                          })
+                        }
+                        style={{
+                          padding: ".5rem .75rem",
+                          border: `1px solid ${theme.accent}`,
+                          background: theme.white,
+                          borderRadius: ".35rem",
+                          cursor: "pointer",
+                          fontSize: ".85rem",
+                        }}
+                      >
+                        📺 Spelling
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          sendToDisplay("message", {
+                            text: "Real people: Last names\nFictional people: First or last names\n(unless we say otherwise!)",
+                            fontSize: 119,
+                          })
+                        }
+                        style={{
+                          padding: ".5rem .75rem",
+                          border: `1px solid ${theme.accent}`,
+                          background: theme.white,
+                          borderRadius: ".35rem",
+                          cursor: "pointer",
+                          fontSize: ".85rem",
+                        }}
+                      >
+                        📺 Names
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          sendToDisplay("message", {
+                            text: "Our answer is the\ncorrect answer",
+                          })
+                        }
+                        style={{
+                          padding: ".5rem .75rem",
+                          border: `1px solid ${theme.accent}`,
+                          background: theme.white,
+                          borderRadius: ".35rem",
+                          cursor: "pointer",
+                          fontSize: ".85rem",
+                        }}
+                      >
+                        📺 Our answer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          sendToDisplay("message", {
+                            text: "Put those phones away, because the contest starts NOW!",
+                          })
+                        }
+                        style={{
+                          padding: ".5rem .75rem",
+                          border: `1px solid ${theme.accent}`,
+                          background: theme.white,
+                          borderRadius: ".35rem",
+                          cursor: "pointer",
+                          fontSize: ".85rem",
+                          gridColumn: "1 / -1",
+                        }}
+                      >
+                        📺 Contest starts NOW!
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* Close button */}
+                <div
                   style={{
-                    padding: ".5rem .75rem",
-                    border: "1px solid #ccc",
-                    background: "#f7f7f7",
-                    borderRadius: ".35rem",
-                    cursor: "pointer",
+                    display: "flex",
+                    justifyContent: "flex-end",
                   }}
                 >
-                  Close
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setScriptOpen(false)}
+                    style={{
+                      padding: ".5rem .75rem",
+                      border: "1px solid #ccc",
+                      background: "#f7f7f7",
+                      borderRadius: ".35rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

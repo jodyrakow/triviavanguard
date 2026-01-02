@@ -940,44 +940,96 @@ export default function QuestionsMode({
                             <>Question {q["Question order"]}:</>
                           )}
                         </strong>
-                        {sendToDisplay && displayControlsOpen && (
-                          <Button
-                            onClick={() => {
-                              const isVisual = (q?.["Question type"] || "").toLowerCase().includes("visual");
-                              const hasImages = Array.isArray(q.Images) && q.Images.length > 0;
+                        {sendToDisplay && displayControlsOpen && (() => {
+                          const isVisual = (q?.["Question type"] || "").toLowerCase().includes("visual");
+                          const hasImages = Array.isArray(q.Images) && q.Images.length > 0;
 
-                              // For Visual questions with images, send as inline images
-                              if (isVisual && hasImages) {
-                                sendToDisplay("question", {
-                                  questionNumber: q["Question order"],
-                                  questionText: q["Question text"] || "",
-                                  categoryName: categoryName,
-                                  inlineImages: q.Images.map((img) => ({ url: img.url })),
-                                  currentInlineImageIndex: currentImageIndex[q["Question ID"]] || 0,
-                                });
-                                setInlineVisualQuestionId(q["Question ID"]);
-                              } else {
-                                // Regular questions
-                                sendToDisplay("question", {
-                                  questionNumber: q["Question order"],
-                                  questionText: q["Question text"] || "",
-                                  categoryName: categoryName,
-                                  images: [],
-                                });
-                                setInlineVisualQuestionId(null);
-                              }
-                            }}
-                            style={{
-                              marginLeft: ".5rem",
-                              fontSize: ".75rem",
-                              padding: ".25rem .5rem",
-                              verticalAlign: "middle",
-                            }}
-                            title="Push this question to the display"
-                          >
-                            Push to display
-                          </Button>
-                        )}
+                          // For lettered questions (visual), keep current behavior - always show inline images
+                          if (isVisual) {
+                            return (
+                              <Button
+                                onClick={() => {
+                                  if (hasImages) {
+                                    sendToDisplay("question", {
+                                      questionNumber: q["Question order"],
+                                      questionText: q["Question text"] || "",
+                                      categoryName: categoryName,
+                                      inlineImages: q.Images.map((img) => ({ url: img.url })),
+                                      currentInlineImageIndex: currentImageIndex[q["Question ID"]] || 0,
+                                    });
+                                    setInlineVisualQuestionId(q["Question ID"]);
+                                  } else {
+                                    sendToDisplay("question", {
+                                      questionNumber: q["Question order"],
+                                      questionText: q["Question text"] || "",
+                                      categoryName: categoryName,
+                                      images: [],
+                                    });
+                                    setInlineVisualQuestionId(null);
+                                  }
+                                }}
+                                style={{
+                                  marginLeft: ".5rem",
+                                  fontSize: ".75rem",
+                                  padding: ".25rem .5rem",
+                                  verticalAlign: "middle",
+                                }}
+                                title="Push this question to the display"
+                              >
+                                Push to display
+                              </Button>
+                            );
+                          }
+
+                          // For numbered questions - show both buttons if images exist
+                          return (
+                            <>
+                              <Button
+                                onClick={() => {
+                                  sendToDisplay("question", {
+                                    questionNumber: q["Question order"],
+                                    questionText: q["Question text"] || "",
+                                    categoryName: categoryName,
+                                    images: [],
+                                  });
+                                  setInlineVisualQuestionId(null);
+                                }}
+                                style={{
+                                  marginLeft: ".5rem",
+                                  fontSize: ".75rem",
+                                  padding: ".25rem .5rem",
+                                  verticalAlign: "middle",
+                                }}
+                                title="Push this question to the display (without images)"
+                              >
+                                Push to display
+                              </Button>
+                              {hasImages && (
+                                <Button
+                                  onClick={() => {
+                                    sendToDisplay("question", {
+                                      questionNumber: q["Question order"],
+                                      questionText: q["Question text"] || "",
+                                      categoryName: categoryName,
+                                      inlineImages: q.Images.map((img) => ({ url: img.url })),
+                                      currentInlineImageIndex: currentImageIndex[q["Question ID"]] || 0,
+                                    });
+                                    setInlineVisualQuestionId(q["Question ID"]);
+                                  }}
+                                  style={{
+                                    marginLeft: ".5rem",
+                                    fontSize: ".75rem",
+                                    padding: ".25rem .5rem",
+                                    verticalAlign: "middle",
+                                  }}
+                                  title="Push this question to the display with inline images"
+                                >
+                                  Push with images
+                                </Button>
+                              )}
+                            </>
+                          );
+                        })()}
                         <br />
                         <div
                           style={{
@@ -1407,15 +1459,85 @@ export default function QuestionsMode({
                               const isVisual = (q?.["Question type"] || "").toLowerCase().includes("visual");
                               const hasImages = Array.isArray(q.Images) && q.Images.length > 0;
 
+                              // For visual questions, always include inline images
+                              if (isVisual) {
+                                return (
+                                  <>
+                                    <Button
+                                      onClick={() => {
+                                        const payload = {
+                                          questionNumber: q["Question order"],
+                                          questionText: q["Question text"] || "",
+                                          categoryName: categoryName,
+                                          images: [],
+                                          answer: q["Answer"] || "",
+                                          pointsPerTeam: null,
+                                          correctCount: null,
+                                          totalTeams: null,
+                                        };
+
+                                        if (hasImages) {
+                                          payload.inlineImages = q.Images.map((img) => ({ url: img.url }));
+                                          payload.currentInlineImageIndex = currentImageIndex[q["Question ID"]] || 0;
+                                          setInlineVisualQuestionId(q["Question ID"]);
+                                        } else {
+                                          setInlineVisualQuestionId(null);
+                                        }
+
+                                        sendToDisplay("question", payload);
+                                      }}
+                                      style={{
+                                        marginLeft: ".5rem",
+                                        fontSize: ".75rem",
+                                        padding: ".25rem .5rem",
+                                        verticalAlign: "middle",
+                                      }}
+                                      title="Push answer to display (no statistics)"
+                                    >
+                                      Push answer
+                                    </Button>
+                                    <Button
+                                      onClick={() => {
+                                        const payload = {
+                                          questionNumber: q["Question order"],
+                                          questionText: q["Question text"] || "",
+                                          categoryName: categoryName,
+                                          images: [],
+                                          answer: q["Answer"] || "",
+                                          pointsPerTeam: qPointsPerTeam,
+                                          correctCount: qStats?.correctCount ?? null,
+                                          totalTeams: qStats?.totalTeams ?? null,
+                                        };
+
+                                        if (hasImages) {
+                                          payload.inlineImages = q.Images.map((img) => ({ url: img.url }));
+                                          payload.currentInlineImageIndex = currentImageIndex[q["Question ID"]] || 0;
+                                          setInlineVisualQuestionId(q["Question ID"]);
+                                        } else {
+                                          setInlineVisualQuestionId(null);
+                                        }
+
+                                        sendToDisplay("question", payload);
+                                      }}
+                                      style={{
+                                        marginLeft: ".5rem",
+                                        fontSize: ".75rem",
+                                        padding: ".25rem .5rem",
+                                        verticalAlign: "middle",
+                                      }}
+                                      title="Push answer with statistics to display"
+                                    >
+                                      Push stats
+                                    </Button>
+                                  </>
+                                );
+                              }
+
+                              // For numbered questions - show separate buttons for with/without images
                               return (
                                 <>
                                   <Button
                                     onClick={() => {
-                                      // Push answer only (no stats) - explicitly set stats to undefined to clear any old values
-                                      console.log(
-                                        "[QuestionsMode] Question object:",
-                                        q
-                                      );
                                       const payload = {
                                         questionNumber: q["Question order"],
                                         questionText: q["Question text"] || "",
@@ -1426,20 +1548,7 @@ export default function QuestionsMode({
                                         correctCount: null,
                                         totalTeams: null,
                                       };
-
-                                      // Preserve inline images for Visual questions
-                                      if (isVisual && hasImages) {
-                                        payload.inlineImages = q.Images.map((img) => ({ url: img.url }));
-                                        payload.currentInlineImageIndex = currentImageIndex[q["Question ID"]] || 0;
-                                        setInlineVisualQuestionId(q["Question ID"]);
-                                      } else {
-                                        setInlineVisualQuestionId(null);
-                                      }
-
-                                      console.log(
-                                        "[QuestionsMode] Push answer - sending:",
-                                        payload
-                                      );
+                                      setInlineVisualQuestionId(null);
                                       sendToDisplay("question", payload);
                                     }}
                                     style={{
@@ -1448,13 +1557,41 @@ export default function QuestionsMode({
                                       padding: ".25rem .5rem",
                                       verticalAlign: "middle",
                                     }}
-                                    title="Push answer to display (no statistics)"
+                                    title="Push answer to display (no statistics, no images)"
                                   >
                                     Push answer
                                   </Button>
+                                  {hasImages && (
+                                    <Button
+                                      onClick={() => {
+                                        const payload = {
+                                          questionNumber: q["Question order"],
+                                          questionText: q["Question text"] || "",
+                                          categoryName: categoryName,
+                                          images: [],
+                                          answer: q["Answer"] || "",
+                                          pointsPerTeam: null,
+                                          correctCount: null,
+                                          totalTeams: null,
+                                          inlineImages: q.Images.map((img) => ({ url: img.url })),
+                                          currentInlineImageIndex: currentImageIndex[q["Question ID"]] || 0,
+                                        };
+                                        setInlineVisualQuestionId(q["Question ID"]);
+                                        sendToDisplay("question", payload);
+                                      }}
+                                      style={{
+                                        marginLeft: ".5rem",
+                                        fontSize: ".75rem",
+                                        padding: ".25rem .5rem",
+                                        verticalAlign: "middle",
+                                      }}
+                                      title="Push answer with inline images"
+                                    >
+                                      Push answer + images
+                                    </Button>
+                                  )}
                                   <Button
                                     onClick={() => {
-                                      // Push answer WITH statistics
                                       const payload = {
                                         questionNumber: q["Question order"],
                                         questionText: q["Question text"] || "",
@@ -1462,24 +1599,10 @@ export default function QuestionsMode({
                                         images: [],
                                         answer: q["Answer"] || "",
                                         pointsPerTeam: qPointsPerTeam,
-                                        correctCount:
-                                          qStats?.correctCount ?? null,
+                                        correctCount: qStats?.correctCount ?? null,
                                         totalTeams: qStats?.totalTeams ?? null,
                                       };
-
-                                      // Preserve inline images for Visual questions
-                                      if (isVisual && hasImages) {
-                                        payload.inlineImages = q.Images.map((img) => ({ url: img.url }));
-                                        payload.currentInlineImageIndex = currentImageIndex[q["Question ID"]] || 0;
-                                        setInlineVisualQuestionId(q["Question ID"]);
-                                      } else {
-                                        setInlineVisualQuestionId(null);
-                                      }
-
-                                      console.log(
-                                        "[QuestionsMode] Push stats - sending:",
-                                        payload
-                                      );
+                                      setInlineVisualQuestionId(null);
                                       sendToDisplay("question", payload);
                                     }}
                                     style={{
@@ -1488,10 +1611,39 @@ export default function QuestionsMode({
                                       padding: ".25rem .5rem",
                                       verticalAlign: "middle",
                                     }}
-                                    title="Push answer with statistics to display"
+                                    title="Push answer with statistics to display (no images)"
                                   >
                                     Push stats
                                   </Button>
+                                  {hasImages && (
+                                    <Button
+                                      onClick={() => {
+                                        const payload = {
+                                          questionNumber: q["Question order"],
+                                          questionText: q["Question text"] || "",
+                                          categoryName: categoryName,
+                                          images: [],
+                                          answer: q["Answer"] || "",
+                                          pointsPerTeam: qPointsPerTeam,
+                                          correctCount: qStats?.correctCount ?? null,
+                                          totalTeams: qStats?.totalTeams ?? null,
+                                          inlineImages: q.Images.map((img) => ({ url: img.url })),
+                                          currentInlineImageIndex: currentImageIndex[q["Question ID"]] || 0,
+                                        };
+                                        setInlineVisualQuestionId(q["Question ID"]);
+                                        sendToDisplay("question", payload);
+                                      }}
+                                      style={{
+                                        marginLeft: ".5rem",
+                                        fontSize: ".75rem",
+                                        padding: ".25rem .5rem",
+                                        verticalAlign: "middle",
+                                      }}
+                                      title="Push answer and statistics with inline images"
+                                    >
+                                      Push stats + images
+                                    </Button>
+                                  )}
                                 </>
                               );
                             })()}

@@ -1396,7 +1396,7 @@ export default function App() {
       window.sendTiebreakerAdded?.({
         showId: selectedShowId,
         roundId: selectedRoundId,
-        tiebreaker: tiebreakerQuestion,
+        tiebreakerQuestion: tiebreakerQuestion,
       });
     } catch {}
   };
@@ -1757,6 +1757,7 @@ export default function App() {
           >
             <AnswerKeyPanel
               showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
+              showName={shows.find((s) => s.id === selectedShowId)?.Show?.Show || ""}
               onClose={() => setShowAnswerKey(false)}
             />
           </div>

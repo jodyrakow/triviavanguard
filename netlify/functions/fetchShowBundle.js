@@ -110,46 +110,22 @@ export async function handler(event) {
           `[fetchShowBundle] Show fields - Date: ${showDate}, Location name: "${locationName}", Host: "${f["Host name"]}", Cohost: "${f["Cohost name"]}", Start: "${f["Start time"]}", Template: "${showTemplate}"`
         );
 
-        // Count shows with same date and location
-        let totalGamesThisNight = 1; // default to 1 (just this show)
-        let allStartTimes = []; // Collect start times from all matching shows
-        if (showDate && locationName) {
-          try {
-            // Use IS_SAME for date comparison (works with Airtable date fields)
-            const showsOnDate = await fetchAll("Shows", {
-              filterByFormula: `IS_SAME({Date}, '${showDate}', 'day')`,
-            });
+        // Read total games and start times from static Airtable fields
+        const totalGamesThisNight =
+          typeof f["Total # of games"] === "number" && f["Total # of games"] > 0
+            ? f["Total # of games"]
+            : 1; // Default to 1 if not set
 
-            console.log(
-              `[fetchShowBundle] Shows on ${showDate}:`,
-              showsOnDate.map((s) => ({
-                id: s.id,
-                locationName: s.fields?.["Location name"],
-              }))
-            );
+        // Parse start times from comma-separated text field (e.g., "8:00pm, 9:00pm")
+        const startTimesText = f["Start times"] || "";
+        const allStartTimes = startTimesText
+          .split(/,\s*/)
+          .map((t) => t.trim())
+          .filter(Boolean);
 
-            // Filter by location name in JavaScript
-            const matchingShows = showsOnDate.filter((s) => {
-              const loc = s.fields?.["Location name"];
-              return loc && loc.trim() === locationName.trim();
-            });
-
-            totalGamesThisNight = matchingShows.length;
-
-            // Extract start times from all matching shows and sort them
-            allStartTimes = matchingShows
-              .map((s) => s.fields?.["Start time"])
-              .filter(Boolean)
-              .sort(); // Sort chronologically
-
-            console.log(
-              `[fetchShowBundle] Found ${totalGamesThisNight} show(s) on ${showDate} at location "${locationName}" with start times:`,
-              allStartTimes
-            );
-          } catch (err) {
-            console.error("Could not count matching shows:", err);
-          }
-        }
+        console.log(
+          `[fetchShowBundle] Static fields - Total games: ${totalGamesThisNight}, Start times: [${allStartTimes.join(", ")}]`
+        );
 
         showConfig = {
           showId,

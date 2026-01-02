@@ -9,7 +9,7 @@ export default function DisplayMode() {
     type: "standby", // "standby" | "question" | "standings" | "message" | "break"
     content: null,
   });
-  const [fontSize, setFontSize] = useState(170); // percentage
+  const [fontSize, setFontSize] = useState(200); // percentage
   const [imageOverlay, setImageOverlay] = useState(null); // { images: [], currentIndex: 0 }
   const [inlineImageIndex, setInlineImageIndex] = useState(0); // Current inline image index
 
@@ -254,6 +254,8 @@ function AutoFitText({ html, maxRem = 2.8, minRem = 1.6, style = {} }) {
           fontSize: `${fontRem}rem`,
           lineHeight: 1.25,
           textAlign: "center",
+          width: "100%", // Ensure text wraps within container width
+          boxSizing: "border-box",
           ...style, // 👈 THIS is where color comes from
         }}
         dangerouslySetInnerHTML={{ __html: html }}
@@ -369,10 +371,56 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
             alignItems: "center",
             textAlign: "center",
             zIndex: 50,
+            padding: "0 2vw",
           }}
         >
-          {inlineImages && inlineImages.length > 0 ? (
-            // Show inline image for Visual questions
+          {inlineImages && inlineImages.length > 0 && questionText ? (
+            // Show both image and text side-by-side for numbered questions with images
+            <div
+              style={{
+                display: "flex",
+                width: "100%",
+                height: "100%",
+                gap: "2vw",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {/* Image on left (50%) */}
+              <div
+                style={{
+                  width: "44vw",
+                  height: "100%",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <img
+                  src={inlineImages[inlineImageIndex]?.url}
+                  alt={`Question ${questionNumber}`}
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    objectFit: "contain",
+                  }}
+                />
+              </div>
+              {/* Text on right (50%) */}
+              <div style={{ width: "44vw", height: "48vh" }}>
+                <AutoFitText
+                  html={marked.parseInline(questionText || "")}
+                  maxRem={2.8 * scale}
+                  minRem={1.0 * scale}
+                  style={{
+                    color: theme.dark,
+                    fontWeight: 500,
+                  }}
+                />
+              </div>
+            </div>
+          ) : inlineImages && inlineImages.length > 0 ? (
+            // Show only inline image for Visual questions (no text)
             <img
               src={inlineImages[inlineImageIndex]?.url}
               alt={`Visual question ${questionNumber}`}
@@ -383,7 +431,7 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
               }}
             />
           ) : (
-            // Show question text for regular questions
+            // Show only question text for regular questions (no image)
             <div style={{ width: "90vw", height: "100%" }}>
               <AutoFitText
                 html={marked.parseInline(questionText || "")}

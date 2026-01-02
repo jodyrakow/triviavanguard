@@ -55,6 +55,7 @@ function getLabel(q) {
 export default function PrintAnswerKey() {
   const [loading, setLoading] = useState(true);
   const [showBundle, setShowBundle] = useState(null);
+  const [showName, setShowName] = useState("");
   const [error, setError] = useState("");
   const hasLoadedData = useRef(false);
 
@@ -78,6 +79,7 @@ export default function PrintAnswerKey() {
       }
 
       setShowBundle(data.showBundle);
+      setShowName(data.showName || "");
       localStorage.removeItem("printAnswerKeyData");
     } catch (e) {
       setError(e?.message || "Failed to load print data.");
@@ -140,9 +142,7 @@ export default function PrintAnswerKey() {
   const columnCount = columns.length;
   const isLandscape = columnCount === 4;
 
-  // Show name for title
-  const showName =
-    showBundle?.Show?.Show || showBundle?.showName || "Unknown Show";
+  // Show name is now from state (passed via localStorage)
 
   return (
     <div className={`printPage ${isLandscape ? "landscape" : "portrait"}`}>
