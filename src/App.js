@@ -144,7 +144,7 @@ export default function App() {
     x: 0,
     y: 0,
   });
-  const [displayPreviewOpen, setDisplayPreviewOpen] = useState(false);
+
   const [displayFontSize, setDisplayFontSize] = useState(() => {
     const saved = Number(localStorage.getItem("tv_displayFontSize"));
     return Number.isFinite(saved) ? saved : 220; // pick your normal default
