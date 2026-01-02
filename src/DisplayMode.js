@@ -9,7 +9,7 @@ export default function DisplayMode() {
     type: "standby", // "standby" | "question" | "standings" | "message" | "break"
     content: null,
   });
-  const [fontSize, setFontSize] = useState(200); // percentage
+  const [fontSize, setFontSize] = useState(190); // percentage
   const [imageOverlay, setImageOverlay] = useState(null); // { images: [], currentIndex: 0 }
   const [inlineImageIndex, setInlineImageIndex] = useState(0); // Current inline image index
 

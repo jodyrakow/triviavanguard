@@ -145,8 +145,12 @@ export default function App() {
     y: 0,
   });
   const [displayPreviewOpen, setDisplayPreviewOpen] = useState(false);
-  const [displayFontSize, setDisplayFontSize] = useState(100);
-  const [customMessages, setCustomMessages] = useState(["", "", ""]);
+  const [displayFontSize, setDisplayFontSize] = useState(() => {
+    const saved = Number(localStorage.getItem("tv_displayFontSize"));
+    return Number.isFinite(saved) ? saved : 220; // pick your normal default
+  });
+
+  const [customMessage, setCustomMessage] = useState("");
 
   // Answer Key state
   const [showAnswerKey, setShowAnswerKey] = useState(false);
@@ -161,6 +165,9 @@ export default function App() {
       displayChannelRef.current?.close();
     };
   }, []);
+  useEffect(() => {
+    localStorage.setItem("tv_displayFontSize", String(displayFontSize));
+  }, [displayFontSize]);
 
   // Send message to display window
   const sendToDisplay = (type, data) => {
@@ -1500,231 +1507,187 @@ export default function App() {
                 display: "flex",
                 flexDirection: "column",
                 gap: ".5rem",
-                maxWidth: "200px",
+                width: "min(300px, calc(100vw - 2rem))",
                 backgroundColor: "#fff",
-                padding: "1rem",
-                borderRadius: "8px",
+                padding: ".6rem .7rem",
+                borderRadius: "12px",
                 boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
                 border: `2px solid ${colors.accent}`,
               }}
             >
-              <div
-                style={{
-                  fontSize: "1rem",
-                  fontWeight: 600,
-                  marginBottom: "0.5rem",
-                  color: colors.dark,
-                }}
-              >
-                Display Controls
-              </div>
-
-              <ButtonPrimary
-                onClick={() => {
-                  const newWindow = window.open(
-                    window.location.origin + "?display",
-                    "displayMode",
-                    "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no"
-                  );
-                  if (newWindow) {
-                    newWindow.focus();
-                  }
-                }}
-                title="Open Display Mode in new window"
-                style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
-              >
-                Open display
-              </ButtonPrimary>
-
-              <ButtonPrimary
-                onClick={() => setDisplayPreviewOpen((v) => !v)}
-                title="Toggle preview of what's showing on display"
-                style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
-              >
-                {displayPreviewOpen ? "Hide preview" : "Show preview"}
-              </ButtonPrimary>
-
-              <Button
-                onClick={() => {
-                  sendToDisplay("closeImageOverlay", null);
-                  sendToDisplay("standby", null);
-                }}
-                title="Clear the display (standby screen)"
-                style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
-              >
-                Clear display
-              </Button>
-
-              <Button
-                onClick={() => {
-                  sendToDisplay("closeImageOverlay", null);
-                }}
-                title="Close any image overlay on the display"
-                style={{ fontSize: "0.9rem", padding: "0.5rem 0.75rem" }}
-              >
-                Close image
-              </Button>
-
-              <Button onClick={() => sendToDisplay("toggleGuide")}>
-                📐 Guide
-              </Button>
-
-              {/* Font size controls */}
+              {/* Drag / title row */}
               <div
                 style={{
                   display: "flex",
-                  gap: "0.25rem",
+                  alignItems: "center",
+                  gap: ".5rem",
+                  cursor: "grab",
+                  userSelect: "none",
+                }}
+              >
+                <span style={{ opacity: 0.6 }}>⋮⋮</span>
+                <span
+                  style={{
+                    fontWeight: 500,
+                    color: colors.dark,
+                    fontFamily: tokens.font.body,
+                  }}
+                >
+                  Display controls
+                </span>
+              </div>
+
+              {/* Everything below stays basically the same */}
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: ".4rem",
                   alignItems: "center",
                 }}
               >
                 <Button
                   onClick={() => {
-                    const newSize = Math.max(50, displayFontSize - 10);
-                    setDisplayFontSize(newSize);
-                    sendToDisplay("fontSize", { size: newSize });
+                    const newWindow = window.open(
+                      window.location.origin + "?display",
+                      "displayMode",
+                      "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no"
+                    );
+                    if (newWindow) newWindow.focus();
+
+                    // push current host-stored size to display
+                    sendToDisplay("fontSize", { size: displayFontSize });
+                  }}
+                  title="Open Display Mode in new window"
+                  style={{
+                    fontSize: "1rem",
+                    padding: ".45rem .55rem",
+                    minWidth: "2.25rem",
+                    height: "2.25rem",
+                    borderRadius: ".5rem",
+                  }}
+                >
+                  📺
+                </Button>
+
+                <Button
+                  onClick={() => {
+                    sendToDisplay("closeImageOverlay", null);
+                    sendToDisplay("standby", null);
+                  }}
+                  title="Clear the display (standby screen)"
+                  style={{
+                    fontSize: "1rem",
+                    padding: ".45rem .55rem",
+                    minWidth: "2.25rem",
+                    height: "2.25rem",
+                    borderRadius: ".5rem",
+                  }}
+                >
+                  🧹
+                </Button>
+
+                <Button
+                  onClick={() => sendToDisplay("closeImageOverlay", null)}
+                  title="Close any image overlay on the display"
+                  style={{
+                    fontSize: "1rem",
+                    padding: ".45rem .55rem",
+                    minWidth: "2.25rem",
+                    height: "2.25rem",
+                    borderRadius: ".5rem",
+                  }}
+                >
+                  🖼️
+                </Button>
+
+                <Button
+                  onClick={() => sendToDisplay("toggleGuide")}
+                  title="Toggle alignment guide"
+                  style={{
+                    fontSize: "1rem",
+                    padding: ".45rem .55rem",
+                    minWidth: "2.25rem",
+                    height: "2.25rem",
+                    borderRadius: ".5rem",
+                  }}
+                >
+                  📐
+                </Button>
+
+                <Button
+                  onClick={() => {
+                    setDisplayFontSize((prev) => {
+                      const newSize = Math.max(50, prev - 10);
+                      sendToDisplay("fontSize", { size: newSize });
+                      return newSize;
+                    });
                   }}
                   title="Decrease display text size"
-                  style={{
-                    fontSize: "0.9rem",
-                    padding: "0.5rem 0.5rem",
-                    flex: 1,
-                  }}
                 >
                   A-
                 </Button>
+
                 <Button
                   onClick={() => {
-                    const newSize = Math.min(400, displayFontSize + 10);
-                    setDisplayFontSize(newSize);
-                    sendToDisplay("fontSize", { size: newSize });
+                    setDisplayFontSize((prev) => {
+                      const newSize = Math.min(400, prev + 10);
+                      sendToDisplay("fontSize", { size: newSize });
+                      return newSize;
+                    });
                   }}
                   title="Increase display text size"
-                  style={{
-                    fontSize: "0.9rem",
-                    padding: "0.5rem 0.5rem",
-                    flex: 1,
-                  }}
                 >
                   A+
                 </Button>
               </div>
 
-              {/* Custom messages */}
-              <div style={{ marginTop: "0.5rem" }}>
-                <div
+              {/* One custom message row */}
+              <div
+                style={{ display: "flex", gap: ".4rem", alignItems: "center" }}
+              >
+                <input
+                  type="text"
+                  value={customMessage}
+                  onChange={(e) => setCustomMessage(e.target.value)}
+                  placeholder="Quick message…"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && customMessage.trim()) {
+                      sendToDisplay("message", { text: customMessage.trim() });
+                    }
+                  }}
                   style={{
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
-                    marginBottom: "0.25rem",
-                    color: colors.dark,
+                    flex: 1,
+                    fontSize: ".9rem",
+                    padding: ".5rem .6rem",
+                    border: `1px solid ${colors.gray?.border || "#ccc"}`,
+                    borderRadius: ".6rem",
+                    minWidth: "240px",
+                  }}
+                />
+
+                <ButtonPrimary
+                  onClick={() => {
+                    if (customMessage.trim()) {
+                      sendToDisplay("message", { text: customMessage.trim() });
+                    }
+                  }}
+                  disabled={!customMessage.trim()}
+                  title="Push this message to display"
+                  style={{
+                    fontSize: "1rem",
+                    padding: ".45rem .55rem",
+                    minWidth: "2.25rem",
+                    height: "2.25rem",
+                    borderRadius: ".5rem",
+                    opacity: customMessage.trim() ? 1 : 0.5,
                   }}
                 >
-                  Custom Messages:
-                </div>
-                {customMessages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      marginBottom: "0.25rem",
-                      display: "flex",
-                      gap: "0.25rem",
-                    }}
-                  >
-                    <input
-                      type="text"
-                      value={msg}
-                      onChange={(e) => {
-                        const newMessages = [...customMessages];
-                        newMessages[idx] = e.target.value;
-                        setCustomMessages(newMessages);
-                      }}
-                      placeholder={`Message ${idx + 1}`}
-                      style={{
-                        flex: 1,
-                        fontSize: "0.8rem",
-                        padding: "0.3rem",
-                        border: `1px solid ${colors.gray?.border || "#ccc"}`,
-                        borderRadius: "4px",
-                      }}
-                    />
-                    <Button
-                      onClick={() => {
-                        if (msg.trim()) {
-                          sendToDisplay("message", { text: msg });
-                        }
-                      }}
-                      disabled={!msg.trim()}
-                      title="Push this message to display"
-                      style={{
-                        fontSize: "0.7rem",
-                        padding: "0.3rem 0.5rem",
-                        opacity: msg.trim() ? 1 : 0.5,
-                      }}
-                    >
-                      📺
-                    </Button>
-                  </div>
-                ))}
+                  📣
+                </ButtonPrimary>
               </div>
             </div>
           </Draggable>
-        </div>
-      )}
-
-      {/* Display Preview Panel */}
-      {displayPreviewOpen && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "1rem",
-            right: "1rem",
-            width: "400px",
-            height: "225px",
-            backgroundColor: "#000",
-            border: `3px solid ${colors.accent}`,
-            borderRadius: "8px",
-            zIndex: 2000,
-            overflow: "hidden",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: colors.accent,
-              color: "#fff",
-              padding: "0.5rem",
-              fontSize: "0.85rem",
-              fontWeight: 600,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <span>Display Preview (16:9)</span>
-            <button
-              onClick={() => setDisplayPreviewOpen(false)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#fff",
-                fontSize: "1.2rem",
-                cursor: "pointer",
-                padding: "0 0.5rem",
-              }}
-            >
-              ×
-            </button>
-          </div>
-          <iframe
-            src={window.location.origin + "?display"}
-            title="Display Preview"
-            style={{
-              width: "100%",
-              height: "calc(100% - 35px)",
-              border: "none",
-              backgroundColor: "#000",
-            }}
-          />
         </div>
       )}
 
