@@ -63,7 +63,7 @@
 /* Column layout */
 .printColumns {
   display: grid;
-  gap: 0.25in;
+  gap: 0.05in;
   align-items: start;
 }
 
