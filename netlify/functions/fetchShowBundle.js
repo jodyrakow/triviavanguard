@@ -127,6 +127,18 @@ export async function handler(event) {
           `[fetchShowBundle] Static fields - Total games: ${totalGamesThisNight}, Start times: [${allStartTimes.join(", ")}]`
         );
 
+        // Parse prizes from comma-separated text field (e.g., "$25 gift certificate, $15 gift certificate")
+        const prizesText = f["Prizes"] || "";
+        const prizesArray = prizesText
+          .split(/,\s*/)
+          .map((p) => p.trim())
+          .filter(Boolean);
+        const prizesNewlineSeparated = prizesArray.join("\n");
+
+        console.log(
+          `[fetchShowBundle] Prizes field - Raw: "${prizesText}", Parsed count: ${prizesArray.length}, Final: "${prizesNewlineSeparated}"`
+        );
+
         showConfig = {
           showId,
           location: locationName || null,
@@ -142,7 +154,7 @@ export async function handler(event) {
               ? f["Pool contribution"]
               : null,
           announcements: f["Announcements"] || "",
-          prizeDonor: f["Prize donor"] || "",
+
           timerDefault:
             typeof f["Timer default"] === "number" ? f["Timer default"] : null,
           hostName: f["Host name"] || "",
@@ -151,6 +163,7 @@ export async function handler(event) {
           showTemplate: showTemplate,
           totalGamesThisNight,
           allStartTimes, // Array of all start times for multi-game nights
+          prizes: prizesNewlineSeparated, // Convert comma-separated to newline-separated
         };
         console.log(
           `[fetchShowBundle] Successfully fetched Show config:`,
@@ -278,6 +291,8 @@ export async function handler(event) {
         questionOrder: f["Question order"] || "",
         sortOrder: typeof f["Sort order"] === "number" ? f["Sort order"] : null,
         questionType: f["Question type"] || null,
+        showImageByDefault: !!f["Show image by default"],
+        faction: f["Faction"] || null,
         questionText: hasEditedQuestion
           ? f["Edited question"]
           : f["Question text"] || "",

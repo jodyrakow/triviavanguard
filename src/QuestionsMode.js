@@ -72,6 +72,15 @@ export default function QuestionsMode({
   // Use hostInfo from props (synced to Supabase), with local state for immediate UI updates
   const [hostInfo, setHostInfo] = React.useState(hostInfoProp);
 
+  // Track progressive reveal state: which question is active and what stage it's at
+  // Separate tracking for with/without images buttons
+  const [progressiveRevealState, setProgressiveRevealState] = React.useState({
+    activeQuestionId: null,
+    stage: 0,
+    activeQuestionIdWithImgs: null,
+    stageWithImgs: 0
+  });
+
   // Sync prop changes to local state (when other hosts update)
   React.useEffect(() => {
     setHostInfo(hostInfoProp);
@@ -228,6 +237,7 @@ export default function QuestionsMode({
             "Question pronunciation guide": q?.questionPronunciationGuide || "",
             Answer: q?.answer || "",
             "Question type": q?.questionType || "",
+            "Show image by default": !!q?.showImageByDefault,
             Images: Array.isArray(q?.questionImages) ? q.questionImages : [],
             Audio: Array.isArray(q?.questionAudio) ? q.questionAudio : [],
             _edited: q._edited || false, // flag if question has been edited
@@ -514,13 +524,14 @@ export default function QuestionsMode({
             ? [catAudio]
             : [];
 
-        // Image carousel
-        const imageCarousel = categoryInfo?.["Image carousel"];
-        const imageCarouselArr = Array.isArray(imageCarousel)
-          ? imageCarousel
-          : imageCarousel
-            ? [imageCarousel]
-            : [];
+        // Get category question type for carousel button
+        const categoryQuestionType = String(
+          categoryInfo?.questionType || categoryInfo?.["Question type"] || ""
+        ).toLowerCase();
+        const isVisualCategory = categoryQuestionType.includes("visual");
+
+        // Get all questions in this category for the question carousel
+        const categoryQuestions = Object.values(questions || {});
 
         const CategoryHeader = ({ secret, number }) => (
           <div style={{ backgroundColor: theme.dark, padding: 0 }}>
@@ -729,21 +740,31 @@ export default function QuestionsMode({
               </div>
             )}
 
-            {/* Image carousel button */}
-            {imageCarouselArr.length > 0 &&
+            {/* Question carousel button (for Visual categories only) */}
+            {isVisualCategory &&
+              categoryQuestions.length > 0 &&
               sendToDisplay &&
               displayControlsOpen && (
                 <div style={{ marginTop: "0.5rem", marginLeft: "1rem" }}>
                   <Button
                     onClick={() => {
                       if (imageOverlayActive) {
-                        sendToDisplay("closeImageOverlay", null);
+                        sendToDisplay("closeQuestionCarousel", null);
                         setImageOverlayActive(false);
                       } else {
-                        sendToDisplay("imageOverlay", {
-                          images: imageCarouselArr.map((img) => ({
-                            url: img.url,
-                          })),
+                        // Prepare questions for carousel - just question + images, no answers/stats
+                        const questionsForCarousel = categoryQuestions.map(q => ({
+                          questionNumber: q["Question order"],
+                          questionText: q["Question text"] || "",
+                          categoryName: categoryName,
+                          inlineImages: Array.isArray(q.Images) && q.Images.length > 0
+                            ? q.Images.map(img => ({ url: img.url }))
+                            : [],
+                          currentInlineImageIndex: 0,
+                        }));
+
+                        sendToDisplay("questionCarousel", {
+                          questions: questionsForCarousel,
                           currentIndex: 0,
                           autoCycle: true,
                         });
@@ -756,16 +777,88 @@ export default function QuestionsMode({
                     }}
                     title={
                       imageOverlayActive
-                        ? "Close image carousel on display"
-                        : "Push image carousel to display (auto-cycles every 10 seconds)"
+                        ? "Close question carousel on display"
+                        : "Push question carousel to display (auto-cycles every 8 seconds)"
                     }
                   >
                     {imageOverlayActive
-                      ? "Close image carousel"
-                      : "Push image carousel to display"}
+                      ? "Close carousel"
+                      : "Push question carousel to display"}
                   </Button>
                 </div>
               )}
+
+            {/* Inline image navigation controls */}
+            {sendToDisplay && displayControlsOpen && inlineVisualQuestionId && (() => {
+              // Find the question with inline images currently displayed
+              const currentQuestion = sortedGroupedEntries
+                .flatMap(([, catData]) => catData.questions)
+                .find(q => q["Question ID"] === inlineVisualQuestionId);
+
+              if (!currentQuestion || !Array.isArray(currentQuestion.Images) || currentQuestion.Images.length <= 1) {
+                return null;
+              }
+
+              const currentIdx = currentImageIndex[inlineVisualQuestionId] || 0;
+              const totalImages = currentQuestion.Images.length;
+
+              return (
+                <div style={{ marginTop: "0.5rem", marginLeft: "1rem", marginBottom: "0.5rem" }}>
+                  <div style={{
+                    fontSize: "0.85rem",
+                    marginBottom: "0.25rem",
+                    color: theme.accent,
+                    fontWeight: 600,
+                  }}>
+                    Inline Image Navigation ({currentIdx + 1} of {totalImages})
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <Button
+                      onClick={() => {
+                        const newIdx = (currentIdx - 1 + totalImages) % totalImages;
+                        // Update local state
+                        setCurrentImageIndex(prev => ({
+                          ...prev,
+                          [inlineVisualQuestionId]: newIdx
+                        }));
+                        // Update display
+                        sendToDisplay("updateInlineImageIndex", {
+                          currentIndex: newIdx
+                        });
+                      }}
+                      style={{
+                        fontSize: tokens.font.size,
+                        fontFamily: tokens.font.body,
+                      }}
+                      title="Show previous inline image"
+                    >
+                      ◀ Previous
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        const newIdx = (currentIdx + 1) % totalImages;
+                        // Update local state
+                        setCurrentImageIndex(prev => ({
+                          ...prev,
+                          [inlineVisualQuestionId]: newIdx
+                        }));
+                        // Update display
+                        sendToDisplay("updateInlineImageIndex", {
+                          currentIndex: newIdx
+                        });
+                      }}
+                      style={{
+                        fontSize: tokens.font.size,
+                        fontFamily: tokens.font.body,
+                      }}
+                      title="Show next inline image"
+                    >
+                      Next ▶
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Category audio (optional) */}
             {catAudioArr.length > 0 && (
@@ -941,11 +1034,11 @@ export default function QuestionsMode({
                           )}
                         </strong>
                         {sendToDisplay && displayControlsOpen && (() => {
-                          const isVisual = (q?.["Question type"] || "").toLowerCase().includes("visual");
+                          const showImageByDefault = !!q["Show image by default"];
                           const hasImages = Array.isArray(q.Images) && q.Images.length > 0;
 
-                          // For lettered questions (visual), keep current behavior - always show inline images
-                          if (isVisual) {
+                          // If "Show image by default" is checked, always show inline images
+                          if (showImageByDefault) {
                             return (
                               <Button
                                 onClick={() => {
@@ -1456,100 +1549,120 @@ export default function QuestionsMode({
                                   )
                                 : null;
 
-                              const isVisual = (q?.["Question type"] || "").toLowerCase().includes("visual");
+                              const showImageByDefault = !!q["Show image by default"];
                               const hasImages = Array.isArray(q.Images) && q.Images.length > 0;
 
-                              // For visual questions, always include inline images
-                              if (isVisual) {
+                              // If "Show image by default" is checked, always include inline images with progressive reveal
+                              if (showImageByDefault) {
+                                const questionId = q["Question ID"];
+                                const isActiveQuestion = progressiveRevealState.activeQuestionId === questionId;
+                                const currentStage = isActiveQuestion ? progressiveRevealState.stage : 0;
+
                                 return (
-                                  <>
-                                    <Button
-                                      onClick={() => {
-                                        const payload = {
-                                          questionNumber: q["Question order"],
-                                          questionText: q["Question text"] || "",
-                                          categoryName: categoryName,
-                                          images: [],
-                                          answer: q["Answer"] || "",
-                                          pointsPerTeam: null,
-                                          correctCount: null,
-                                          totalTeams: null,
-                                        };
+                                  <Button
+                                    onClick={() => {
+                                      // If different question, start at stage 0; if same question, advance
+                                      const nextStage = isActiveQuestion ? (currentStage + 1) % 3 : 0;
 
-                                        if (hasImages) {
-                                          payload.inlineImages = q.Images.map((img) => ({ url: img.url }));
-                                          payload.currentInlineImageIndex = currentImageIndex[q["Question ID"]] || 0;
-                                          setInlineVisualQuestionId(q["Question ID"]);
-                                        } else {
-                                          setInlineVisualQuestionId(null);
-                                        }
+                                      const payload = {
+                                        questionNumber: q["Question order"],
+                                        questionText: q["Question text"] || "",
+                                        categoryName: categoryName,
+                                        images: [],
+                                      };
 
-                                        sendToDisplay("question", payload);
-                                      }}
-                                      style={{
-                                        marginLeft: ".5rem",
-                                        fontSize: ".75rem",
-                                        padding: ".25rem .5rem",
-                                        verticalAlign: "middle",
-                                      }}
-                                      title="Push answer to display (no statistics)"
-                                    >
-                                      Push answer
-                                    </Button>
-                                    <Button
-                                      onClick={() => {
-                                        const payload = {
-                                          questionNumber: q["Question order"],
-                                          questionText: q["Question text"] || "",
-                                          categoryName: categoryName,
-                                          images: [],
-                                          answer: q["Answer"] || "",
-                                          pointsPerTeam: qPointsPerTeam,
-                                          correctCount: qStats?.correctCount ?? null,
-                                          totalTeams: qStats?.totalTeams ?? null,
-                                        };
+                                      // Stage 0: Question only
+                                      // Stage 1: Question + Answer
+                                      if (nextStage >= 1) {
+                                        payload.answer = q["Answer"] || "";
+                                      }
 
-                                        if (hasImages) {
-                                          payload.inlineImages = q.Images.map((img) => ({ url: img.url }));
-                                          payload.currentInlineImageIndex = currentImageIndex[q["Question ID"]] || 0;
-                                          setInlineVisualQuestionId(q["Question ID"]);
-                                        } else {
-                                          setInlineVisualQuestionId(null);
-                                        }
+                                      // Stage 2: Question + Answer + Stats
+                                      if (nextStage >= 2) {
+                                        payload.pointsPerTeam = qPointsPerTeam;
+                                        payload.correctCount = qStats?.correctCount ?? null;
+                                        payload.totalTeams = qStats?.totalTeams ?? null;
+                                      }
 
-                                        sendToDisplay("question", payload);
-                                      }}
-                                      style={{
-                                        marginLeft: ".5rem",
-                                        fontSize: ".75rem",
-                                        padding: ".25rem .5rem",
-                                        verticalAlign: "middle",
-                                      }}
-                                      title="Push answer with statistics to display"
-                                    >
-                                      Push stats
-                                    </Button>
-                                  </>
+                                      // Include inline images when "Show image by default" is checked
+                                      if (hasImages) {
+                                        payload.inlineImages = q.Images.map((img) => ({ url: img.url }));
+                                        payload.currentInlineImageIndex = currentImageIndex[q["Question ID"]] || 0;
+                                        setInlineVisualQuestionId(q["Question ID"]);
+                                      } else {
+                                        setInlineVisualQuestionId(null);
+                                      }
+
+                                      sendToDisplay("question", payload);
+                                      setProgressiveRevealState({ activeQuestionId: questionId, stage: nextStage });
+                                    }}
+                                    style={{
+                                      marginLeft: ".5rem",
+                                      fontSize: ".75rem",
+                                      padding: ".25rem .5rem",
+                                      verticalAlign: "middle",
+                                    }}
+                                    title={
+                                      !isActiveQuestion || currentStage === 2
+                                        ? "Click to reveal question"
+                                        : currentStage === 0
+                                          ? "Click to reveal answer"
+                                          : "Click to reveal statistics"
+                                    }
+                                  >
+                                    {!isActiveQuestion || currentStage === 2
+                                      ? "📺 Reveal Q"
+                                      : currentStage === 0
+                                        ? "📺 Reveal A"
+                                        : "📺 Reveal Stats"}
+                                  </Button>
                                 );
                               }
 
-                              // For numbered questions - show separate buttons for with/without images
+                              // For numbered questions - show progressive reveal button(s)
+                              const questionId = q["Question ID"];
+                              const isActiveQuestion = progressiveRevealState.activeQuestionId === questionId;
+                              const currentStage = isActiveQuestion ? progressiveRevealState.stage : 0;
+                              const isActiveQuestionWithImgs = progressiveRevealState.activeQuestionIdWithImgs === questionId;
+                              const currentStageWithImgs = isActiveQuestionWithImgs ? progressiveRevealState.stageWithImgs : 0;
+
                               return (
                                 <>
+                                  {/* Progressive reveal WITHOUT images */}
                                   <Button
                                     onClick={() => {
+                                      // If different question, start at stage 0; if same question, advance
+                                      const nextStage = isActiveQuestion ? (currentStage + 1) % 3 : 0;
+
                                       const payload = {
                                         questionNumber: q["Question order"],
                                         questionText: q["Question text"] || "",
                                         categoryName: categoryName,
                                         images: [],
-                                        answer: q["Answer"] || "",
-                                        pointsPerTeam: null,
-                                        correctCount: null,
-                                        totalTeams: null,
                                       };
+
+                                      // Stage 0: Question only
+                                      // Stage 1: Question + Answer
+                                      if (nextStage >= 1) {
+                                        payload.answer = q["Answer"] || "";
+                                      }
+
+                                      // Stage 2: Question + Answer + Stats
+                                      if (nextStage >= 2) {
+                                        payload.pointsPerTeam = qPointsPerTeam;
+                                        payload.correctCount = qStats?.correctCount ?? null;
+                                        payload.totalTeams = qStats?.totalTeams ?? null;
+                                      }
+
+                                      // Never add images for this button
                                       setInlineVisualQuestionId(null);
+
                                       sendToDisplay("question", payload);
+                                      setProgressiveRevealState(prev => ({
+                                        ...prev,
+                                        activeQuestionId: questionId,
+                                        stage: nextStage
+                                      }));
                                     }}
                                     style={{
                                       marginLeft: ".5rem",
@@ -1557,27 +1670,59 @@ export default function QuestionsMode({
                                       padding: ".25rem .5rem",
                                       verticalAlign: "middle",
                                     }}
-                                    title="Push answer to display (no statistics, no images)"
+                                    title={
+                                      !isActiveQuestion || currentStage === 2
+                                        ? "Click to reveal question"
+                                        : currentStage === 0
+                                          ? "Click to reveal answer"
+                                          : "Click to reveal statistics"
+                                    }
                                   >
-                                    Push answer
+                                    {!isActiveQuestion || currentStage === 2
+                                      ? "📺 Reveal Q"
+                                      : currentStage === 0
+                                        ? "📺 Reveal A"
+                                        : "📺 Reveal Stats"}
                                   </Button>
+
+                                  {/* Progressive reveal WITH images (only if images exist) */}
                                   {hasImages && (
                                     <Button
                                       onClick={() => {
+                                        // If different question, start at stage 0; if same question, advance
+                                        const nextStage = isActiveQuestionWithImgs ? (currentStageWithImgs + 1) % 3 : 0;
+
                                         const payload = {
                                           questionNumber: q["Question order"],
                                           questionText: q["Question text"] || "",
                                           categoryName: categoryName,
                                           images: [],
-                                          answer: q["Answer"] || "",
-                                          pointsPerTeam: null,
-                                          correctCount: null,
-                                          totalTeams: null,
-                                          inlineImages: q.Images.map((img) => ({ url: img.url })),
-                                          currentInlineImageIndex: currentImageIndex[q["Question ID"]] || 0,
                                         };
+
+                                        // Stage 0: Question only
+                                        // Stage 1: Question + Answer
+                                        if (nextStage >= 1) {
+                                          payload.answer = q["Answer"] || "";
+                                        }
+
+                                        // Stage 2: Question + Answer + Stats
+                                        if (nextStage >= 2) {
+                                          payload.pointsPerTeam = qPointsPerTeam;
+                                          payload.correctCount = qStats?.correctCount ?? null;
+                                          payload.totalTeams = qStats?.totalTeams ?? null;
+                                        }
+
+                                        // Always add images for this button
+                                        payload.inlineImages = q.Images.map((img) => ({ url: img.url }));
+                                        payload.currentInlineImageIndex = currentImageIndex[q["Question ID"]] || 0;
                                         setInlineVisualQuestionId(q["Question ID"]);
+
                                         sendToDisplay("question", payload);
+                                        setProgressiveRevealState(prev => ({
+                                          ...prev,
+                                          activeQuestionIdWithImgs: questionId,
+                                          stageWithImgs: nextStage
+                                        }));
                                       }}
                                       style={{
                                         marginLeft: ".5rem",
@@ -1585,63 +1730,19 @@ export default function QuestionsMode({
                                         padding: ".25rem .5rem",
                                         verticalAlign: "middle",
                                       }}
-                                      title="Push answer with inline images"
+                                      title={
+                                        !isActiveQuestionWithImgs || currentStageWithImgs === 2
+                                          ? "Click to reveal question with images"
+                                          : currentStageWithImgs === 0
+                                            ? "Click to reveal answer with images"
+                                            : "Click to reveal statistics with images"
+                                      }
                                     >
-                                      Push answer + images
-                                    </Button>
-                                  )}
-                                  <Button
-                                    onClick={() => {
-                                      const payload = {
-                                        questionNumber: q["Question order"],
-                                        questionText: q["Question text"] || "",
-                                        categoryName: categoryName,
-                                        images: [],
-                                        answer: q["Answer"] || "",
-                                        pointsPerTeam: qPointsPerTeam,
-                                        correctCount: qStats?.correctCount ?? null,
-                                        totalTeams: qStats?.totalTeams ?? null,
-                                      };
-                                      setInlineVisualQuestionId(null);
-                                      sendToDisplay("question", payload);
-                                    }}
-                                    style={{
-                                      marginLeft: ".5rem",
-                                      fontSize: ".75rem",
-                                      padding: ".25rem .5rem",
-                                      verticalAlign: "middle",
-                                    }}
-                                    title="Push answer with statistics to display (no images)"
-                                  >
-                                    Push stats
-                                  </Button>
-                                  {hasImages && (
-                                    <Button
-                                      onClick={() => {
-                                        const payload = {
-                                          questionNumber: q["Question order"],
-                                          questionText: q["Question text"] || "",
-                                          categoryName: categoryName,
-                                          images: [],
-                                          answer: q["Answer"] || "",
-                                          pointsPerTeam: qPointsPerTeam,
-                                          correctCount: qStats?.correctCount ?? null,
-                                          totalTeams: qStats?.totalTeams ?? null,
-                                          inlineImages: q.Images.map((img) => ({ url: img.url })),
-                                          currentInlineImageIndex: currentImageIndex[q["Question ID"]] || 0,
-                                        };
-                                        setInlineVisualQuestionId(q["Question ID"]);
-                                        sendToDisplay("question", payload);
-                                      }}
-                                      style={{
-                                        marginLeft: ".5rem",
-                                        fontSize: ".75rem",
-                                        padding: ".25rem .5rem",
-                                        verticalAlign: "middle",
-                                      }}
-                                      title="Push answer and statistics with inline images"
-                                    >
-                                      Push stats + images
+                                      {!isActiveQuestionWithImgs || currentStageWithImgs === 2
+                                        ? "📺🖼️ Reveal Q"
+                                        : currentStageWithImgs === 0
+                                          ? "📺🖼️ Reveal A"
+                                          : "📺🖼️ Reveal Stats"}
                                     </Button>
                                   )}
                                 </>

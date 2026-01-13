@@ -18,6 +18,7 @@ const normalizeTeam = (t) => ({
     : t.teamName || "(Unnamed team)",
   showBonus: Number(t.showBonus || 0),
   isLeague: !!t.isLeague,
+  factionPledge: t.factionPledge || null,
 });
 
 const ordinal = (n) => {
@@ -35,6 +36,7 @@ export default function ResultsMode({
   pubPoints,
   poolPerQuestion,
   poolContribution,
+  factionBonus = 10,
   selectedShowId,
   prizes: prizesString = "", // NEW: prizes from shared state (newline-separated string)
   questionEdits = {}, // { [showQuestionId]: { question?, notes?, pronunciationGuide?, answer? } }
@@ -267,6 +269,96 @@ export default function ResultsMode({
     [scoringMode, pubPoints, poolPerQuestion, poolContribution, teams.length]
   );
 
+  // ----------------------- Faction Statistics -----------------------
+  const factionStats = useMemo(() => {
+    // Get all factions that have been pledged to
+    const pledgedFactions = new Set(
+      teams.map(t => t.factionPledge).filter(Boolean)
+    );
+
+    if (pledgedFactions.size === 0) {
+      return null; // No faction battle if no teams pledged
+    }
+
+    // Get all questions with faction tags
+    const factionQuestions = questions.filter(q => q.faction);
+
+    if (factionQuestions.length === 0) {
+      return null; // No faction battle if no tagged questions
+    }
+
+    const rawGrid = cachedByRound?.grid || {};
+    const stats = {};
+
+    // Calculate accuracy for each faction
+    for (const faction of pledgedFactions) {
+      const factionTeams = teams.filter(t => t.factionPledge === faction);
+      const factionQs = factionQuestions.filter(q => q.faction === faction);
+
+      if (factionTeams.length === 0 || factionQs.length === 0) {
+        stats[faction] = {
+          teamCount: factionTeams.length,
+          questionCount: factionQs.length,
+          totalAnswers: 0,
+          correctAnswers: 0,
+          accuracy: 0,
+        };
+        continue;
+      }
+
+      let totalAnswers = 0;
+      let correctAnswers = 0;
+
+      // Count correct answers for this faction's teams on this faction's questions
+      for (const team of factionTeams) {
+        for (const q of factionQs) {
+          const cell = rawGrid[team.showTeamId]?.[q.showQuestionId];
+          if (cell) {
+            totalAnswers++;
+            if (cell.isCorrect) {
+              correctAnswers++;
+            }
+          }
+        }
+      }
+
+      stats[faction] = {
+        teamCount: factionTeams.length,
+        questionCount: factionQs.length,
+        totalAnswers,
+        correctAnswers,
+        accuracy: totalAnswers > 0 ? (correctAnswers / totalAnswers) * 100 : 0,
+      };
+    }
+
+    // Determine winner (highest accuracy)
+    let winner = null;
+    let maxAccuracy = -1;
+    let isTie = false;
+
+    for (const faction of pledgedFactions) {
+      const acc = stats[faction].accuracy;
+      if (acc > maxAccuracy) {
+        maxAccuracy = acc;
+        winner = faction;
+        isTie = false;
+      } else if (acc === maxAccuracy && acc > 0) {
+        isTie = true;
+      }
+    }
+
+    if (isTie) {
+      winner = null; // No winner if there's a tie
+    }
+
+    return {
+      stats,
+      winner,
+      bonusPoints: winner ? factionBonus : 0,
+      factions: Array.from(pledgedFactions),
+    };
+  }, [teams, questions, cachedByRound?.grid, factionBonus]);
+
   // ----------------------- Standings (cumulative-aware) -----------------------
   const standings = useMemo(() => {
     if (!teams.length || !questions.length) return [];
@@ -307,7 +399,15 @@ export default function ResultsMode({
 
     // Base rows
     const rows = teams.map((t) => {
-      const total = +(totalByTeam[t.showTeamId] ?? 0);
+      const baseTotal = +(totalByTeam[t.showTeamId] ?? 0);
+
+      // Apply faction bonus if team won faction battle
+      const factionBonus = factionStats?.winner && t.factionPledge === factionStats.winner
+        ? factionStats.bonusPoints
+        : 0;
+
+      const total = baseTotal + factionBonus;
+
       const guess = tbGuessFor(t.showTeamId);
       const delta =
         tbNumber !== null && guess !== null
@@ -317,6 +417,8 @@ export default function ResultsMode({
         showTeamId: t.showTeamId,
         teamName: t.teamName || "(Unnamed team)",
         total,
+        factionBonus,
+        factionPledge: t.factionPledge || null,
         tbGuess: guess,
         tbDelta: delta,
         tieBroken: false,
@@ -497,6 +599,7 @@ export default function ResultsMode({
     otfApplied,
     cachedByRound,
     scoringConfig,
+    factionStats,
   ]);
 
   // Candidates inside prize band that remain tied (or were unbreakably tied by authored TB)
@@ -529,37 +632,8 @@ export default function ResultsMode({
   const [publishStatus, setPublishStatus] = useState(null); // 'ok' | 'error' | null
   const [publishDetail, setPublishDetail] = useState(""); // human text
 
-  // Archive status
-  const [archiveStatus, setArchiveStatus] = useState({
-    archived: false,
-    isFinalized: false,
-    archivedAt: null,
-    publishedToAirtable: false,
-    reopenedAt: null,
-  });
-  const [isArchiving, setIsArchiving] = useState(false);
-
   const hideTimerRef = React.useRef(null);
   React.useEffect(() => () => clearTimeout(hideTimerRef.current), []);
-
-  // Fetch archive status when show loads
-  React.useEffect(() => {
-    if (!selectedShowId) return;
-
-    const fetchArchiveStatus = async () => {
-      try {
-        const res = await fetch(
-          `/.netlify/functions/supaGetArchiveStatus?showId=${encodeURIComponent(selectedShowId)}`
-        );
-        const data = await res.json();
-        setArchiveStatus(data);
-      } catch (err) {
-        console.error("Failed to fetch archive status:", err);
-      }
-    };
-
-    fetchArchiveStatus();
-  }, [selectedShowId]);
 
   const clearBannerSoon = () => {
     clearTimeout(hideTimerRef.current);
@@ -586,6 +660,8 @@ export default function ResultsMode({
       scoringMode,
       pubPoints,
       poolPerQuestion,
+      poolContribution,
+      factionBonus,
       showBundle,
       cachedByRound,
       standings: standings.map((s) => ({
@@ -594,9 +670,16 @@ export default function ResultsMode({
         place: s.place,
         tbRank: s._tbRank,
         showBonus: s.showBonus,
+        factionBonus: s.factionBonus,
+        factionPledge: s.factionPledge,
       })),
       prizes: prizes,
-      archiveStatus,
+      factionStats: factionStats ? {
+        winner: factionStats.winner,
+        bonusPoints: factionStats.bonusPoints,
+        stats: factionStats.stats,
+        factions: factionStats.factions,
+      } : null,
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
@@ -610,10 +693,6 @@ export default function ResultsMode({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-
-    setPublishStatus("ok");
-    setPublishDetail("✅ Backup file downloaded!");
-    clearBannerSoon();
   };
 
   const fmtFloat = (v) => {
@@ -705,113 +784,20 @@ export default function ResultsMode({
     return out;
   }
 
-  // ---------- Archive Show ----------
-  const archiveShow = async (autoPublishAfter = false) => {
-    if (!selectedShowId) {
-      alert("No show selected");
-      return false;
-    }
-
-    const showName =
-      showBundle?.showName ||
-      showBundle?.rounds?.[0]?.categories?.[0]?.questions?.[0]?.showName ||
-      "Unknown Show";
-    const showDate =
-      showBundle?.showDate || new Date().toISOString().split("T")[0];
-
-    setIsArchiving(true);
-    setPublishDetail("Archiving show...");
-
-    try {
-      const res = await fetch("/.netlify/functions/supaArchiveShow", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ showId: selectedShowId, showName, showDate }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to archive show");
-      }
-
-      // Update archive status
-      setArchiveStatus({
-        archived: true,
-        isFinalized: true,
-        archivedAt: data.archivedAt,
-        publishedToAirtable: false,
-        reopenedAt: null,
-      });
-
-      setPublishDetail("✅ Show archived successfully!");
-      clearBannerSoon();
-      return true;
-    } catch (err) {
-      console.error("Archive failed:", err);
-      setPublishStatus("error");
-      setPublishDetail(`❌ Archive failed: ${err.message}`);
-      clearBannerSoon();
-      return false;
-    } finally {
-      setIsArchiving(false);
-    }
-  };
-
-  // ---------- Re-open Archived Show ----------
-  const reopenShow = async () => {
-    if (!selectedShowId) return;
-
-    const ok = window.confirm(
-      "⚠️ Re-open this show for editing?\n\n" +
-        "This will allow you to make changes to the scores.\n" +
-        "Remember to re-archive when you're done!"
-    );
-    if (!ok) return;
-
-    try {
-      const res = await fetch("/.netlify/functions/supaUnarchiveShow", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ showId: selectedShowId }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to re-open show");
-      }
-
-      setArchiveStatus({
-        ...archiveStatus,
-        isFinalized: false,
-        reopenedAt: new Date().toISOString(),
-      });
-
-      setPublishStatus("ok");
-      setPublishDetail("✅ Show re-opened for editing");
-      clearBannerSoon();
-    } catch (err) {
-      console.error("Re-open failed:", err);
-      alert(`Failed to re-open show: ${err.message}`);
-    }
-  };
-
-  // ---------- Publish to Airtable (cumulative-aware) ----------
+  // ---------- Export & Publish to Airtable ----------
   const publishResults = async () => {
-    // Step 1: Archive first if not already archived
-    if (!archiveStatus.archived || !archiveStatus.isFinalized) {
-      const archived = await archiveShow(true);
-      if (!archived) {
-        alert("Must archive show before publishing. Archive failed.");
-        return;
-      }
-    }
-
     const ok = window.confirm(
-      "Publish final results to Airtable?\n\nThis will (1) create ShowTeams as needed and (2) replace any existing Scores for this show."
+      "Export backup and publish final results to Airtable?\n\n" +
+        "This will:\n" +
+        "1. Download a JSON backup of this show\n" +
+        "2. Create ShowTeams as needed in Airtable\n" +
+        "3. Replace any existing Scores for this show in Airtable"
     );
     if (!ok) return;
+
+    // Step 1: Export JSON backup
+    setPublishDetail("Exporting JSON backup...");
+    exportJSON();
 
     setIsPublishing(true);
     setPublishStatus(null);
@@ -998,21 +984,6 @@ export default function ResultsMode({
         }
       }
 
-      // Mark as published in archive
-      try {
-        await fetch("/.netlify/functions/supaMarkPublished", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ showId: selectedShowId, published: true }),
-        });
-        setArchiveStatus({
-          ...archiveStatus,
-          publishedToAirtable: true,
-        });
-      } catch (e) {
-        console.error("Failed to mark as published:", e);
-      }
-
       setPublishStatus("ok");
       const detailParts = [
         `Upserted ${json.teamsUpserted} ShowTeams`,
@@ -1133,60 +1104,6 @@ export default function ResultsMode({
         </div>
       ) : null}
 
-      {/* Archive/Publish Status Indicators */}
-      {(archiveStatus.isFinalized || archiveStatus.publishedToAirtable) && (
-        <div
-          style={{
-            margin: "0 12px",
-            marginBottom: tokens.spacing.sm,
-            padding: tokens.spacing.sm,
-            background: archiveStatus.publishedToAirtable
-              ? "rgba(28, 164, 109, 0.1)"
-              : "rgba(220, 106, 36, 0.1)",
-            border: `${tokens.borders.thin} ${archiveStatus.publishedToAirtable ? colors.success : theme.accent}`,
-            borderRadius: ".35rem",
-            display: "flex",
-            alignItems: "center",
-            gap: tokens.spacing.sm,
-            fontSize: ".95rem",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              gap: tokens.spacing.sm,
-              flexWrap: "wrap",
-            }}
-          >
-            {archiveStatus.isFinalized && (
-              <span style={{ fontFamily: tokens.font.body }}>
-                🗄️ <strong>Archived</strong>
-                {archiveStatus.archivedAt &&
-                  ` on ${new Date(archiveStatus.archivedAt).toLocaleString()}`}
-              </span>
-            )}
-            {archiveStatus.publishedToAirtable && (
-              <span
-                style={{ fontFamily: tokens.font.body, color: colors.success }}
-              >
-                ✅ <strong>Published to Airtable</strong>
-              </span>
-            )}
-            {archiveStatus.reopenedAt && (
-              <span
-                style={{
-                  fontFamily: tokens.font.body,
-                  fontStyle: "italic",
-                  opacity: 0.8,
-                }}
-              >
-                (Re-opened for editing)
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Buttons */}
       <div
         style={{
@@ -1196,108 +1113,24 @@ export default function ResultsMode({
           gap: tokens.spacing.sm,
         }}
       >
-        {/* Archive/Re-open buttons */}
-        {!archiveStatus.isFinalized ? (
-          <button
-            type="button"
-            onClick={() => archiveShow(false)}
-            disabled={isArchiving || isPublishing}
-            style={{
-              padding: `${tokens.spacing.sm} .8rem`,
-              border: `${tokens.borders.thin} ${colors.success}`,
-              background: isArchiving ? "#e8f4ef" : colors.success,
-              color: isArchiving ? colors.success : colors.white,
-              borderRadius: ".35rem",
-              cursor: isArchiving ? "not-allowed" : "pointer",
-              fontFamily: tokens.font.body,
-              opacity: isArchiving ? 0.9 : 1,
-            }}
-            title="Archive this show permanently (creates backup, enables publish)"
-          >
-            {isArchiving ? "⏳ Archiving…" : "🗄️ Archive Show"}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={reopenShow}
-            style={{
-              padding: `${tokens.spacing.sm} .8rem`,
-              border: `${tokens.borders.thin} ${theme.accent}`,
-              background: colors.white,
-              color: theme.accent,
-              borderRadius: ".35rem",
-              cursor: "pointer",
-              fontFamily: tokens.font.body,
-            }}
-            title="Re-open this archived show for editing"
-          >
-            🔓 Re-open for Editing
-          </button>
-        )}
-
-        {/* Export JSON backup */}
-        <button
-          type="button"
-          onClick={exportJSON}
-          style={{
-            padding: `${tokens.spacing.sm} .8rem`,
-            border: `${tokens.borders.thin} ${colors.gray.border}`,
-            background: colors.white,
-            color: theme.dark,
-            borderRadius: ".35rem",
-            cursor: "pointer",
-            fontFamily: tokens.font.body,
-          }}
-          title="Download a complete JSON backup of this show"
-        >
-          💾 Export Backup
-        </button>
-
+        {/* Export & Publish button */}
         <button
           type="button"
           onClick={publishResults}
-          disabled={
-            isPublishing || (!archiveStatus.isFinalized && !isArchiving)
-          }
+          disabled={isPublishing}
           style={{
             padding: `${tokens.spacing.sm} .8rem`,
             border: `${tokens.borders.thin} ${theme.accent}`,
-            background:
-              !archiveStatus.isFinalized && !isArchiving
-                ? colors.gray.border
-                : isPublishing
-                  ? "#ffe8d8"
-                  : theme.accent,
-            color:
-              !archiveStatus.isFinalized && !isArchiving
-                ? colors.gray.text
-                : isPublishing
-                  ? theme.accent
-                  : colors.white,
+            background: isPublishing ? "#ffe8d8" : theme.accent,
+            color: isPublishing ? theme.accent : colors.white,
             borderRadius: ".35rem",
-            cursor:
-              !archiveStatus.isFinalized && !isArchiving
-                ? "not-allowed"
-                : isPublishing
-                  ? "not-allowed"
-                  : "pointer",
+            cursor: isPublishing ? "not-allowed" : "pointer",
             fontFamily: tokens.font.body,
-            opacity:
-              !archiveStatus.isFinalized && !isArchiving
-                ? 0.6
-                : isPublishing
-                  ? 0.9
-                  : 1,
+            opacity: isPublishing ? 0.9 : 1,
           }}
-          title={
-            !archiveStatus.isFinalized && !isArchiving
-              ? "⚠️ You must archive the show first (click 'Archive Show' button above)"
-              : isPublishing
-                ? "Publishing in progress… please wait"
-                : "Create ShowTeams as needed and write all Scores for this show"
-          }
+          title="Export JSON backup and publish final results to Airtable"
         >
-          {isPublishing ? "⏳ Publishing…" : "Publish results to Airtable"}
+          {isPublishing ? "⏳ Publishing…" : "💾📤 Export & Publish to Airtable"}
         </button>
         <button
           type="button"
@@ -1348,6 +1181,130 @@ export default function ResultsMode({
           </span>
         )}
       </div>
+
+      {/* ===== Faction Battle Results ===== */}
+      {factionStats && (
+        <div
+          style={{
+            margin: `${tokens.spacing.md} 12px`,
+            background: factionStats.winner ? "rgba(28, 164, 109, 0.1)" : colors.white,
+            border: `${tokens.borders.thin} ${factionStats.winner ? "rgba(28, 164, 109, 0.4)" : colors.gray.borderLight}`,
+            borderRadius: tokens.radius.md,
+            overflow: "hidden",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+          }}
+        >
+          <div
+            style={{
+              background: factionStats.winner ? "rgba(28, 164, 109, 0.2)" : theme.bg,
+              borderBottom: `${tokens.borders.thin} ${colors.gray.borderLight}`,
+              padding: `${tokens.spacing.sm} ${tokens.spacing.md}`,
+              fontWeight: 700,
+              letterSpacing: ".01em",
+              fontSize: "1.4rem",
+              fontFamily: tokens.font.display,
+            }}
+          >
+            🌌 Faction Battle Results
+          </div>
+
+          <div
+            style={{
+              padding: `${tokens.spacing.md}`,
+              fontFamily: tokens.font.body,
+            }}
+          >
+            {/* Display stats for each faction */}
+            {factionStats.factions.map((faction) => {
+              const stats = factionStats.stats[faction];
+              const isWinner = factionStats.winner === faction;
+
+              return (
+                <div
+                  key={faction}
+                  style={{
+                    marginBottom: tokens.spacing.sm,
+                    padding: tokens.spacing.sm,
+                    background: isWinner ? "rgba(28, 164, 109, 0.15)" : "rgba(0,0,0,0.02)",
+                    borderRadius: tokens.radius.sm,
+                    border: `${tokens.borders.thin} ${isWinner ? "rgba(28, 164, 109, 0.4)" : colors.gray.borderLighter}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "1.1rem",
+                        fontWeight: 600,
+                        color: theme.dark,
+                      }}
+                    >
+                      {faction === "Star Trek" ? "🖖" : "⚔️"} {faction}
+                      {isWinner && " 👑"}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "1.2rem",
+                        fontWeight: 700,
+                        color: isWinner ? colors.success : theme.accent,
+                      }}
+                    >
+                      {stats.accuracy.toFixed(1)}% accuracy
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.9rem",
+                      color: colors.gray.text,
+                    }}
+                  >
+                    {stats.teamCount} team{stats.teamCount !== 1 ? "s" : ""} • {stats.correctAnswers}/{stats.totalAnswers} correct on {stats.questionCount} question{stats.questionCount !== 1 ? "s" : ""}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Winner announcement */}
+            {factionStats.winner ? (
+              <div
+                style={{
+                  marginTop: tokens.spacing.md,
+                  padding: tokens.spacing.sm,
+                  background: "rgba(28, 164, 109, 0.2)",
+                  borderRadius: tokens.radius.sm,
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  color: colors.success,
+                  textAlign: "center",
+                }}
+              >
+                🎉 {factionStats.winner} wins! All {factionStats.winner} teams receive +{factionStats.bonusPoints} bonus points!
+              </div>
+            ) : (
+              <div
+                style={{
+                  marginTop: tokens.spacing.md,
+                  padding: tokens.spacing.sm,
+                  background: "rgba(0,0,0,0.05)",
+                  borderRadius: tokens.radius.sm,
+                  fontSize: "0.95rem",
+                  fontStyle: "italic",
+                  color: colors.gray.text,
+                  textAlign: "center",
+                }}
+              >
+                {factionStats.factions.length > 0 ? "It's a tie! No faction bonus awarded." : "No teams pledged to any faction."}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ===== Final standings ===== */}
       <div

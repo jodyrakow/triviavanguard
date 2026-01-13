@@ -71,6 +71,7 @@ export default function App() {
   const [olderShowsOpen, setOlderShowsOpen] = useState(false);
   const [olderShows, setOlderShows] = useState([]);
   const [selectedRoundId, setSelectedRoundId] = useState(""); // string (e.g. "1")
+  const fileInputRef = useRef(null); // For importing archived shows from JSON
   const [showDetails, setshowDetails] = useState(true);
   const [visibleImages, setVisibleImages] = useState({});
   const questionRefs = useRef({});
@@ -188,6 +189,9 @@ export default function App() {
   const [poolContribution, setPoolContribution] = useState(
     () => Number(localStorage.getItem("tv_poolContribution")) || 10
   );
+  const [factionBonus, setFactionBonus] = useState(
+    () => Number(localStorage.getItem("tv_factionBonus")) || 10
+  );
 
   // Persist scoring settings to localStorage, scoringCache, and Supabase
   useEffect(() => {
@@ -195,6 +199,7 @@ export default function App() {
     localStorage.setItem("tv_pubPoints", String(pubPoints));
     localStorage.setItem("tv_poolPerQuestion", String(poolPerQuestion));
     localStorage.setItem("tv_poolContribution", String(poolContribution));
+    localStorage.setItem("tv_factionBonus", String(factionBonus));
 
     if (!selectedShowId) return;
 
@@ -207,6 +212,7 @@ export default function App() {
         pubPoints,
         poolPerQuestion,
         poolContribution,
+        factionBonus,
       };
 
       const next = {
@@ -230,6 +236,7 @@ export default function App() {
               pubPoints: nextShow.pubPoints ?? 10,
               poolPerQuestion: nextShow.poolPerQuestion ?? 500,
               poolContribution: nextShow.poolContribution ?? 10,
+              factionBonus: nextShow.factionBonus ?? 10,
               hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
               tiebreakers: nextShow.tiebreakers ?? {},
               grid: nextShow.grid ?? {},
@@ -246,6 +253,7 @@ export default function App() {
           pubPoints,
           poolPerQuestion,
           poolContribution,
+          factionBonus,
           ts: Date.now(),
         });
       } catch {}
@@ -261,6 +269,7 @@ export default function App() {
     poolPerQuestion,
     pubPoints,
     poolContribution,
+    factionBonus,
   ]);
 
   useEffect(() => {
@@ -843,6 +852,8 @@ export default function App() {
               setPoolPerQuestion(Number(loadedData.poolPerQuestion));
             if (loadedData.poolContribution !== undefined)
               setPoolContribution(Number(loadedData.poolContribution));
+            if (loadedData.factionBonus !== undefined)
+              setFactionBonus(Number(loadedData.factionBonus));
           }
           // Otherwise: Keep Airtable config that was set when the bundle loaded
 
@@ -1024,6 +1035,16 @@ export default function App() {
             setTimeLeft(config.timerDefault);
           }
 
+          // Set prizes from config if provided (and not already set by host)
+          const currentPrizes = composedCachedState?.prizes || "";
+          if (config.prizes && !currentPrizes) {
+            console.log(
+              "[App] Setting prizes from config:",
+              config.prizes
+            );
+            patchShared({ prizes: config.prizes });
+          }
+
           // Pre-populate hostInfo from Airtable (always sync from show config)
           const currentHostInfo =
             composedCachedState?.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
@@ -1137,6 +1158,7 @@ export default function App() {
               pubPoints: nextShow.pubPoints ?? 10,
               poolPerQuestion: nextShow.poolPerQuestion ?? 500,
               poolContribution: nextShow.poolContribution ?? 10,
+              factionBonus: nextShow.factionBonus ?? 10,
               hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
               tiebreakers: nextShow.tiebreakers ?? {},
               grid: nextShow.grid ?? {},
@@ -1387,6 +1409,7 @@ export default function App() {
               pubPoints: nextShow.pubPoints ?? 10,
               poolPerQuestion: nextShow.poolPerQuestion ?? 500,
               poolContribution: nextShow.poolContribution ?? 10,
+              factionBonus: nextShow.factionBonus ?? 10,
               hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
               tiebreakers: nextShow.tiebreakers ?? {},
               grid: nextShow.grid ?? {},
@@ -1448,6 +1471,8 @@ export default function App() {
           setPoolPerQuestion={setPoolPerQuestion}
           poolContribution={poolContribution}
           setPoolContribution={setPoolContribution}
+          factionBonus={factionBonus}
+          setFactionBonus={setFactionBonus}
           getClosestQuestionKey={getClosestQuestionKey}
           questionRefs={questionRefs}
           sendToDisplay={sendToDisplay}
@@ -1819,6 +1844,32 @@ export default function App() {
                 // Special case: "View older shows" option
                 if (newId === "__OLDER__") {
                   setOlderShowsOpen(true);
+                  // Reset select to prevent it from staying on this option
+                  setTimeout(() => {
+                    e.target.value = selectedShowId || "";
+                  }, 0);
+                  return;
+                }
+
+                // Special case: "Open archived show from file" option
+                if (newId === "__ARCHIVED__") {
+                  console.log("Opening file picker for archived show...");
+                  console.log("fileInputRef.current:", fileInputRef.current);
+
+                  // Trigger file input immediately to maintain user gesture
+                  if (fileInputRef.current) {
+                    console.log("Clicking file input...");
+                    fileInputRef.current.click();
+                    console.log("Click completed");
+                  } else {
+                    console.error("File input ref not found!");
+                  }
+
+                  // Reset select value to previous show (must happen AFTER click, but in same event loop)
+                  // Use requestAnimationFrame to ensure it happens after the file dialog opens
+                  requestAnimationFrame(() => {
+                    e.target.value = selectedShowId || "";
+                  });
                   return;
                 }
 
@@ -1877,6 +1928,12 @@ export default function App() {
                 style={{ fontFamily: tokens.font.body, fontStyle: "italic" }}
               >
                 📚 View older shows...
+              </option>
+              <option
+                value="__ARCHIVED__"
+                style={{ fontFamily: tokens.font.body, fontStyle: "italic" }}
+              >
+                📂 Open archived show from file...
               </option>
             </select>
           </label>
@@ -2049,6 +2106,7 @@ export default function App() {
             poolPerQuestion={poolPerQuestion}
             setPoolPerQuestion={setPoolPerQuestion}
             poolContribution={poolContribution}
+            factionBonus={factionBonus}
             prizes={composedCachedState?.prizes ?? ""}
             setPrizes={(val) => patchShared({ prizes: String(val || "") })}
             questionEdits={questionEdits[selectedShowId] ?? {}}
@@ -2254,6 +2312,86 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Hidden file input for importing archived shows */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        style={{ display: "none" }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+
+          try {
+            const text = await file.text();
+            const archivedShow = JSON.parse(text);
+
+            // Validate the archived show structure
+            if (!archivedShow.showBundle || !archivedShow.cachedByRound) {
+              alert("Invalid archived show file. Missing required data.");
+              e.target.value = ""; // Reset file input
+              return;
+            }
+
+            // Confirm before loading
+            const ok = selectedShowId
+              ? window.confirm(
+                  `Load archived show "${archivedShow.showName}" from ${archivedShow.showDate}?\n\nThis will delete all scores and data you've entered for the current show.`
+                )
+              : window.confirm(
+                  `Load archived show "${archivedShow.showName}" from ${archivedShow.showDate}?`
+                );
+
+            if (!ok) {
+              e.target.value = ""; // Reset file input
+              return;
+            }
+
+            // Clear cache for the OLD show if switching
+            if (selectedShowId) {
+              setScoringCache((prev) => {
+                const next = { ...prev };
+                delete next[selectedShowId];
+                return next;
+              });
+            }
+
+            // Set the show bundle
+            setShowBundle(archivedShow.showBundle);
+
+            // Set the scoring cache with the archived data
+            const archivedShowId = archivedShow.showId || `archived-${Date.now()}`;
+            setScoringCache((prev) => ({
+              ...prev,
+              [archivedShowId]: archivedShow.cachedByRound,
+            }));
+
+            // Update scoring settings from archived show
+            setScoringMode(archivedShow.scoringMode || "pub");
+            setPubPoints(archivedShow.pubPoints || 2);
+            setPoolPerQuestion(archivedShow.poolPerQuestion || 10);
+            setPoolContribution(archivedShow.poolContribution || 0);
+            setFactionBonus(archivedShow.factionBonus || 10);
+
+            // Set as the selected show
+            setSelectedShowId(archivedShowId);
+            setSelectedRoundId("");
+            setVisibleImages({});
+            setVisibleCategoryImages({});
+            setCurrentImageIndex({});
+
+            // Reset file input
+            e.target.value = "";
+
+            alert(`Successfully loaded archived show: ${archivedShow.showName}`);
+          } catch (err) {
+            console.error("Error loading archived show:", err);
+            alert(`Failed to load archived show: ${err.message}`);
+            e.target.value = ""; // Reset file input
+          }
+        }}
+      />
     </>
   );
 }

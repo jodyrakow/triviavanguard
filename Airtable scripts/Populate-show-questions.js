@@ -53,6 +53,7 @@ const DEST_ON_SQ = {
   Q_ANSWER: "Answer",
   Q_IMAGES: "Question image attachments",
   Q_AUDIO: "Question audio attachments",
+  SHOW_IMAGE_BY_DEFAULT: "Show image by default",
 };
 
 // === Helpers
@@ -121,11 +122,20 @@ const questionType = rec.getCellValue(SQ_FIELDS.QUESTION_TYPE);
 const isTiebreaker =
   questionType && String(questionType).toLowerCase() === "tiebreaker";
 
+// Check if this is a visual question to auto-set "Show image by default"
+const isVisual =
+  questionType && String(questionType).toLowerCase().includes("visual");
+
 // Resolve Question link (take first if multi-linked)
 const qLink = rec.getCellValue(LINK_FIELDS_ON_SQ.QUESTION);
 const questionId = Array.isArray(qLink) && qLink.length ? qLink[0].id : null;
 
 const dest = {};
+
+// Auto-set "Show image by default" checkbox for Visual questions
+if (hasField(SQ, DEST_ON_SQ.SHOW_IMAGE_BY_DEFAULT)) {
+  dest[DEST_ON_SQ.SHOW_IMAGE_BY_DEFAULT] = isVisual;
+}
 let counts = { qImgs: 0, qAud: 0 };
 
 // Collect linked child record IDs

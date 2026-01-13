@@ -27,6 +27,8 @@ export default function SidebarMenu({
   setPoolPerQuestion,
   poolContribution,
   setPoolContribution,
+  factionBonus,
+  setFactionBonus,
   prizes,
   setPrizes,
   getClosestQuestionKey,
@@ -974,6 +976,59 @@ export default function SidebarMenu({
               </div>
             )}
 
+            {/* === Faction Bonus (nested inside show settings) === */}
+            <div
+              style={nestedHeaderStyle}
+              onClick={() => toggleSection("factionBonus")}
+            >
+              <span>🌌 Faction Battle Bonus</span>
+              <span>{expandedSections.factionBonus ? "▼" : "▶"}</span>
+            </div>
+
+            {expandedSections.factionBonus && (
+              <div style={nestedContentStyle}>
+                <div style={{ marginBottom: "0.75rem" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    Bonus points for winning faction
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={factionBonus}
+                    onChange={(e) =>
+                      setFactionBonus(Number(e.target.value))
+                    }
+                    style={{
+                      width: "110px",
+                      padding: "0.35rem",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "#fff",
+                      fontSize: "1rem",
+                      fontFamily: tokens.font.body,
+                    }}
+                  />
+                </div>
+                <div style={{
+                  fontSize: "0.85rem",
+                  opacity: 0.8,
+                  fontStyle: "italic",
+                  lineHeight: 1.4
+                }}>
+                  Teams can pledge allegiance to a faction (e.g., Star Trek vs Star Wars).
+                  Tag questions with faction names in Airtable. The faction with the highest
+                  average accuracy on their tagged questions wins this bonus.
+                </div>
+              </div>
+            )}
+
             {/* === Prizes (nested inside show settings) === */}
             <div
               style={nestedHeaderStyle}
@@ -985,33 +1040,6 @@ export default function SidebarMenu({
 
             {expandedSections.prizesSettings && (
               <div style={nestedContentStyle}>
-                <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                  <span style={{ display: "block", marginBottom: "0.25rem" }}>
-                    Prize provider:
-                  </span>
-                  <input
-                    type="text"
-                    value={hostInfo?.prizeProvider || ""}
-                    onChange={(e) =>
-                      setHostInfo({
-                        ...hostInfo,
-                        prizeProvider: e.target.value,
-                      })
-                    }
-                    placeholder="e.g., Ciao Thyme"
-                    style={{
-                      width: "100%",
-                      padding: "0.35rem",
-                      border: "1px solid rgba(255,255,255,0.3)",
-                      borderRadius: "4px",
-                      backgroundColor: "rgba(255,255,255,0.1)",
-                      color: "#fff",
-                      fontSize: "1rem",
-                      fontFamily: tokens.font.body,
-                    }}
-                  />
-                </label>
-
                 <label style={{ display: "block", marginBottom: "0.65rem" }}>
                   <span style={{ display: "block", marginBottom: "0.25rem" }}>
                     Number of prizes:

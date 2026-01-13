@@ -601,6 +601,20 @@ export default function ScoringMode({
     } catch {}
   };
 
+  const setFactionPledge = (showTeamId, factionPledge) => {
+    setTeams((prev) =>
+      prev.map((t) => (t.showTeamId === showTeamId ? { ...t, factionPledge } : t))
+    );
+    try {
+      window.sendFactionPledge?.({
+        showId: selectedShowId,
+        teamId: showTeamId,
+        factionPledge,
+        ts: Date.now(),
+      });
+    } catch {}
+  };
+
   // ---------------- Focus + keyboard nav ----------------
   const [focus, setFocus] = useState({ teamIdx: 0, qIdx: 0 });
   useEffect(() => {
@@ -1413,6 +1427,50 @@ export default function ScoringMode({
                         style={{ cursor: "pointer" }}
                       />
                       <span style={{ opacity: 0.85 }}>League</span>
+                    </label>
+                  </div>
+
+                  {/* Faction pledge dropdown */}
+                  <div
+                    style={{
+                      marginTop: "0.35rem",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.25rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                        fontSize: "0.75rem",
+                        userSelect: "none",
+                      }}
+                    >
+                      <span style={{ opacity: 0.85 }}>Faction</span>
+                      <select
+                        value={t.factionPledge || ""}
+                        onChange={(e) => {
+                          setFactionPledge(t.showTeamId, e.target.value || null);
+                        }}
+                        style={{
+                          cursor: "pointer",
+                          fontSize: "0.7rem",
+                          padding: "0.15rem 0.25rem",
+                          borderRadius: "3px",
+                          border: `1px solid ${theme.accent}`,
+                          backgroundColor: theme.bg,
+                          color: theme.accent,
+                          fontFamily: tokens.font.body,
+                        }}
+                      >
+                        <option value="">None</option>
+                        <option value="Star Trek">🖖 Star Trek</option>
+                        <option value="Star Wars">⚔️ Star Wars</option>
+                      </select>
                     </label>
                   </div>
 
