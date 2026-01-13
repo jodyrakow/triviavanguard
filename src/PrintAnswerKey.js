@@ -41,7 +41,7 @@ function flattenQuestions(round) {
 
 function isLettered(q) {
   const order = String(q.questionOrder || "").trim().toUpperCase();
-  return /^[A-J]$/i.test(order);
+  return /^[A-Z]$/i.test(order);
 }
 
 function getAnswer(q) {
