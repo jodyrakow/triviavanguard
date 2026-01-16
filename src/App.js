@@ -1946,9 +1946,20 @@ export default function App() {
 
                 // Special case: "Open archived show from file" option
                 if (newId === "__ARCHIVED__") {
+                  console.log("[FILE PICKER] Archived option selected");
+                  console.log("[FILE PICKER] fileInputRef.current:", fileInputRef.current);
+
                   // Trigger file input IMMEDIATELY (no setTimeout - breaks user gesture!)
                   if (fileInputRef.current) {
-                    fileInputRef.current.click();
+                    console.log("[FILE PICKER] Attempting click...");
+                    try {
+                      fileInputRef.current.click();
+                      console.log("[FILE PICKER] Click executed");
+                    } catch (err) {
+                      console.error("[FILE PICKER] Click failed:", err);
+                    }
+                  } else {
+                    console.error("[FILE PICKER] fileInputRef.current is null!");
                   }
 
                   // Reset select after triggering (using setTimeout is OK here)
@@ -2410,7 +2421,6 @@ export default function App() {
           width: "1px",
           height: "1px",
           opacity: 0,
-          pointerEvents: "none",
         }}
         onClick={(e) => {
           // Reset the file input value so the same file can be selected again
