@@ -1032,6 +1032,12 @@ export default function App() {
       return;
     }
 
+    // Skip bundle fetch for archived shows (they already have their bundle loaded)
+    if (selectedShowId.startsWith("archived-")) {
+      console.log("[fetchShowBundle] Skipping bundle fetch for archived show:", selectedShowId);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       try {
