@@ -909,6 +909,12 @@ export default function App() {
   useEffect(() => {
     if (!selectedShowId) return;
 
+    // Skip Supabase fetch for archived shows (they already have their data loaded)
+    if (selectedShowId.startsWith("archived-")) {
+      console.log("[supaLoadScoring] Skipping Supabase fetch for archived show:", selectedShowId);
+      return;
+    }
+
     (async () => {
       try {
         console.log("[supaLoadScoring] Fetching scoring data for show:", selectedShowId);
@@ -1563,7 +1569,8 @@ export default function App() {
       setShowBundle(archivedShow.showBundle);
 
       // Set the scoring cache with the archived data
-      const archivedShowId = archivedShow.showId || `archived-${Date.now()}`;
+      // Always use "archived-" prefix to prevent Supabase fetch from overwriting the data
+      const archivedShowId = `archived-${Date.now()}`;
       setScoringCache((prev) => ({
         ...prev,
         [archivedShowId]: archivedShow.cachedByRound,
