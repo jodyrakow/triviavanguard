@@ -87,7 +87,8 @@ export function computeAutoEarned(cell, scoring, correctCount) {
 export function computeCellPoints(cell, scoring, correctCount) {
   if (!cell) return 0;
 
-  const isPooled = scoring.mode === "pooled" || scoring.mode === "pooled-adaptive";
+  const isPooled =
+    scoring.mode === "pooled" || scoring.mode === "pooled-adaptive";
 
   // Pooled modes: override is a multiplier (e.g., 0.5 = half points, 1.2 = 120%)
   if (
@@ -97,9 +98,13 @@ export function computeCellPoints(cell, scoring, correctCount) {
     cell.partialCredit !== ""
   ) {
     // Calculate what they would earn if correct, then multiply
-    const basePoints = computeAutoEarned({ isCorrect: true }, scoring, correctCount);
+    const basePoints = computeAutoEarned(
+      { isCorrect: true },
+      scoring,
+      correctCount
+    );
     const multiplier = Number(cell.partialCredit);
-    const earned = basePoints * multiplier;
+    const earned = Math.round(basePoints * multiplier);
     const bonus = Number(cell.bonusPoints || 0);
     return earned + bonus;
   }
@@ -164,11 +169,11 @@ export function computeSolosForRound(teams, questions, grid) {
   }
 
   // Build list of unique teams with solos
-  const soloTeamsList = Array.from(soloTeamSet).map(showTeamId => {
-    const team = teams.find(t => t.showTeamId === showTeamId);
+  const soloTeamsList = Array.from(soloTeamSet).map((showTeamId) => {
+    const team = teams.find((t) => t.showTeamId === showTeamId);
     return {
       showTeamId,
-      teamName: team?.teamName || '(Unknown)'
+      teamName: team?.teamName || "(Unknown)",
     };
   });
 
@@ -184,7 +189,7 @@ export function computePlaces(teamTotals) {
   // Convert to array and sort by total (descending)
   const entries = Object.entries(teamTotals).map(([showTeamId, total]) => ({
     showTeamId,
-    total
+    total,
   }));
 
   entries.sort((a, b) => b.total - a.total);
