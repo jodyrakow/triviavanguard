@@ -1589,9 +1589,13 @@ export default function App() {
       setPoolContribution(archivedShow.poolContribution || 0);
       setFactionBonus(archivedShow.factionBonus || 10);
 
+      // Auto-select first round so questions appear in the grid
+      const firstRound = archivedShow.showBundle?.rounds?.[0]?.round;
+      const firstRoundId = firstRound ? String(firstRound) : "";
+
       // Set as the selected show
       setSelectedShowId(archivedShowId);
-      setSelectedRoundId("");
+      setSelectedRoundId(firstRoundId);
       setVisibleImages({});
       setVisibleCategoryImages({});
       setCurrentImageIndex({});
