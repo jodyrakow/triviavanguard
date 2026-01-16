@@ -101,6 +101,7 @@ export async function handler(event) {
           Object.keys(f)
         );
 
+        const showName = f["Show name"] || f["Name"] || null;
         const locationName = f["Location name"] || null;
         const scoringModeCell = f["Scoring mode"];
         const showDate = f["Date"] || null;
@@ -141,6 +142,8 @@ export async function handler(event) {
 
         showConfig = {
           showId,
+          showName,
+          showDate,
           location: locationName || null,
           scoringMode: scoringModeCell?.name || scoringModeCell || null,
           pubPoints:
@@ -398,6 +401,8 @@ export async function handler(event) {
 
     const bundle = {
       showId,
+      showName: showConfig.showName,
+      showDate: showConfig.showDate,
       totalQuestions: sqRecords.length,
       rounds,
       teams,
