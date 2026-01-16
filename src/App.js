@@ -361,13 +361,40 @@ export default function App() {
           isCorrect: !!nowCorrect,
         };
 
+        const nextShow = {
+          ...show,
+          grid: { ...(show.grid || {}), [teamId]: byTeam },
+        };
+
         const next = {
           ...prev,
-          [showId]: {
-            ...show,
-            grid: { ...(show.grid || {}), [teamId]: byTeam },
-          },
+          [showId]: nextShow,
         };
+
+        // Save to Supabase with debouncing
+        saveDebounced(roundId, () => {
+          fetch("/.netlify/functions/supaSaveScoring", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              showId: showId,
+              roundId: "all",
+              payload: {
+                teams: nextShow.teams ?? [],
+                entryOrder: nextShow.entryOrder ?? [],
+                prizes: nextShow.prizes ?? "",
+                scoringMode: nextShow.scoringMode ?? "pub",
+                pubPoints: nextShow.pubPoints ?? 10,
+                poolPerQuestion: nextShow.poolPerQuestion ?? 500,
+                poolContribution: nextShow.poolContribution ?? 10,
+                factionBonus: nextShow.factionBonus ?? 10,
+                hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
+                tiebreakers: nextShow.tiebreakers ?? {},
+                grid: nextShow.grid ?? {},
+              },
+            }),
+          }).catch(() => {});
+        });
 
         try {
           localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
@@ -408,13 +435,40 @@ export default function App() {
               : Number(overridePoints),
         };
 
+        const nextShow = {
+          ...show,
+          grid: { ...(show.grid || {}), [teamId]: byTeam },
+        };
+
         const next = {
           ...prev,
-          [showId]: {
-            ...show,
-            grid: { ...(show.grid || {}), [teamId]: byTeam },
-          },
+          [showId]: nextShow,
         };
+
+        // Save to Supabase with debouncing
+        saveDebounced(roundId, () => {
+          fetch("/.netlify/functions/supaSaveScoring", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              showId: showId,
+              roundId: "all",
+              payload: {
+                teams: nextShow.teams ?? [],
+                entryOrder: nextShow.entryOrder ?? [],
+                prizes: nextShow.prizes ?? "",
+                scoringMode: nextShow.scoringMode ?? "pub",
+                pubPoints: nextShow.pubPoints ?? 10,
+                poolPerQuestion: nextShow.poolPerQuestion ?? 500,
+                poolContribution: nextShow.poolContribution ?? 10,
+                factionBonus: nextShow.factionBonus ?? 10,
+                hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
+                tiebreakers: nextShow.tiebreakers ?? {},
+                grid: nextShow.grid ?? {},
+              },
+            }),
+          }).catch(() => {});
+        });
 
         try {
           localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
@@ -596,13 +650,40 @@ export default function App() {
               : Number(tiebreakerGuess),
         };
 
+        const nextShow = {
+          ...show,
+          grid: { ...(show.grid || {}), [teamId]: byTeam },
+        };
+
         const next = {
           ...prev,
-          [showId]: {
-            ...show,
-            grid: { ...(show.grid || {}), [teamId]: byTeam },
-          },
+          [showId]: nextShow,
         };
+
+        // Save to Supabase with debouncing
+        saveDebounced(roundId, () => {
+          fetch("/.netlify/functions/supaSaveScoring", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              showId: showId,
+              roundId: "all",
+              payload: {
+                teams: nextShow.teams ?? [],
+                entryOrder: nextShow.entryOrder ?? [],
+                prizes: nextShow.prizes ?? "",
+                scoringMode: nextShow.scoringMode ?? "pub",
+                pubPoints: nextShow.pubPoints ?? 10,
+                poolPerQuestion: nextShow.poolPerQuestion ?? 500,
+                poolContribution: nextShow.poolContribution ?? 10,
+                factionBonus: nextShow.factionBonus ?? 10,
+                hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
+                tiebreakers: nextShow.tiebreakers ?? {},
+                grid: nextShow.grid ?? {},
+              },
+            }),
+          }).catch(() => {});
+        });
 
         try {
           localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
@@ -829,10 +910,14 @@ export default function App() {
 
     (async () => {
       try {
+        console.log("[supaLoadScoring] Fetching scoring data for show:", selectedShowId);
         const res = await fetch(
           `/.netlify/functions/supaLoadScoring?showId=${encodeURIComponent(selectedShowId)}`
         );
+        console.log("[supaLoadScoring] Response status:", res.status);
         const json = await res.json();
+        console.log("[supaLoadScoring] Response data:", json);
+        console.log("[supaLoadScoring] Payload:", json.payload);
 
         setScoringCache((prev) => {
           const prevShow = prev[selectedShowId] || DEFAULT_SHOW_STATE;
@@ -843,7 +928,12 @@ export default function App() {
             loadedData?.grid && Object.keys(loadedData.grid).length > 0;
           const showHasBeenStarted = gridHasData && !!json.payload;
 
+          console.log("[supaLoadScoring] gridHasData:", gridHasData, "grid keys:", Object.keys(loadedData?.grid || {}).length);
+          console.log("[supaLoadScoring] showHasBeenStarted:", showHasBeenStarted);
+          console.log("[supaLoadScoring] loadedData.teams:", loadedData?.teams?.length || 0, "teams");
+
           if (showHasBeenStarted) {
+            console.log("[supaLoadScoring] Applying scoring settings from Supabase");
             // Update local scoring state from loaded Supabase data (show in progress)
             if (loadedData.scoringMode) setScoringMode(loadedData.scoringMode);
             if (loadedData.pubPoints !== undefined)
@@ -854,16 +944,19 @@ export default function App() {
               setPoolContribution(Number(loadedData.poolContribution));
             if (loadedData.factionBonus !== undefined)
               setFactionBonus(Number(loadedData.factionBonus));
+          } else {
+            console.log("[supaLoadScoring] No grid data found, keeping Airtable config");
           }
-          // Otherwise: Keep Airtable config that was set when the bundle loaded
 
-          return {
+          const result = {
             ...prev,
             [selectedShowId]: { ...DEFAULT_SHOW_STATE, ...loadedData },
           };
+          console.log("[supaLoadScoring] Final scoringCache for this show:", result[selectedShowId]);
+          return result;
         });
       } catch (e) {
-        console.warn("supaLoadScoring failed", e);
+        console.warn("[supaLoadScoring] Failed:", e);
         // falls back to whatever is in local scoringCache/localStorage
       }
     })();
@@ -1853,23 +1946,16 @@ export default function App() {
 
                 // Special case: "Open archived show from file" option
                 if (newId === "__ARCHIVED__") {
-                  console.log("Opening file picker for archived show...");
-                  console.log("fileInputRef.current:", fileInputRef.current);
-
-                  // Trigger file input immediately to maintain user gesture
+                  // Trigger file input IMMEDIATELY (no setTimeout - breaks user gesture!)
                   if (fileInputRef.current) {
-                    console.log("Clicking file input...");
                     fileInputRef.current.click();
-                    console.log("Click completed");
-                  } else {
-                    console.error("File input ref not found!");
                   }
 
-                  // Reset select value to previous show (must happen AFTER click, but in same event loop)
-                  // Use requestAnimationFrame to ensure it happens after the file dialog opens
-                  requestAnimationFrame(() => {
+                  // Reset select after triggering (using setTimeout is OK here)
+                  setTimeout(() => {
                     e.target.value = selectedShowId || "";
-                  });
+                  }, 0);
+
                   return;
                 }
 
@@ -2318,9 +2404,27 @@ export default function App() {
         ref={fileInputRef}
         type="file"
         accept=".json"
-        style={{ display: "none" }}
+        style={{
+          position: "absolute",
+          left: "-9999px",
+          width: "1px",
+          height: "1px",
+          opacity: 0,
+          pointerEvents: "none",
+        }}
+        onClick={(e) => {
+          // Reset the file input value so the same file can be selected again
+          e.target.value = null;
+        }}
         onChange={async (e) => {
           const file = e.target.files?.[0];
+
+          // Reset the select dropdown back to the current show
+          const selectElement = document.querySelector('select[aria-label="Show selector"], select');
+          if (selectElement) {
+            selectElement.value = selectedShowId || "";
+          }
+
           if (!file) return;
 
           try {

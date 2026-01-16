@@ -166,8 +166,21 @@
     margin: 0;
   }
 
+  /* Allow columns to break across pages naturally */
   .printColumn {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  /* Prevent individual question lines from breaking mid-line */
+  .questionLine {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  /* Keep column headers with their first question */
+  .columnHeader {
+    break-after: avoid;
+    page-break-after: avoid;
   }
 }
