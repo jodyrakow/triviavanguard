@@ -1917,11 +1917,14 @@ export default function ScoringMode({
                     color: theme.accent,
                   }}
                 >
-                  Override points
+                  {scoringMode === "pub"
+                    ? "Override points"
+                    : "Point multiplier"}
                 </div>
                 <input
                   type="number"
-                  placeholder="(leave blank for none)"
+                  step="0.1"
+                  placeholder={scoringMode === "pub" ? "(leave blank for none)" : "(e.g., 0.5 = half, 1.2 = 120%)"}
                   value={editingCell.draftOverride}
                   onChange={(e) =>
                     setEditingCell((p) => ({

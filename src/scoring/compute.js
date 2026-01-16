@@ -87,7 +87,24 @@ export function computeAutoEarned(cell, scoring, correctCount) {
 export function computeCellPoints(cell, scoring, correctCount) {
   if (!cell) return 0;
 
-  // Partial credit replaces default points and forces correct
+  const isPooled = scoring.mode === "pooled" || scoring.mode === "pooled-adaptive";
+
+  // Pooled modes: override is a multiplier (e.g., 0.5 = half points, 1.2 = 120%)
+  if (
+    isPooled &&
+    cell.partialCredit !== null &&
+    cell.partialCredit !== undefined &&
+    cell.partialCredit !== ""
+  ) {
+    // Calculate what they would earn if correct, then multiply
+    const basePoints = computeAutoEarned({ isCorrect: true }, scoring, correctCount);
+    const multiplier = Number(cell.partialCredit);
+    const earned = basePoints * multiplier;
+    const bonus = Number(cell.bonusPoints || 0);
+    return earned + bonus;
+  }
+
+  // Pub mode: override replaces default points
   if (
     cell.partialCredit !== null &&
     cell.partialCredit !== undefined &&
