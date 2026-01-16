@@ -72,6 +72,7 @@ export default function App() {
   const [olderShows, setOlderShows] = useState([]);
   const [selectedRoundId, setSelectedRoundId] = useState(""); // string (e.g. "1")
   const fileInputRef = useRef(null); // For importing archived shows from JSON
+  const [showDropZone, setShowDropZone] = useState(false); // Show drag-and-drop modal for archived files
   const [showDetails, setshowDetails] = useState(true);
   const [visibleImages, setVisibleImages] = useState({});
   const questionRefs = useRef({});
@@ -1524,6 +1525,73 @@ export default function App() {
     } catch {}
   };
 
+  // Helper function to load archived show from file
+  const loadArchivedShowFile = async (file) => {
+    try {
+      const text = await file.text();
+      const archivedShow = JSON.parse(text);
+
+      // Validate the archived show structure
+      if (!archivedShow.showBundle || !archivedShow.cachedByRound) {
+        alert("Invalid archived show file. Missing required data.");
+        return false;
+      }
+
+      // Confirm before loading
+      const ok = selectedShowId
+        ? window.confirm(
+            `Load archived show "${archivedShow.showName}" from ${archivedShow.showDate}?\n\nThis will delete all scores and data you've entered for the current show.`
+          )
+        : window.confirm(
+            `Load archived show "${archivedShow.showName}" from ${archivedShow.showDate}?`
+          );
+
+      if (!ok) {
+        return false;
+      }
+
+      // Clear cache for the OLD show if switching
+      if (selectedShowId) {
+        setScoringCache((prev) => {
+          const next = { ...prev };
+          delete next[selectedShowId];
+          return next;
+        });
+      }
+
+      // Set the show bundle
+      setShowBundle(archivedShow.showBundle);
+
+      // Set the scoring cache with the archived data
+      const archivedShowId = archivedShow.showId || `archived-${Date.now()}`;
+      setScoringCache((prev) => ({
+        ...prev,
+        [archivedShowId]: archivedShow.cachedByRound,
+      }));
+
+      // Update scoring settings from archived show
+      setScoringMode(archivedShow.scoringMode || "pub");
+      setPubPoints(archivedShow.pubPoints || 2);
+      setPoolPerQuestion(archivedShow.poolPerQuestion || 10);
+      setPoolContribution(archivedShow.poolContribution || 0);
+      setFactionBonus(archivedShow.factionBonus || 10);
+
+      // Set as the selected show
+      setSelectedShowId(archivedShowId);
+      setSelectedRoundId("");
+      setVisibleImages({});
+      setVisibleCategoryImages({});
+      setCurrentImageIndex({});
+
+      alert(`Successfully loaded archived show: ${archivedShow.showName}`);
+      return true;
+    } catch (err) {
+      console.error("Error loading archived show:", err);
+      alert(`Failed to load archived show: ${err.message}`);
+      return false;
+    }
+  };
+
   // UI
   return (
     <>
@@ -1946,23 +2014,10 @@ export default function App() {
 
                 // Special case: "Open archived show from file" option
                 if (newId === "__ARCHIVED__") {
-                  console.log("[FILE PICKER] Archived option selected");
-                  console.log("[FILE PICKER] fileInputRef.current:", fileInputRef.current);
+                  // Show the drag-and-drop modal
+                  setShowDropZone(true);
 
-                  // Trigger file input IMMEDIATELY (no setTimeout - breaks user gesture!)
-                  if (fileInputRef.current) {
-                    console.log("[FILE PICKER] Attempting click...");
-                    try {
-                      fileInputRef.current.click();
-                      console.log("[FILE PICKER] Click executed");
-                    } catch (err) {
-                      console.error("[FILE PICKER] Click failed:", err);
-                    }
-                  } else {
-                    console.error("[FILE PICKER] fileInputRef.current is null!");
-                  }
-
-                  // Reset select after triggering (using setTimeout is OK here)
+                  // Reset select after triggering
                   setTimeout(() => {
                     e.target.value = selectedShowId || "";
                   }, 0);
@@ -2437,75 +2492,156 @@ export default function App() {
 
           if (!file) return;
 
-          try {
-            const text = await file.text();
-            const archivedShow = JSON.parse(text);
-
-            // Validate the archived show structure
-            if (!archivedShow.showBundle || !archivedShow.cachedByRound) {
-              alert("Invalid archived show file. Missing required data.");
-              e.target.value = ""; // Reset file input
-              return;
-            }
-
-            // Confirm before loading
-            const ok = selectedShowId
-              ? window.confirm(
-                  `Load archived show "${archivedShow.showName}" from ${archivedShow.showDate}?\n\nThis will delete all scores and data you've entered for the current show.`
-                )
-              : window.confirm(
-                  `Load archived show "${archivedShow.showName}" from ${archivedShow.showDate}?`
-                );
-
-            if (!ok) {
-              e.target.value = ""; // Reset file input
-              return;
-            }
-
-            // Clear cache for the OLD show if switching
-            if (selectedShowId) {
-              setScoringCache((prev) => {
-                const next = { ...prev };
-                delete next[selectedShowId];
-                return next;
-              });
-            }
-
-            // Set the show bundle
-            setShowBundle(archivedShow.showBundle);
-
-            // Set the scoring cache with the archived data
-            const archivedShowId = archivedShow.showId || `archived-${Date.now()}`;
-            setScoringCache((prev) => ({
-              ...prev,
-              [archivedShowId]: archivedShow.cachedByRound,
-            }));
-
-            // Update scoring settings from archived show
-            setScoringMode(archivedShow.scoringMode || "pub");
-            setPubPoints(archivedShow.pubPoints || 2);
-            setPoolPerQuestion(archivedShow.poolPerQuestion || 10);
-            setPoolContribution(archivedShow.poolContribution || 0);
-            setFactionBonus(archivedShow.factionBonus || 10);
-
-            // Set as the selected show
-            setSelectedShowId(archivedShowId);
-            setSelectedRoundId("");
-            setVisibleImages({});
-            setVisibleCategoryImages({});
-            setCurrentImageIndex({});
-
-            // Reset file input
-            e.target.value = "";
-
-            alert(`Successfully loaded archived show: ${archivedShow.showName}`);
-          } catch (err) {
-            console.error("Error loading archived show:", err);
-            alert(`Failed to load archived show: ${err.message}`);
-            e.target.value = ""; // Reset file input
-          }
+          await loadArchivedShowFile(file);
+          e.target.value = ""; // Reset file input
         }}
       />
+
+      {/* Drag-and-drop modal for archived show files */}
+      {showDropZone && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            zIndex: 10000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "2rem",
+          }}
+          onClick={() => setShowDropZone(false)}
+        >
+          <div
+            style={{
+              backgroundColor: colors.bg,
+              borderRadius: "1rem",
+              padding: "2rem",
+              maxWidth: "600px",
+              width: "100%",
+              boxShadow: "0 10px 40px rgba(0, 0, 0, 0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: "1.5rem", fontFamily: tokens.font.display }}>
+                Load Archived Show
+              </h2>
+              <button
+                onClick={() => setShowDropZone(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  fontSize: "1.5rem",
+                  cursor: "pointer",
+                  padding: "0.25rem 0.5rem",
+                  opacity: 0.7,
+                }}
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.style.backgroundColor = colors.purple?.bg || "#f0e5ff";
+                e.currentTarget.style.borderColor = colors.purple?.border || "#9b59b6";
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.style.backgroundColor = colors.gray?.bg || "#f5f5f5";
+                e.currentTarget.style.borderColor = colors.gray?.border || "#ccc";
+              }}
+              onDrop={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.style.backgroundColor = colors.gray?.bg || "#f5f5f5";
+                e.currentTarget.style.borderColor = colors.gray?.border || "#ccc";
+
+                const file = e.dataTransfer.files?.[0];
+                if (!file) return;
+
+                if (!file.name.endsWith(".json")) {
+                  alert("Please drop a .json file");
+                  return;
+                }
+
+                const success = await loadArchivedShowFile(file);
+                if (success) {
+                  setShowDropZone(false);
+                }
+              }}
+              style={{
+                border: `3px dashed ${colors.gray?.border || "#ccc"}`,
+                borderRadius: "0.75rem",
+                padding: "3rem 2rem",
+                textAlign: "center",
+                backgroundColor: colors.gray?.bg || "#f5f5f5",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📁</div>
+              <div style={{ fontSize: "1.25rem", fontWeight: "bold", marginBottom: "0.5rem" }}>
+                Drag & Drop Your Archived Show File Here
+              </div>
+              <div style={{ fontSize: "0.9rem", opacity: 0.7 }}>
+                or click to browse
+              </div>
+              <input
+                type="file"
+                accept=".json"
+                style={{ display: "none" }}
+                id="dropZoneFileInput"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+
+                  const success = await loadArchivedShowFile(file);
+                  if (success) {
+                    setShowDropZone(false);
+                  }
+                  e.target.value = ""; // Reset
+                }}
+              />
+              <label
+                htmlFor="dropZoneFileInput"
+                style={{
+                  display: "inline-block",
+                  marginTop: "1rem",
+                  padding: "0.75rem 1.5rem",
+                  backgroundColor: colors.purple?.bg || "#9b59b6",
+                  color: "#fff",
+                  borderRadius: "0.5rem",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: "1rem",
+                }}
+              >
+                Browse Files
+              </label>
+            </div>
+
+            <div style={{ marginTop: "1rem", fontSize: "0.85rem", opacity: 0.6, textAlign: "center" }}>
+              Only .json archive files are supported
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
