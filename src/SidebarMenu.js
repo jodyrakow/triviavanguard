@@ -132,6 +132,8 @@ export default function SidebarMenu({
     setPrizes?.(next);
   };
 
+  const ENABLE_FACTION_BATTLE = false;
+
   // ========== HOST SCRIPT GENERATION (moved from QuestionsMode) ==========
 
   // Helper: check if question is tiebreaker
@@ -977,13 +979,15 @@ export default function SidebarMenu({
             )}
 
             {/* === Faction Bonus (nested inside show settings) === */}
-            <div
-              style={nestedHeaderStyle}
-              onClick={() => toggleSection("factionBonus")}
-            >
-              <span>🌌 Faction Battle Bonus</span>
-              <span>{expandedSections.factionBonus ? "▼" : "▶"}</span>
-            </div>
+            {ENABLE_FACTION_BATTLE && (
+              <div
+                style={nestedHeaderStyle}
+                onClick={() => toggleSection("factionBonus")}
+              >
+                <span>🌌 Faction Battle Bonus</span>
+                <span>{expandedSections.factionBonus ? "▼" : "▶"}</span>
+              </div>
+            )}
 
             {expandedSections.factionBonus && (
               <div style={nestedContentStyle}>
@@ -1001,9 +1005,7 @@ export default function SidebarMenu({
                     type="number"
                     min="0"
                     value={factionBonus}
-                    onChange={(e) =>
-                      setFactionBonus(Number(e.target.value))
-                    }
+                    onChange={(e) => setFactionBonus(Number(e.target.value))}
                     style={{
                       width: "110px",
                       padding: "0.35rem",
@@ -1016,15 +1018,18 @@ export default function SidebarMenu({
                     }}
                   />
                 </div>
-                <div style={{
-                  fontSize: "0.85rem",
-                  opacity: 0.8,
-                  fontStyle: "italic",
-                  lineHeight: 1.4
-                }}>
-                  Teams can pledge allegiance to a faction (e.g., Star Trek vs Star Wars).
-                  Tag questions with faction names in Airtable. The faction with the highest
-                  average accuracy on their tagged questions wins this bonus.
+                <div
+                  style={{
+                    fontSize: "0.85rem",
+                    opacity: 0.8,
+                    fontStyle: "italic",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Teams can pledge allegiance to a faction (e.g., Star Trek vs
+                  Star Wars). Tag questions with faction names in Airtable. The
+                  faction with the highest average accuracy on their tagged
+                  questions wins this bonus.
                 </div>
               </div>
             )}
