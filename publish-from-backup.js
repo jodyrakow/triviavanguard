@@ -1,22 +1,22 @@
 #!/usr/bin/env node
 // Script to publish show results from a backup JSON file
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 const {
   buildCorrectCountMap,
   computeCellPoints,
-} = require('./src/scoring/compute.js');
+} = require("./src/scoring/compute.js");
 
 // Read backup file path from command line
 const backupPath = process.argv[2];
 if (!backupPath) {
-  console.error('Usage: node publish-from-backup.js <path-to-backup.json>');
+  console.error("Usage: node publish-from-backup.js <path-to-backup.json>");
   process.exit(1);
 }
 
 console.log(`📖 Reading backup from: ${backupPath}`);
-const backup = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
 
 const {
   showId,
@@ -27,7 +27,7 @@ const {
   poolPerQuestion,
   showBundle,
   cachedByRound,
-  standings
+  standings,
 } = backup;
 
 console.log(`\n📊 Show Info:`);
@@ -42,16 +42,20 @@ const allQuestions = [];
 for (const round of showBundle.rounds || []) {
   for (const cat of round.categories || []) {
     for (const q of cat.questions || []) {
-      const questionType = (q.questionType || '').toLowerCase();
-      const isTB = questionType === 'tiebreaker' ||
-                   String(q.questionOrder).toUpperCase() === 'TB' ||
-                   String(q.showQuestionId || '').startsWith('tb-');
+      const questionType = (q.questionType || "").toLowerCase();
+      const isTB =
+        questionType === "tiebreaker" ||
+        String(q.questionOrder).toUpperCase() === "TB" ||
+        String(q.showQuestionId || "").startsWith("tb-");
 
       if (!isTB && q.questionId && q.showQuestionId) {
         allQuestions.push({
           showQuestionId: q.showQuestionId,
           questionId: q.questionId,
-          pubPerQuestion: typeof q.pointsPerQuestion === 'number' ? q.pointsPerQuestion : null,
+          pubPerQuestion:
+            typeof q.pointsPerQuestion === "number"
+              ? q.pointsPerQuestion
+              : null,
         });
       }
     }
@@ -63,7 +67,9 @@ console.log(`   Questions (non-TB): ${allQuestions.length}`);
 // Build teams payload from standings
 const teams = cachedByRound.teams || [];
 const teamsPayload = standings.map((s) => {
-  const team = teams.find(t => t.showTeamId === s.showTeamId || t.teamName === s.teamName);
+  const team = teams.find(
+    (t) => t.showTeamId === s.showTeamId || t.teamName === s.teamName
+  );
 
   // Extract teamId from array if needed (Airtable link fields are arrays)
   let teamId = team?.teamId || null;
@@ -82,10 +88,11 @@ const teamsPayload = standings.map((s) => {
 });
 
 console.log(`\n👥 Teams to publish: ${teamsPayload.length}`);
-teamsPayload.slice(0, 3).forEach(t => {
+teamsPayload.slice(0, 3).forEach((t) => {
   console.log(`   ${t.finalPlace}. ${t.teamName} - ${t.finalTotal} pts`);
 });
-if (teamsPayload.length > 3) console.log(`   ... and ${teamsPayload.length - 3} more`);
+if (teamsPayload.length > 3)
+  console.log(`   ... and ${teamsPayload.length - 3} more`);
 
 // Build scores payload
 const grid = cachedByRound.grid || {};
@@ -98,8 +105,6 @@ for (const teamId in grid) {
     const cell = grid[teamId][questionId];
     adaptedGrid[teamId][questionId] = {
       isCorrect: cell.isCorrect,
-      bonusPoints: cell.questionBonus,
-      partialCredit: cell.overridePoints,
     };
   }
 }
@@ -125,13 +130,11 @@ for (const team of teams) {
     // Adapt cell for utility format
     const adaptedCell = {
       isCorrect: cell.isCorrect,
-      bonusPoints: cell.questionBonus,
-      partialCredit: cell.overridePoints,
     };
 
     // Handle per-question pub points
     let config = scoringConfig;
-    if (scoringConfig.mode === 'pub') {
+    if (scoringConfig.mode === "pub") {
       const perQPub = q.pubPerQuestion;
       if (perQPub !== null && perQPub !== undefined) {
         config = { ...scoringConfig, pubPoints: perQPub };
@@ -161,11 +164,13 @@ const payload = {
 };
 
 // Write payload to file for inspection
-const payloadPath = path.join(path.dirname(backupPath), 'publish-payload.json');
+const payloadPath = path.join(path.dirname(backupPath), "publish-payload.json");
 fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2));
 console.log(`\n💾 Payload written to: ${payloadPath}`);
 console.log(`\n✅ Ready to publish!`);
 console.log(`\nTo publish, run:`);
-console.log(`curl -X POST https://triviavanguard-show-mode.netlify.app/.netlify/functions/writeShowResults \\`);
+console.log(
+  `curl -X POST https://triviavanguard-show-mode.netlify.app/.netlify/functions/writeShowResults \\`
+);
 console.log(`  -H "Content-Type: application/json" \\`);
 console.log(`  -d @"${payloadPath}"`);

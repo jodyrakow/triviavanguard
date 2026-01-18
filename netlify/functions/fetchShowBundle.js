@@ -312,6 +312,11 @@ export async function handler(event) {
             ? f["Points per question"]
             : null,
         _edited: editedByHost, // Flag to show "edited" indicator in UI
+        // Bonus click-cycle fields
+        bonusAvailable: !!f["Bonus available"],
+        bonusValue: f["Bonus value"] || null,
+        maxBonuses:
+          typeof f["Max bonuses"] === "number" ? f["Max bonuses"] : null,
       };
 
       // Initialize round if needed

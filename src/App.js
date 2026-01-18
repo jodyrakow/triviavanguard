@@ -46,7 +46,7 @@ const DEFAULT_SHOW_STATE = {
     announcements: "",
   },
   tiebreakers: {}, // { [roundId]: tiebreakerQuestion }
-  grid: {}, // { [showTeamId]: { [showQuestionId]: { isCorrect, questionBonus, overridePoints, tiebreakerGuess, tiebreakerGuessRaw } } }
+  grid: {}, // { [showTeamId]: { [showQuestionId]: { isCorrect, tiebreakerGuess, tiebreakerGuessRaw } } }
 };
 
 // 🔐 PASSWORD PROTECTION
@@ -344,8 +344,14 @@ export default function App() {
       window.dispatchEvent(new CustomEvent("tv:mark", { detail: data }));
 
       // Also update scoringCache so isCorrect persists
-      const { showId, roundId, teamId, showQuestionId, nowCorrect } =
-        data || {};
+      const {
+        showId,
+        roundId,
+        teamId,
+        showQuestionId,
+        nowCorrect,
+        bonusCount,
+      } = data || {};
       if (!showId || !roundId || !teamId || !showQuestionId) return;
 
       setScoringCache((prev) => {
@@ -353,13 +359,13 @@ export default function App() {
         const byTeam = show.grid?.[teamId] ? { ...show.grid[teamId] } : {};
         const cell = byTeam[showQuestionId] || {
           isCorrect: false,
-          questionBonus: 0,
-          overridePoints: null,
+          bonusCount: 0,
         };
 
         byTeam[showQuestionId] = {
           ...cell,
           isCorrect: !!nowCorrect,
+          bonusCount: bonusCount ?? 0,
         };
 
         const nextShow = {
@@ -408,14 +414,8 @@ export default function App() {
       window.dispatchEvent(new CustomEvent("tv:cellEdit", { detail: data }));
 
       // Also update scoringCache so bonus/override persists
-      const {
-        showId,
-        roundId,
-        teamId,
-        showQuestionId,
-        questionBonus,
-        overridePoints,
-      } = data || {};
+      const { showId, roundId, teamId, showQuestionId, bonusCount } =
+        data || {};
       if (!showId || !roundId || !teamId || !showQuestionId) return;
 
       setScoringCache((prev) => {
@@ -423,17 +423,12 @@ export default function App() {
         const byTeam = show.grid?.[teamId] ? { ...show.grid[teamId] } : {};
         const cell = byTeam[showQuestionId] || {
           isCorrect: false,
-          questionBonus: 0,
-          overridePoints: null,
+          bonusCount: 0,
         };
 
         byTeam[showQuestionId] = {
           ...cell,
-          questionBonus: Number(questionBonus || 0),
-          overridePoints:
-            overridePoints === null || overridePoints === undefined
-              ? null
-              : Number(overridePoints),
+          bonusCount: Number(bonusCount || 0),
         };
 
         const nextShow = {
@@ -507,6 +502,24 @@ export default function App() {
         } catch {}
         return next;
       });
+    });
+    // RELOAD SCORING (force other hosts to reload from Supabase)
+    ch.on("broadcast", { event: "reloadScoring" }, (msg) => {
+      const { showId } = msg?.payload ?? {};
+      console.log("[Reload Scoring] Received reload signal for show:", showId);
+      if (showId === currentShowIdRef.current) {
+        console.log("[Reload Scoring] Fetching fresh state from Supabase...");
+        fetch(
+          `/.netlify/functions/supaLoadScoring?showId=${showId}&roundId=all`
+        )
+          .then((r) => r.json())
+          .then((row) => {
+            if (row?.payload) {
+              console.log("[Reload Scoring] State updated from Supabase");
+              setScoringCache((prev) => ({ ...prev, [showId]: row.payload }));
+            }
+          });
+      }
     });
     // TEAM ADDED
     ch.on("broadcast", { event: "teamAdd" }, (msg) => {
@@ -615,6 +628,7 @@ export default function App() {
     // TIEBREAKER EDIT
     ch.on("broadcast", { event: "tbEdit" }, (msg) => {
       const data = msg?.payload ?? msg;
+      console.log("[App.js] Received tbEdit broadcast:", data);
 
       // 1) Keep the DOM event for ScoringMode if it's mounted
       window.dispatchEvent(new CustomEvent("tv:tbEdit", { detail: data }));
@@ -638,8 +652,7 @@ export default function App() {
         const byTeam = show.grid?.[teamId] ? { ...show.grid[teamId] } : {};
         const cell = byTeam[showQuestionId] || {
           isCorrect: false,
-          questionBonus: 0,
-          overridePoints: null,
+          bonusCount: 0,
         };
 
         byTeam[showQuestionId] = {
@@ -911,13 +924,19 @@ export default function App() {
 
     // Skip Supabase fetch for archived shows (they already have their data loaded)
     if (selectedShowId.startsWith("archived-")) {
-      console.log("[supaLoadScoring] Skipping Supabase fetch for archived show:", selectedShowId);
+      console.log(
+        "[supaLoadScoring] Skipping Supabase fetch for archived show:",
+        selectedShowId
+      );
       return;
     }
 
     (async () => {
       try {
-        console.log("[supaLoadScoring] Fetching scoring data for show:", selectedShowId);
+        console.log(
+          "[supaLoadScoring] Fetching scoring data for show:",
+          selectedShowId
+        );
         const res = await fetch(
           `/.netlify/functions/supaLoadScoring?showId=${encodeURIComponent(selectedShowId)}`
         );
@@ -935,12 +954,26 @@ export default function App() {
             loadedData?.grid && Object.keys(loadedData.grid).length > 0;
           const showHasBeenStarted = gridHasData && !!json.payload;
 
-          console.log("[supaLoadScoring] gridHasData:", gridHasData, "grid keys:", Object.keys(loadedData?.grid || {}).length);
-          console.log("[supaLoadScoring] showHasBeenStarted:", showHasBeenStarted);
-          console.log("[supaLoadScoring] loadedData.teams:", loadedData?.teams?.length || 0, "teams");
+          console.log(
+            "[supaLoadScoring] gridHasData:",
+            gridHasData,
+            "grid keys:",
+            Object.keys(loadedData?.grid || {}).length
+          );
+          console.log(
+            "[supaLoadScoring] showHasBeenStarted:",
+            showHasBeenStarted
+          );
+          console.log(
+            "[supaLoadScoring] loadedData.teams:",
+            loadedData?.teams?.length || 0,
+            "teams"
+          );
 
           if (showHasBeenStarted) {
-            console.log("[supaLoadScoring] Applying scoring settings from Supabase");
+            console.log(
+              "[supaLoadScoring] Applying scoring settings from Supabase"
+            );
             // Update local scoring state from loaded Supabase data (show in progress)
             if (loadedData.scoringMode) setScoringMode(loadedData.scoringMode);
             if (loadedData.pubPoints !== undefined)
@@ -952,14 +985,19 @@ export default function App() {
             if (loadedData.factionBonus !== undefined)
               setFactionBonus(Number(loadedData.factionBonus));
           } else {
-            console.log("[supaLoadScoring] No grid data found, keeping Airtable config");
+            console.log(
+              "[supaLoadScoring] No grid data found, keeping Airtable config"
+            );
           }
 
           const result = {
             ...prev,
             [selectedShowId]: { ...DEFAULT_SHOW_STATE, ...loadedData },
           };
-          console.log("[supaLoadScoring] Final scoringCache for this show:", result[selectedShowId]);
+          console.log(
+            "[supaLoadScoring] Final scoringCache for this show:",
+            result[selectedShowId]
+          );
           return result;
         });
       } catch (e) {
@@ -1034,7 +1072,10 @@ export default function App() {
 
     // Skip bundle fetch for archived shows (they already have their bundle loaded)
     if (selectedShowId.startsWith("archived-")) {
-      console.log("[fetchShowBundle] Skipping bundle fetch for archived show:", selectedShowId);
+      console.log(
+        "[fetchShowBundle] Skipping bundle fetch for archived show:",
+        selectedShowId
+      );
       return;
     }
 
@@ -1144,10 +1185,7 @@ export default function App() {
           // Set prizes from config if provided (and not already set by host)
           const currentPrizes = composedCachedState?.prizes || "";
           if (config.prizes && !currentPrizes) {
-            console.log(
-              "[App] Setting prizes from config:",
-              config.prizes
-            );
+            console.log("[App] Setting prizes from config:", config.prizes);
             patchShared({ prizes: config.prizes });
           }
 
@@ -1299,6 +1337,38 @@ export default function App() {
       } catch {}
 
       return next;
+    });
+  };
+
+  // Push current scoring state to Supabase and tell other hosts to reload
+  const handlePushScoringState = () => {
+    const show = scoringCache[selectedShowId] || DEFAULT_SHOW_STATE;
+    console.log("[Push Scoring] Saving to Supabase...");
+    fetch("/.netlify/functions/supaSaveScoring", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        showId: selectedShowId,
+        roundId: "all",
+        payload: {
+          teams: show.teams ?? [],
+          entryOrder: show.entryOrder ?? [],
+          prizes: show.prizes ?? "",
+          scoringMode: show.scoringMode ?? scoringMode,
+          pubPoints: show.pubPoints ?? pubPoints,
+          poolPerQuestion: show.poolPerQuestion ?? poolPerQuestion,
+          poolContribution: show.poolContribution ?? poolContribution,
+          factionBonus: show.factionBonus ?? factionBonus,
+          hostInfo: show.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
+          tiebreakers: show.tiebreakers ?? {},
+          grid: show.grid ?? {},
+        },
+      }),
+    }).then(() => {
+      console.log(
+        "[Push Scoring] Saved. Broadcasting reload to other hosts..."
+      );
+      window.tvSend?.("reloadScoring", { showId: selectedShowId });
     });
   };
 
@@ -1654,6 +1724,7 @@ export default function App() {
           getClosestQuestionKey={getClosestQuestionKey}
           questionRefs={questionRefs}
           sendToDisplay={sendToDisplay}
+          onPushScoringState={handlePushScoringState}
         />
       </Sidebar>
 
@@ -2502,7 +2573,9 @@ export default function App() {
           const file = e.target.files?.[0];
 
           // Reset the select dropdown back to the current show
-          const selectElement = document.querySelector('select[aria-label="Show selector"], select');
+          const selectElement = document.querySelector(
+            'select[aria-label="Show selector"], select'
+          );
           if (selectElement) {
             selectElement.value = selectedShowId || "";
           }
@@ -2551,7 +2624,13 @@ export default function App() {
                 marginBottom: "1.5rem",
               }}
             >
-              <h2 style={{ margin: 0, fontSize: "1.5rem", fontFamily: tokens.font.display }}>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: "1.5rem",
+                  fontFamily: tokens.font.display,
+                }}
+              >
                 Load Archived Show
               </h2>
               <button
@@ -2574,20 +2653,26 @@ export default function App() {
               onDragOver={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                e.currentTarget.style.backgroundColor = colors.purple?.bg || "#f0e5ff";
-                e.currentTarget.style.borderColor = colors.purple?.border || "#9b59b6";
+                e.currentTarget.style.backgroundColor =
+                  colors.purple?.bg || "#f0e5ff";
+                e.currentTarget.style.borderColor =
+                  colors.purple?.border || "#9b59b6";
               }}
               onDragLeave={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                e.currentTarget.style.backgroundColor = colors.gray?.bg || "#f5f5f5";
-                e.currentTarget.style.borderColor = colors.gray?.border || "#ccc";
+                e.currentTarget.style.backgroundColor =
+                  colors.gray?.bg || "#f5f5f5";
+                e.currentTarget.style.borderColor =
+                  colors.gray?.border || "#ccc";
               }}
               onDrop={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                e.currentTarget.style.backgroundColor = colors.gray?.bg || "#f5f5f5";
-                e.currentTarget.style.borderColor = colors.gray?.border || "#ccc";
+                e.currentTarget.style.backgroundColor =
+                  colors.gray?.bg || "#f5f5f5";
+                e.currentTarget.style.borderColor =
+                  colors.gray?.border || "#ccc";
 
                 const file = e.dataTransfer.files?.[0];
                 if (!file) return;
@@ -2613,7 +2698,13 @@ export default function App() {
               }}
             >
               <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📁</div>
-              <div style={{ fontSize: "1.25rem", fontWeight: "bold", marginBottom: "0.5rem" }}>
+              <div
+                style={{
+                  fontSize: "1.25rem",
+                  fontWeight: "bold",
+                  marginBottom: "0.5rem",
+                }}
+              >
                 Drag & Drop Your Archived Show File Here
               </div>
               <div style={{ fontSize: "0.9rem", opacity: 0.7 }}>
@@ -2653,7 +2744,14 @@ export default function App() {
               </label>
             </div>
 
-            <div style={{ marginTop: "1rem", fontSize: "0.85rem", opacity: 0.6, textAlign: "center" }}>
+            <div
+              style={{
+                marginTop: "1rem",
+                fontSize: "0.85rem",
+                opacity: 0.6,
+                textAlign: "center",
+              }}
+            >
               Only .json archive files are supported
             </div>
           </div>

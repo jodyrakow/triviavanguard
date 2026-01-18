@@ -40,7 +40,9 @@ function flattenQuestions(round) {
 }
 
 function isLettered(q) {
-  const order = String(q.questionOrder || "").trim().toUpperCase();
+  const order = String(q.questionOrder || "")
+    .trim()
+    .toUpperCase();
   return /^[A-Z]$/i.test(order);
 }
 
@@ -146,6 +148,15 @@ export default function PrintAnswerKey() {
 
   return (
     <div className={`printPage ${isLandscape ? "landscape" : "portrait"}`}>
+      <style>
+        {`
+    @page {
+       size: ${isLandscape ? "11in 8.5in" : "8.5in 11in"};
+      margin: 0.5in;
+    }
+  `}
+      </style>
+
       <div className="printToolbar noPrint">
         <button onClick={() => window.print()}>Print</button>
         <button onClick={() => window.close()}>Close</button>
@@ -154,7 +165,7 @@ export default function PrintAnswerKey() {
       <div className="printContent">
         <h1 className="printTitle">Answer Key — {showName}</h1>
 
-        <div className="printColumns" style={{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }}>
+        <div className="printColumns" style={{ "--cols": columnCount }}>
           {columns.map((col, idx) => (
             <div key={idx} className="printColumn">
               {col.isFirstForRound ? (

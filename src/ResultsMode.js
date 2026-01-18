@@ -67,6 +67,9 @@ export default function ResultsMode({
             questionType: q.questionType || null,
             sortOrder: Number(q.sortOrder ?? 9999),
             questionOrder: q.questionOrder,
+            bonusAvailable: !!q.bonusAvailable,
+            bonusValue: q.bonusValue ?? 0,
+            maxBonuses: q.maxBonuses ?? 0,
           });
         }
       }
@@ -273,7 +276,7 @@ export default function ResultsMode({
   const factionStats = useMemo(() => {
     // Get all factions that have been pledged to
     const pledgedFactions = new Set(
-      teams.map(t => t.factionPledge).filter(Boolean)
+      teams.map((t) => t.factionPledge).filter(Boolean)
     );
 
     if (pledgedFactions.size === 0) {
@@ -281,7 +284,7 @@ export default function ResultsMode({
     }
 
     // Get all questions with faction tags
-    const factionQuestions = questions.filter(q => q.faction);
+    const factionQuestions = questions.filter((q) => q.faction);
 
     if (factionQuestions.length === 0) {
       return null; // No faction battle if no tagged questions
@@ -292,8 +295,8 @@ export default function ResultsMode({
 
     // Calculate accuracy for each faction
     for (const faction of pledgedFactions) {
-      const factionTeams = teams.filter(t => t.factionPledge === faction);
-      const factionQs = factionQuestions.filter(q => q.faction === faction);
+      const factionTeams = teams.filter((t) => t.factionPledge === faction);
+      const factionQs = factionQuestions.filter((q) => q.faction === faction);
 
       if (factionTeams.length === 0 || factionQs.length === 0) {
         stats[faction] = {
@@ -372,8 +375,7 @@ export default function ResultsMode({
         const cell = rawGrid[teamId][questionId];
         adaptedGrid[teamId][questionId] = {
           isCorrect: cell.isCorrect,
-          bonusPoints: cell.questionBonus,
-          partialCredit: cell.overridePoints,
+          bonusCount: cell.bonusCount || 0,
         };
       }
     }
@@ -402,9 +404,10 @@ export default function ResultsMode({
       const baseTotal = +(totalByTeam[t.showTeamId] ?? 0);
 
       // Apply faction bonus if team won faction battle
-      const factionBonus = factionStats?.winner && t.factionPledge === factionStats.winner
-        ? factionStats.bonusPoints
-        : 0;
+      const factionBonus =
+        factionStats?.winner && t.factionPledge === factionStats.winner
+          ? factionStats.bonusPoints
+          : 0;
 
       const total = baseTotal + factionBonus;
 
@@ -674,12 +677,14 @@ export default function ResultsMode({
         factionPledge: s.factionPledge,
       })),
       prizes: prizes,
-      factionStats: factionStats ? {
-        winner: factionStats.winner,
-        bonusPoints: factionStats.bonusPoints,
-        stats: factionStats.stats,
-        factions: factionStats.factions,
-      } : null,
+      factionStats: factionStats
+        ? {
+            winner: factionStats.winner,
+            bonusPoints: factionStats.bonusPoints,
+            stats: factionStats.stats,
+            factions: factionStats.factions,
+          }
+        : null,
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
@@ -837,8 +842,7 @@ export default function ResultsMode({
           const cell = rawGrid[teamId][questionId];
           adaptedGridForPublish[teamId][questionId] = {
             isCorrect: cell.isCorrect,
-            bonusPoints: cell.questionBonus,
-            partialCredit: cell.overridePoints,
+            bonusCount: cell.bonusCount,
           };
         }
       }
@@ -880,8 +884,7 @@ export default function ResultsMode({
           // Adapt cell for utility format
           const adaptedCell = {
             isCorrect: cell.isCorrect,
-            bonusPoints: cell.questionBonus,
-            partialCredit: cell.overridePoints,
+            bonusCount: cell.bonusCount || 0,
           };
 
           // Handle per-question pub points
@@ -894,10 +897,15 @@ export default function ResultsMode({
           }
 
           const correctCount = nCorrectByQ[q.showQuestionId] || 0;
+          // Get question bonus info for click-cycle bonus calculation
+          const questionBonus = q.bonusAvailable
+            ? { bonusValue: q.bonusValue, maxBonuses: q.maxBonuses }
+            : null;
           const pointsEarned = computeCellPoints(
             adaptedCell,
             config,
-            correctCount
+            correctCount,
+            questionBonus
           );
 
           scoresPayload.push({
@@ -1130,7 +1138,9 @@ export default function ResultsMode({
           }}
           title="Export JSON backup and publish final results to Airtable"
         >
-          {isPublishing ? "⏳ Publishing…" : "💾📤 Export & Publish to Airtable"}
+          {isPublishing
+            ? "⏳ Publishing…"
+            : "💾📤 Export & Publish to Airtable"}
         </button>
         <button
           type="button"
@@ -1187,7 +1197,9 @@ export default function ResultsMode({
         <div
           style={{
             margin: `${tokens.spacing.md} 12px`,
-            background: factionStats.winner ? "rgba(28, 164, 109, 0.1)" : colors.white,
+            background: factionStats.winner
+              ? "rgba(28, 164, 109, 0.1)"
+              : colors.white,
             border: `${tokens.borders.thin} ${factionStats.winner ? "rgba(28, 164, 109, 0.4)" : colors.gray.borderLight}`,
             borderRadius: tokens.radius.md,
             overflow: "hidden",
@@ -1196,7 +1208,9 @@ export default function ResultsMode({
         >
           <div
             style={{
-              background: factionStats.winner ? "rgba(28, 164, 109, 0.2)" : theme.bg,
+              background: factionStats.winner
+                ? "rgba(28, 164, 109, 0.2)"
+                : theme.bg,
               borderBottom: `${tokens.borders.thin} ${colors.gray.borderLight}`,
               padding: `${tokens.spacing.sm} ${tokens.spacing.md}`,
               fontWeight: 700,
@@ -1225,7 +1239,9 @@ export default function ResultsMode({
                   style={{
                     marginBottom: tokens.spacing.sm,
                     padding: tokens.spacing.sm,
-                    background: isWinner ? "rgba(28, 164, 109, 0.15)" : "rgba(0,0,0,0.02)",
+                    background: isWinner
+                      ? "rgba(28, 164, 109, 0.15)"
+                      : "rgba(0,0,0,0.02)",
                     borderRadius: tokens.radius.sm,
                     border: `${tokens.borders.thin} ${isWinner ? "rgba(28, 164, 109, 0.4)" : colors.gray.borderLighter}`,
                   }}
@@ -1264,7 +1280,10 @@ export default function ResultsMode({
                       color: colors.gray.text,
                     }}
                   >
-                    {stats.teamCount} team{stats.teamCount !== 1 ? "s" : ""} • {stats.correctAnswers}/{stats.totalAnswers} correct on {stats.questionCount} question{stats.questionCount !== 1 ? "s" : ""}
+                    {stats.teamCount} team{stats.teamCount !== 1 ? "s" : ""} •{" "}
+                    {stats.correctAnswers}/{stats.totalAnswers} correct on{" "}
+                    {stats.questionCount} question
+                    {stats.questionCount !== 1 ? "s" : ""}
                   </div>
                 </div>
               );
@@ -1284,7 +1303,8 @@ export default function ResultsMode({
                   textAlign: "center",
                 }}
               >
-                🎉 {factionStats.winner} wins! All {factionStats.winner} teams receive +{factionStats.bonusPoints} bonus points!
+                🎉 {factionStats.winner} wins! All {factionStats.winner} teams
+                receive +{factionStats.bonusPoints} bonus points!
               </div>
             ) : (
               <div
@@ -1299,7 +1319,9 @@ export default function ResultsMode({
                   textAlign: "center",
                 }}
               >
-                {factionStats.factions.length > 0 ? "It's a tie! No faction bonus awarded." : "No teams pledged to any faction."}
+                {factionStats.factions.length > 0
+                  ? "It's a tie! No faction bonus awarded."
+                  : "No teams pledged to any faction."}
               </div>
             )}
           </div>

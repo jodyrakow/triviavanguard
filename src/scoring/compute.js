@@ -84,48 +84,39 @@ export function computeAutoEarned(cell, scoring, correctCount) {
   return Math.round((Number(scoring.poolPerQuestion) || 0) / n);
 }
 
-export function computeCellPoints(cell, scoring, correctCount) {
+export function computeCellPoints(
+  cell,
+  scoring,
+  correctCount,
+  questionBonus = null
+) {
   if (!cell) return 0;
+
+  // Only score if marked correct
+  if (!cell.isCorrect) return 0;
 
   const isPooled =
     scoring.mode === "pooled" || scoring.mode === "pooled-adaptive";
 
-  // Pooled modes: override is a multiplier (e.g., 0.5 = half points, 1.2 = 120%)
-  if (
-    isPooled &&
-    cell.partialCredit !== null &&
-    cell.partialCredit !== undefined &&
-    cell.partialCredit !== ""
-  ) {
-    // Calculate what they would earn if correct, then multiply
-    const basePoints = computeAutoEarned(
-      { isCorrect: true },
-      scoring,
-      correctCount
-    );
-    const multiplier = Number(cell.partialCredit);
-    const earned = Math.round(basePoints * multiplier);
-    const bonus = Number(cell.bonusPoints || 0);
-    return earned + bonus;
-  }
-
-  // Pub mode: override replaces default points
-  if (
-    cell.partialCredit !== null &&
-    cell.partialCredit !== undefined &&
-    cell.partialCredit !== ""
-  ) {
-    const base = Number(cell.partialCredit) || 0;
-    const bonus = Number(cell.bonusPoints || 0);
-    return base + bonus;
-  }
-
-  // Otherwise: only if marked correct
-  if (!cell.isCorrect) return 0;
-
+  // Base points from scoring mode
   const auto = computeAutoEarned(cell, scoring, correctCount);
-  const bonus = Number(cell.bonusPoints || 0);
-  return auto + bonus;
+
+  // Click-cycle bonus system (from question's bonusValue and cell's bonusCount)
+  const bonusCount = cell.bonusCount || 0;
+  if (questionBonus && bonusCount > 0) {
+    const bonusValue = Number(questionBonus.bonusValue) || 0;
+    if (isPooled) {
+      // Pooled: bonusValue is a percentage multiplier
+      // Formula: base * (1 + bonusValue * bonusCount / 100)
+      const multiplier = 1 + (bonusValue * bonusCount) / 100;
+      return Math.round(auto * multiplier);
+    } else {
+      // Pub: bonusValue is added directly for each bonus applied
+      return auto + (bonusValue * bonusCount);
+    }
+  }
+
+  return auto;
 }
 
 export function buildTeamTotals(
@@ -141,7 +132,11 @@ export function buildTeamTotals(
     for (const q of questions) {
       const cell = grid[t.showTeamId]?.[q.showQuestionId];
       const correctCount = correctCountMap[q.showQuestionId] || 0;
-      sum += computeCellPoints(cell, scoring, correctCount);
+      // Pass question bonus info for click-cycle bonus calculation
+      const questionBonus = q.bonusAvailable
+        ? { bonusValue: q.bonusValue, maxBonuses: q.maxBonuses }
+        : null;
+      sum += computeCellPoints(cell, scoring, correctCount, questionBonus);
     }
     totals[t.showTeamId] = sum;
   }

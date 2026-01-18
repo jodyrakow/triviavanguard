@@ -26,6 +26,9 @@ const makeLocalId = (prefix = "local") =>
     .toString(36)
     .slice(2, 7)}`;
 
+// Feature flag for faction battle (matches SidebarMenu.js)
+const ENABLE_FACTION_BATTLE = false;
+
 export default function ScoringMode({
   showBundle, // { rounds: [{ round, questions: [...] }], teams?: [...] }
   selectedShowId,
@@ -97,6 +100,10 @@ export default function ScoringMode({
       answer: q.answer || "",
       pubPerQuestion:
         typeof q.pointsPerQuestion === "number" ? q.pointsPerQuestion : null,
+      // Bonus click-cycle fields
+      bonusAvailable: !!q.bonusAvailable,
+      bonusValue: q.bonusValue || null,
+      maxBonuses: typeof q.maxBonuses === "number" ? q.maxBonuses : null,
     }));
   }, [roundObj]);
 
@@ -120,12 +127,9 @@ export default function ScoringMode({
 
   // ---------------- Local state (seeded from cachedState OR preloadedTeams) ----------------
   const [teams, setTeams] = useState([]); // [{showTeamId, teamId?, teamName, showBonus}]
-  const [grid, setGrid] = useState({}); // {[showTeamId]: {[showQuestionId]: {isCorrect, questionBonus}}}
+  const [grid, setGrid] = useState({}); // {[showTeamId]: {[showQuestionId]: {isCorrect, bonusCount}}}
   const [entryOrder, setEntryOrder] = useState([]); // [showTeamId]
   const seededOnceRef = useRef(false);
-  // --- Per-cell points editor (modal) ---
-  const [editingCell, setEditingCell] = useState(null);
-  // { showTeamId, showQuestionId, draftBonus, draftOverride }
   // Search results state (used by Add Team modal)
   const [searchResults, setSearchResults] = useState([]);
   // 🔁 MOVED UP: Add Team modal state so it's defined before useEffect below
@@ -134,25 +138,23 @@ export default function ScoringMode({
   // Keep refs to each cell <div> for scrolling into view
   const cellRefs = useRef({});
   const tbRefs = useRef({});
-  const onEnter = (fn) => (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      fn();
-    }
-  };
   const onEnterBlur = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       e.currentTarget.blur();
     }
   };
-  const lastScrollYRef = useRef(0);
-  const lastFocusKeyRef = useRef(null);
 
   useEffect(() => {
     const onMark = (e) => {
-      const { showId, roundId, teamId, showQuestionId, nowCorrect } =
-        e.detail || {};
+      const {
+        showId,
+        roundId,
+        teamId,
+        showQuestionId,
+        nowCorrect,
+        bonusCount,
+      } = e.detail || {};
 
       // Scope to active show/round
       if (showId !== selectedShowId) return;
@@ -169,10 +171,13 @@ export default function ScoringMode({
         const byTeam = prev[teamId] ? { ...prev[teamId] } : {};
         const cell = byTeam[showQuestionId] || {
           isCorrect: false,
-          questionBonus: 0,
-          overridePoints: null,
+          bonusCount: 0,
         };
-        byTeam[showQuestionId] = { ...cell, isCorrect: !!nowCorrect };
+        byTeam[showQuestionId] = {
+          ...cell,
+          isCorrect: !!nowCorrect,
+          bonusCount: bonusCount ?? 0,
+        };
         return { ...prev, [teamId]: byTeam };
       });
     };
@@ -202,14 +207,8 @@ export default function ScoringMode({
 
   useEffect(() => {
     const onCellEdit = (e) => {
-      const {
-        showId,
-        roundId,
-        teamId,
-        showQuestionId,
-        questionBonus,
-        overridePoints,
-      } = e.detail || {};
+      const { showId, roundId, teamId, showQuestionId, bonusCount } =
+        e.detail || {};
       if (showId !== selectedShowId || roundId !== selectedRoundId) return;
       if (!teamId || !showQuestionId) return;
 
@@ -217,14 +216,11 @@ export default function ScoringMode({
         const byTeam = prev[teamId] ? { ...prev[teamId] } : {};
         const cell = byTeam[showQuestionId] || {
           isCorrect: false,
-          questionBonus: 0,
-          overridePoints: null,
+          bonusCount,
         };
         byTeam[showQuestionId] = {
           ...cell,
-          questionBonus: Number(questionBonus || 0),
-          overridePoints:
-            overridePoints == null ? null : Number(overridePoints),
+          bonusCount: Number(bonusCount || 0),
         };
         return { ...prev, [teamId]: byTeam };
       });
@@ -244,17 +240,20 @@ export default function ScoringMode({
         tiebreakerGuessRaw,
         tiebreakerGuess,
       } = e.detail || {};
+      console.log("[ScoringMode] Received tv:tbEdit:", e.detail);
       if (!teamId || !showQuestionId) return;
 
       // ✅ Guard against cross-show/round chatter
-      if (showId !== selectedShowId || roundId !== selectedRoundId) return;
+      if (showId !== selectedShowId || roundId !== selectedRoundId) {
+        console.log("[ScoringMode] Ignoring tbEdit - wrong show/round:", { showId, selectedShowId, roundId, selectedRoundId });
+        return;
+      }
 
       setGrid((prev) => {
         const byTeam = prev[teamId] ? { ...prev[teamId] } : {};
         const cell = byTeam[showQuestionId] || {
           isCorrect: false,
-          questionBonus: 0,
-          overridePoints: null,
+          bonusCount: 0,
         };
         byTeam[showQuestionId] = {
           ...cell,
@@ -276,10 +275,7 @@ export default function ScoringMode({
   const removeTeam = (showTeamId) => {
     const hasAnyScores =
       Object.values(grid[showTeamId] || {}).some(
-        (c) =>
-          c?.isCorrect ||
-          (c?.questionBonus ?? 0) !== 0 ||
-          c?.overridePoints != null
+        (c) => c?.isCorrect || (c?.bonusCount ?? 0) !== 0
       ) ||
       (teams.find((t) => t.showTeamId === showTeamId)?.showBonus ?? 0) !== 0;
 
@@ -341,79 +337,6 @@ export default function ScoringMode({
       copy.splice(newIdx, 0, teamId);
       return copy;
     });
-  };
-
-  const openCellEditor = (showTeamId, showQuestionId) => {
-    // remember where we were
-    lastScrollYRef.current = window.scrollY;
-    lastFocusKeyRef.current = `${showTeamId}:${showQuestionId}`;
-
-    const cell = grid[showTeamId]?.[showQuestionId] || {};
-    setEditingCell({
-      showTeamId,
-      showQuestionId,
-      draftBonus: Number(cell.questionBonus ?? 0),
-      draftOverride:
-        cell.overridePoints === null || cell.overridePoints === undefined
-          ? ""
-          : String(cell.overridePoints),
-    });
-  };
-
-  const restoreAfterModal = () => {
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: lastScrollYRef.current });
-      const el = cellRefs.current[lastFocusKeyRef.current];
-      el?.focus?.();
-      el?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-    });
-  };
-
-  const closeCellEditor = () => {
-    setEditingCell(null);
-    restoreAfterModal();
-  };
-
-  const applyCellEditor = () => {
-    if (!editingCell) return;
-    const { showTeamId, showQuestionId, draftBonus, draftOverride } =
-      editingCell;
-
-    // ✅ Decide values BEFORE setGrid
-    const nextBonus = Number(draftBonus || 0);
-    const nextOverride =
-      draftOverride === "" || draftOverride === null
-        ? null
-        : Number(draftOverride);
-
-    setGrid((prev) => {
-      const byTeam = prev[showTeamId] ? { ...prev[showTeamId] } : {};
-      const cell = byTeam[showQuestionId] || {
-        isCorrect: false,
-        questionBonus: 0,
-        overridePoints: null,
-      };
-      byTeam[showQuestionId] = {
-        ...cell,
-        questionBonus: nextBonus,
-        overridePoints: nextOverride,
-      };
-      return { ...prev, [showTeamId]: byTeam };
-    });
-
-    // ✅ Broadcast with the precomputed values
-    try {
-      window.sendCellEdit?.({
-        teamId: showTeamId,
-        showQuestionId,
-        questionBonus: nextBonus,
-        overridePoints: nextOverride, // null = clear override
-        ts: Date.now(),
-      });
-    } catch {}
-
-    setEditingCell(null);
-    restoreAfterModal();
   };
 
   // helper: coerce Airtable-ish shapes into what the grid expects
@@ -603,7 +526,9 @@ export default function ScoringMode({
 
   const setFactionPledge = (showTeamId, factionPledge) => {
     setTeams((prev) =>
-      prev.map((t) => (t.showTeamId === showTeamId ? { ...t, factionPledge } : t))
+      prev.map((t) =>
+        t.showTeamId === showTeamId ? { ...t, factionPledge } : t
+      )
     );
     try {
       window.sendFactionPledge?.({
@@ -637,13 +562,48 @@ export default function ScoringMode({
         const byTeam = prev[showTeamId] ? { ...prev[showTeamId] } : {};
         const cell = byTeam[showQuestionId] || {
           isCorrect: false,
-          questionBonus: 0,
-          overridePoints: null,
+          bonusCount: 0,
         };
-        const nextOn = !cell.isCorrect;
-        byTeam[showQuestionId] = { ...cell, isCorrect: nextOn };
 
-        // Broadcast inside the same scope so it sees the correct nextOn value:
+        // Click-cycle logic:
+        // - If incorrect → mark correct, bonusCount = 0
+        // - If correct && bonusAvailable && bonusCount < maxBonuses → increment bonusCount
+        // - If correct && (!bonusAvailable || bonusCount >= maxBonuses) → mark incorrect
+        const maxBonuses = q.maxBonuses || 0;
+        const hasBonusAvailable = q.bonusAvailable && maxBonuses > 0;
+        const currentBonusCount = cell.bonusCount || 0;
+
+        let nextOn, nextBonusCount;
+        if (!cell.isCorrect) {
+          // Click #1: mark correct
+          nextOn = true;
+          nextBonusCount = 0;
+        } else if (hasBonusAvailable && currentBonusCount < maxBonuses) {
+          // Click #2+: apply bonus (stay correct, increment bonusCount)
+          nextOn = true;
+          nextBonusCount = currentBonusCount + 1;
+        } else {
+          // Max bonuses reached or no bonus available: toggle back to incorrect
+          nextOn = false;
+          nextBonusCount = 0;
+        }
+
+        byTeam[showQuestionId] = {
+          ...cell,
+          isCorrect: nextOn,
+          bonusCount: nextBonusCount,
+        };
+
+        console.log("[toggleCell]", {
+          question: q.order,
+          nowCorrect: nextOn,
+          bonusCount: nextBonusCount,
+          bonusAvailable: q.bonusAvailable,
+          bonusValue: q.bonusValue,
+          maxBonuses: q.maxBonuses,
+        });
+
+        // Broadcast inside the same scope so it sees the correct values:
         try {
           window.sendMark?.({
             showId: selectedShowId,
@@ -653,6 +613,7 @@ export default function ScoringMode({
             showQuestionId: showQuestionId,
             questionOrder: q.order,
             nowCorrect: nextOn,
+            bonusCount: nextBonusCount,
             ts: Date.now(),
           });
         } catch {}
@@ -842,11 +803,10 @@ export default function ScoringMode({
     (cell, showQuestionId) => {
       if (!cell) return 0;
 
-      // Adapt cell format: utility uses bonusPoints/partialCredit, we use questionBonus/overridePoints
+      // Cell format for compute utility
       const adaptedCell = {
         isCorrect: cell.isCorrect,
-        bonusPoints: cell.questionBonus,
-        partialCredit: cell.overridePoints,
+        bonusCount: cell.bonusCount || 0,
       };
 
       // Handle per-question pub points (if this question has its own value, use it)
@@ -859,12 +819,29 @@ export default function ScoringMode({
       }
 
       const correctCount = correctCountByShowQuestionId[showQuestionId] || 0;
-      return computeCellPoints(adaptedCell, config, correctCount);
+
+      // Get question bonus info for click-cycle bonus calculation
+      const q = questions.find((q) => q.showQuestionId === showQuestionId);
+      const questionBonus = q?.bonusAvailable
+        ? { bonusValue: q.bonusValue, maxBonuses: q.maxBonuses }
+        : null;
+
+      return computeCellPoints(
+        adaptedCell,
+        config,
+        correctCount,
+        questionBonus
+      );
     },
-    [correctCountByShowQuestionId, scoringConfig, pubPerQuestionByShowQ]
+    [
+      correctCountByShowQuestionId,
+      scoringConfig,
+      pubPerQuestionByShowQ,
+      questions,
+    ]
   );
 
-  // Adapt grid format for utility (utility uses bonusPoints/partialCredit, we use questionBonus/overridePoints)
+  // Adapt grid format for buildTeamTotals utility
   const adaptedGrid = useMemo(() => {
     const adapted = {};
     for (const teamId in grid) {
@@ -873,8 +850,7 @@ export default function ScoringMode({
         const cell = grid[teamId][questionId];
         adapted[teamId][questionId] = {
           isCorrect: cell.isCorrect,
-          bonusPoints: cell.questionBonus,
-          partialCredit: cell.overridePoints,
+          bonusCount: cell.bonusCount || 0,
         };
       }
     }
@@ -935,7 +911,7 @@ export default function ScoringMode({
       // Use setTimeout to ensure visibleTeams updates first
       setTimeout(() => {
         setTeamIdxSolo(updated.length - 1);
-        setFocus({ teamIdx: updated.length - 1, questionIdx: 0 });
+        setFocus({ teamIdx: updated.length - 1, qIdx: 0 });
       }, 0);
       return updated;
     });
@@ -979,8 +955,7 @@ export default function ScoringMode({
       const byTeam = prev[showTeamId] ? { ...prev[showTeamId] } : {};
       const cell = byTeam[tiebreaker.id] || {
         isCorrect: false,
-        questionBonus: 0,
-        overridePoints: null,
+        bonusCount: 0,
       };
       byTeam[tiebreaker.id] = { ...cell, tiebreakerGuessRaw: raw };
       return { ...prev, [showTeamId]: byTeam };
@@ -988,7 +963,7 @@ export default function ScoringMode({
 
     // ✅ NEW: Broadcast the raw value in real-time so other hosts see it as the user types
     try {
-      window.sendTBEdit?.({
+      const tbPayload = {
         showId: selectedShowId,
         roundId: selectedRoundId,
         teamId: showTeamId,
@@ -996,7 +971,9 @@ export default function ScoringMode({
         tiebreakerGuessRaw: raw,
         tiebreakerGuess: null, // Don't convert to number yet, just sync the raw string
         ts: Date.now(),
-      });
+      };
+      console.log("[ScoringMode] Sending tbEdit:", tbPayload);
+      window.sendTBEdit?.(tbPayload);
     } catch {}
   };
 
@@ -1010,8 +987,7 @@ export default function ScoringMode({
       const byTeam = prev[showTeamId] ? { ...prev[showTeamId] } : {};
       const cell = byTeam[tiebreaker.id] || {
         isCorrect: false,
-        questionBonus: 0,
-        overridePoints: null,
+        bonusCount: 0,
       };
 
       if (raw === "" || Number.isNaN(num)) {
@@ -1109,7 +1085,12 @@ export default function ScoringMode({
   };
   const tileStates = {
     correct: { background: "#DC6A24", color: "#fff", cursor: "pointer" },
-    wrong: { background: "#f8f8f8", color: "#2B394A", cursor: "pointer" },
+    correctWithBonus: {
+      background: theme.dark,
+      color: "#fff",
+      cursor: "pointer",
+    },
+    wrong: { background: "#fff1e6", color: "#2B394A", cursor: "pointer" },
   };
   const tileFocus = {
     boxShadow: `0 0 0 2px #fff, 0 0 0 4px ${focusColor}`,
@@ -1120,17 +1101,13 @@ export default function ScoringMode({
 
   // --------- Solos calculation ---------
   const solosData = useMemo(() => {
-    const result = computeSolosForRound(
-      teams,
-      questions,
-      adaptedGrid
-    );
+    const result = computeSolosForRound(teams, questions, adaptedGrid);
     // Convert to format expected by UI (array of team names, sorted)
     const formatted = {
       count: result.count,
       teams: result.teams.map((t) => t.teamName).sort(),
     };
-    console.log('[ScoringMode] Solos calculation:', {
+    console.log("[ScoringMode] Solos calculation:", {
       questionCount: questions.length,
       teamCount: teams.length,
       solosCount: formatted.count,
@@ -1431,48 +1408,53 @@ export default function ScoringMode({
                   </div>
 
                   {/* Faction pledge dropdown */}
-                  <div
-                    style={{
-                      marginTop: "0.35rem",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "0.25rem",
-                    }}
-                  >
-                    <label
+                  {ENABLE_FACTION_BATTLE && (
+                    <div
                       style={{
+                        marginTop: "0.35rem",
                         display: "flex",
-                        flexDirection: "column",
                         alignItems: "center",
+                        justifyContent: "center",
                         gap: "0.25rem",
-                        fontSize: "0.75rem",
-                        userSelect: "none",
                       }}
                     >
-                      <span style={{ opacity: 0.85 }}>Faction</span>
-                      <select
-                        value={t.factionPledge || ""}
-                        onChange={(e) => {
-                          setFactionPledge(t.showTeamId, e.target.value || null);
-                        }}
+                      <label
                         style={{
-                          cursor: "pointer",
-                          fontSize: "0.7rem",
-                          padding: "0.15rem 0.25rem",
-                          borderRadius: "3px",
-                          border: `1px solid ${theme.accent}`,
-                          backgroundColor: theme.bg,
-                          color: theme.accent,
-                          fontFamily: tokens.font.body,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          fontSize: "0.75rem",
+                          userSelect: "none",
                         }}
                       >
-                        <option value="">None</option>
-                        <option value="Star Trek">🖖 Star Trek</option>
-                        <option value="Star Wars">⚔️ Star Wars</option>
-                      </select>
-                    </label>
-                  </div>
+                        <span style={{ opacity: 0.85 }}>Faction</span>
+                        <select
+                          value={t.factionPledge || ""}
+                          onChange={(e) => {
+                            setFactionPledge(
+                              t.showTeamId,
+                              e.target.value || null
+                            );
+                          }}
+                          style={{
+                            cursor: "pointer",
+                            fontSize: "0.7rem",
+                            padding: "0.15rem 0.25rem",
+                            borderRadius: "3px",
+                            border: `1px solid ${theme.accent}`,
+                            backgroundColor: theme.bg,
+                            color: theme.accent,
+                            fontFamily: tokens.font.body,
+                          }}
+                        >
+                          <option value="">None</option>
+                          <option value="Star Trek">🖖 Star Trek</option>
+                          <option value="Star Wars">⚔️ Star Wars</option>
+                        </select>
+                      </label>
+                    </div>
+                  )}
 
                   {/* Move buttons */}
                   <div
@@ -1639,6 +1621,7 @@ export default function ScoringMode({
 
                   const cell = grid[t.showTeamId]?.[q.showQuestionId];
                   const on = !!cell?.isCorrect;
+                  const bonusCount = cell?.bonusCount || 0;
                   // normalize focus to the single rendered column in team mode
                   const focusTeamIdx = teamMode ? 0 : focus.teamIdx;
 
@@ -1648,12 +1631,28 @@ export default function ScoringMode({
 
                   const pts = earnedFor(cell, q.showQuestionId);
 
+                  // Determine tile state: correct with bonus, correct, or wrong
+                  let tileState = tileStates.wrong;
+                  if (on && bonusCount > 0) {
+                    tileState = tileStates.correctWithBonus;
+                  } else if (on) {
+                    tileState = tileStates.correct;
+                  }
+
                   const style = {
                     ...tileBase,
-                    ...(on ? tileStates.correct : tileStates.wrong),
+                    ...tileState,
                     ...(isFocused ? tileFocus : null),
+
                     scrollMarginTop: 8,
                     scrollMarginBottom: 8,
+                    // Dark blue border for questions with bonus available
+                    ...(q.bonusAvailable
+                      ? {
+                          borderColor: theme.dark,
+                          ...(on ? null : { background: "#EAF2FB" }),
+                        }
+                      : null),
                   };
 
                   return (
@@ -1681,19 +1680,13 @@ export default function ScoringMode({
                             qIdx: qi,
                           });
                         }}
-                        onDoubleClick={(e) => {
-                          e.preventDefault();
-                          openCellEditor(t.showTeamId, q.showQuestionId);
-                        }}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          openCellEditor(t.showTeamId, q.showQuestionId);
-                        }}
                         style={style}
                         title={
                           on
-                            ? `Correct — ${pts} pts\n(Click center to toggle • 1/Space to toggle • Double-click or Right-click for bonus/override)`
-                            : `Incorrect\n(Click center to toggle • 1/Space to toggle • Double-click or Right-click for bonus/override)`
+                            ? bonusCount > 0
+                              ? `Correct — ${pts} pts (${bonusCount} bonus${bonusCount > 1 ? "es" : ""} applied)\n(Click to toggle • 1/Space to toggle)`
+                              : `Correct — ${pts} pts\n(Click to toggle • 1/Space to toggle)`
+                            : `Incorrect\n(Click to toggle • 1/Space to toggle)`
                         }
                       >
                         <span
@@ -1703,7 +1696,11 @@ export default function ScoringMode({
                           }}
                           style={{ cursor: "pointer", display: "block" }}
                         >
-                          {on ? `✓ ${pts}` : "○"}
+                          {on
+                            ? bonusCount > 0
+                              ? `(${bonusCount}⭑) ${pts}`
+                              : `✓ ${pts}`
+                            : "○"}
                         </span>
                       </div>
                     </td>
@@ -1809,180 +1806,6 @@ export default function ScoringMode({
         <code>Shift+Tab</code> next/prev question • <code>←/→</code> team •{" "}
         <code>↑/↓</code> question
       </div>
-
-      {/* Per-cell Bonus/Override Editor */}
-      {editingCell && (
-        <div
-          onClick={closeCellEditor}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(43,57,74,.65)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(92vw, 460px)",
-              background: "#fff",
-              borderRadius: ".6rem",
-              border: `1px solid ${theme.accent}`,
-              overflow: "hidden",
-              boxShadow: "0 10px 30px rgba(0,0,0,.25)",
-              fontFamily: "Questrial, sans-serif",
-            }}
-          >
-            {/* Header */}
-            <div
-              style={{
-                background: theme.dark,
-                color: "#fff",
-                padding: ".6rem .8rem",
-                borderBottom: `2px solid ${theme.accent}`,
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: "Antonio, sans-serif",
-                  fontSize: "1.25rem",
-                  letterSpacing: ".01em",
-                }}
-              >
-                Edit Points (this team • this question)
-              </div>
-              <div
-                style={{ fontSize: ".9rem", opacity: 0.9, marginTop: ".15rem" }}
-              >
-                Bonus is added (only if correct). Override replaces the earned
-                points.
-              </div>
-            </div>
-
-            {/* Body */}
-            <div style={{ padding: ".9rem .9rem .2rem" }}>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: ".5rem",
-                  marginBottom: ".6rem",
-                }}
-              >
-                <div
-                  style={{
-                    minWidth: 140,
-                    fontWeight: 600,
-                    color: theme.accent,
-                  }}
-                >
-                  Bonus points
-                </div>
-                <input
-                  autoFocus
-                  type="number"
-                  value={editingCell.draftBonus}
-                  onChange={(e) =>
-                    setEditingCell((p) => ({
-                      ...p,
-                      draftBonus: Number(e.target.value || 0),
-                    }))
-                  }
-                  onKeyDown={onEnter(applyCellEditor)}
-                  style={{
-                    width: 120,
-                    padding: ".45rem .55rem",
-                    border: "1px solid #ccc",
-                    borderRadius: ".35rem",
-                  }}
-                />
-              </label>
-
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: ".5rem",
-                  marginBottom: ".6rem",
-                }}
-              >
-                <div
-                  style={{
-                    minWidth: 140,
-                    fontWeight: 600,
-                    color: theme.accent,
-                  }}
-                >
-                  {scoringMode === "pub"
-                    ? "Override points"
-                    : "Point multiplier"}
-                </div>
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder={scoringMode === "pub" ? "(leave blank for none)" : "(e.g., 0.5 = half, 1.2 = 120%)"}
-                  value={editingCell.draftOverride}
-                  onChange={(e) =>
-                    setEditingCell((p) => ({
-                      ...p,
-                      draftOverride: e.target.value, // keep "" if blank
-                    }))
-                  }
-                  onKeyDown={onEnter(applyCellEditor)}
-                  style={{
-                    width: 160,
-                    padding: ".45rem .55rem",
-                    border: "1px solid #ccc",
-                    borderRadius: ".35rem",
-                  }}
-                />
-              </label>
-            </div>
-
-            {/* Footer */}
-            <div
-              style={{
-                display: "flex",
-                gap: ".5rem",
-                justifyContent: "flex-end",
-                padding: ".8rem .9rem .9rem",
-                borderTop: "1px solid #eee",
-              }}
-            >
-              <button
-                onClick={closeCellEditor}
-                style={{
-                  padding: ".5rem .75rem",
-                  border: "1px solid #ccc",
-                  background: "#f7f7f7",
-                  borderRadius: ".35rem",
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={applyCellEditor}
-                style={{
-                  padding: ".5rem .8rem",
-                  border: `1px solid ${theme.accent}`,
-                  background: theme.accent,
-                  color: "#fff",
-                  borderRadius: ".35rem",
-                  cursor: "pointer",
-                  fontWeight: 700,
-                }}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add Team Modal (local or Airtable search) */}
       {addingTeam && (
