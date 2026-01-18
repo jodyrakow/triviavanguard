@@ -930,7 +930,7 @@ export default function ScoringMode({
   // --- TB ADD: helpers to read/write tiebreaker guesses in local grid -------
   const getTBGuess = (showTeamId) => {
     if (!tiebreaker) return "";
-    const cell = grid[showTeamId]?.[tiebreaker.id] || {};
+    const cell = grid[showTeamId]?.[(tiebreaker.showQuestionId || tiebreaker.id)] || {};
     if (typeof cell.tiebreakerGuessRaw === "string")
       return cell.tiebreakerGuessRaw;
     if (
@@ -953,11 +953,11 @@ export default function ScoringMode({
 
     setGrid((prev) => {
       const byTeam = prev[showTeamId] ? { ...prev[showTeamId] } : {};
-      const cell = byTeam[tiebreaker.id] || {
+      const cell = byTeam[(tiebreaker.showQuestionId || tiebreaker.id)] || {
         isCorrect: false,
         bonusCount: 0,
       };
-      byTeam[tiebreaker.id] = { ...cell, tiebreakerGuessRaw: raw };
+      byTeam[(tiebreaker.showQuestionId || tiebreaker.id)] = { ...cell, tiebreakerGuessRaw: raw };
       return { ...prev, [showTeamId]: byTeam };
     });
 
@@ -967,7 +967,7 @@ export default function ScoringMode({
         showId: selectedShowId,
         roundId: selectedRoundId,
         teamId: showTeamId,
-        showQuestionId: tiebreaker.id,
+        showQuestionId: (tiebreaker.showQuestionId || tiebreaker.id),
         tiebreakerGuessRaw: raw,
         tiebreakerGuess: null, // Don't convert to number yet, just sync the raw string
         ts: Date.now(),
@@ -985,13 +985,13 @@ export default function ScoringMode({
 
     setGrid((prev) => {
       const byTeam = prev[showTeamId] ? { ...prev[showTeamId] } : {};
-      const cell = byTeam[tiebreaker.id] || {
+      const cell = byTeam[(tiebreaker.showQuestionId || tiebreaker.id)] || {
         isCorrect: false,
         bonusCount: 0,
       };
 
       if (raw === "" || Number.isNaN(num)) {
-        byTeam[tiebreaker.id] = {
+        byTeam[(tiebreaker.showQuestionId || tiebreaker.id)] = {
           ...cell,
           tiebreakerGuess: null,
           tiebreakerGuessRaw: "",
@@ -999,7 +999,7 @@ export default function ScoringMode({
       } else {
         // normalize stored raw to canonical string
         const normalized = String(num);
-        byTeam[tiebreaker.id] = {
+        byTeam[(tiebreaker.showQuestionId || tiebreaker.id)] = {
           ...cell,
           tiebreakerGuess: num,
           tiebreakerGuessRaw: normalized,
@@ -1015,7 +1015,7 @@ export default function ScoringMode({
         showId: selectedShowId,
         roundId: selectedRoundId,
         teamId: showTeamId,
-        showQuestionId: tiebreaker.id,
+        showQuestionId: (tiebreaker.showQuestionId || tiebreaker.id),
         tiebreakerGuessRaw: raw === "" || Number.isNaN(num) ? "" : String(num),
         tiebreakerGuess: raw === "" || Number.isNaN(num) ? null : num,
         ts: Date.now(),
