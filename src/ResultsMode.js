@@ -224,7 +224,7 @@ export default function ResultsMode({
   const tbGuessFor = useCallback(
     (showTeamId) => {
       if (!tbQ) return null;
-      const cell = getCell(showTeamId, tbQ.id);
+      const cell = getCell(showTeamId, tbQ.showQuestionId || tbQ.id);
       const v = cell?.tiebreakerGuess;
       return typeof v === "number" && Number.isFinite(v) ? v : null;
     },
@@ -382,7 +382,7 @@ export default function ResultsMode({
 
     // Filter out tiebreaker questions for scoring
     const scoringQuestions = tbQ
-      ? questions.filter((q) => q.showQuestionId !== tbQ.id)
+      ? questions.filter((q) => q.showQuestionId !== (tbQ.showQuestionId || tbQ.id))
       : questions;
 
     // Use utility to build correct count map and team totals
@@ -811,7 +811,7 @@ export default function ResultsMode({
     try {
       // exclude TB from scores
       const nonTBQuestions = questions.filter(
-        (q) => !(tbQ && q.showQuestionId === tbQ.id)
+        (q) => !(tbQ && q.showQuestionId === (tbQ.showQuestionId || tbQ.id))
       );
 
       // Filter out questions without questionId (host-added or edited questions)
