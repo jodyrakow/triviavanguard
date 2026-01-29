@@ -1847,6 +1847,7 @@ export default function App() {
                 <Button
                   onClick={() => {
                     sendToDisplay("closeImageOverlay", null);
+                    sendToDisplay("closeQuestionCarousel", null);
                     sendToDisplay("standby", null);
                   }}
                   title="Clear the display (standby screen)"
