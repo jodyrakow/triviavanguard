@@ -109,13 +109,21 @@ export default function ScoringMode({
 
   // --- Tiebreaker detection (one per show) ---
   const tiebreaker = React.useMemo(() => {
-    // Flatten questions from categories structure
+    // Search BOTH the flat questions array (where host-added TBs live)
+    // AND the nested categories structure (for Airtable TBs)
     const list = [];
+
+    // First: check flat questions array (host-added tiebreakers)
+    const flatQuestions = roundObj?.questions || [];
+    list.push(...flatQuestions);
+
+    // Second: check nested categories structure (Airtable tiebreakers)
     const categories = roundObj?.categories || [];
     for (const cat of categories) {
       const catQuestions = cat.questions || [];
       list.push(...catQuestions);
     }
+
     // prefer explicit type, else "TB" order, else id that starts with tb-
     return (
       list.find((q) => (q.questionType || "").toLowerCase() === "tiebreaker") ||
