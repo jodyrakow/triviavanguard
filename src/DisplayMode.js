@@ -10,7 +10,6 @@ export default function DisplayMode() {
     content: null,
   });
   const [fontSize, setFontSize] = useState(190); // percentage
-  const [imageOverlay, setImageOverlay] = useState(null); // { images: [], currentIndex: 0 }
   const [inlineImageIndex, setInlineImageIndex] = useState(0); // Current inline image index
   const [questionCarousel, setQuestionCarousel] = useState(null); // { questions: [], currentIndex: 0, autoCycle: true }
 
@@ -30,10 +29,6 @@ export default function DisplayMode() {
         setShowGuide((v) => !v);
       } else if (type === "setGuide") {
         setShowGuide(!!content?.show);
-      } else if (type === "imageOverlay") {
-        setImageOverlay(content);
-      } else if (type === "closeImageOverlay") {
-        setImageOverlay(null);
       } else if (type === "questionCarousel") {
         setQuestionCarousel(content);
       } else if (type === "closeQuestionCarousel") {
@@ -100,20 +95,6 @@ export default function DisplayMode() {
       )}
 
       {showGuide && <DesignGuideOverlay />}
-
-      {/* Image overlay */}
-      {imageOverlay &&
-        imageOverlay.images &&
-        imageOverlay.images.length > 0 && (
-          <ImageOverlay
-            images={imageOverlay.images}
-            currentIndex={imageOverlay.currentIndex || 0}
-            autoCycle={imageOverlay.autoCycle || false}
-            categoryName={imageOverlay.categoryName}
-            categoryDescription={imageOverlay.categoryDescription}
-            onClose={() => setImageOverlay(null)}
-          />
-        )}
 
       {/* Question carousel */}
       {questionCarousel &&
@@ -647,133 +628,6 @@ function StandingsDisplay({ content }) {
         ))}
       </div>
     </>
-  );
-}
-
-function ImageOverlay({
-  images,
-  currentIndex,
-  autoCycle = false,
-  categoryName,
-  categoryDescription,
-  onClose,
-}) {
-  const [idx, setIdx] = useState(currentIndex);
-
-  // Update index when host changes the current image
-  useEffect(() => {
-    setIdx(currentIndex);
-  }, [currentIndex, images]);
-
-  // Auto-cycle through images every 10 seconds when autoCycle is true
-  useEffect(() => {
-    if (!autoCycle || images.length <= 1) return;
-
-    const interval = setInterval(() => {
-      setIdx((prevIdx) => (prevIdx + 1) % images.length);
-    }, 8000); // 10 seconds
-
-    return () => clearInterval(interval);
-  }, [autoCycle, images.length]);
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: "100%",
-        height: "100%",
-        backgroundColor: "rgba(43, 57, 74, 0.7)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(8px)",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 9999,
-        cursor: "pointer",
-      }}
-    >
-      {/* Category name at top - matching question display style */}
-      {categoryName && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "14vh",
-            backgroundColor: theme.gray.neutral,
-            display: "flex",
-            justifyContent: "flex-start",
-            alignItems: "center",
-            paddingLeft: "3rem",
-            zIndex: 10000,
-          }}
-        >
-          <div
-            style={{
-              fontSize: "2.5rem",
-              fontWeight: 600,
-              color: theme.dark,
-              textTransform: "uppercase",
-              letterSpacing: "0.05rem",
-              paddingTop: "2rem",
-              maxWidth: "calc(100% - 200px)",
-            }}
-          >
-            {categoryName}
-          </div>
-        </div>
-      )}
-
-      {/* Category description at bottom - matching answer display area */}
-      {categoryDescription && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "10vh",
-            left: 0,
-            right: 0,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 10000,
-          }}
-        >
-          <div
-            style={{
-              fontSize: "3rem",
-              fontFamily: tokens.font.flavor,
-              fontStyle: "italic",
-              color: theme.white,
-              textAlign: "center",
-              maxWidth: "90vw",
-              lineHeight: 1.3,
-              textShadow: "2px 2px 4px rgba(0, 0, 0, 0.8)",
-            }}
-          >
-            {categoryDescription}
-          </div>
-        </div>
-      )}
-
-      <img
-        src={images[idx]?.url}
-        alt={`${idx + 1} of ${images.length}`}
-        style={{
-          maxWidth: "90vw",
-          maxHeight: categoryName || categoryDescription ? "75vh" : "90vh",
-          objectFit: "contain",
-          border: `4px solid ${theme.white}`,
-          boxShadow: "0 0 20px rgba(0,0,0,0.5)",
-        }}
-      />
-    </div>
   );
 }
 

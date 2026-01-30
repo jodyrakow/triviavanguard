@@ -47,21 +47,16 @@ export default function QuestionsMode({
   sendToDisplay,
   displayControlsOpen = false,
   refreshBundle,
+  carouselActive = false,
+  setCarouselActive,
 }) {
   // Unified question editor modal state
   const [editingQuestion, setEditingQuestion] = React.useState(null);
   // { showQuestionId, questionText, notes, pronunciationGuide, answer }
 
-  // Track if image overlay is active on display
-  const [imageOverlayActive, setImageOverlayActive] = React.useState(false);
-
   // Track which question ID has inline visual images active on display
   const [inlineVisualQuestionId, setInlineVisualQuestionId] =
     React.useState(null);
-
-  // Track current image index for category images
-  const [currentCategoryImageIndex, setCurrentCategoryImageIndex] =
-    React.useState({});
 
   // Add Tiebreaker modal state
   const [addingTiebreaker, setAddingTiebreaker] = React.useState(false);
@@ -120,7 +115,7 @@ export default function QuestionsMode({
 
   const inferredLocation = useMemo(
     () => multiGameMeta.venue || "",
-    [multiGameMeta.venue]
+    [multiGameMeta.venue],
   );
 
   // Auto-fill location from show name if empty
@@ -135,11 +130,11 @@ export default function QuestionsMode({
 
   // keep local textarea in sync with shared prizes
   const [prizesText, setPrizesText] = React.useState(
-    Array.isArray(prizes) ? prizes.join("\n") : String(prizes || "")
+    Array.isArray(prizes) ? prizes.join("\n") : String(prizes || ""),
   );
   React.useEffect(() => {
     setPrizesText(
-      Array.isArray(prizes) ? prizes.join("\n") : String(prizes || "")
+      Array.isArray(prizes) ? prizes.join("\n") : String(prizes || ""),
     );
   }, [prizes]);
 
@@ -150,10 +145,10 @@ export default function QuestionsMode({
         .split(/\r?\n/)
         .map((s) => s.trim())
         .filter(Boolean),
-    [prizesText]
+    [prizesText],
   );
   const [prizeCountInput, setPrizeCountInput] = React.useState(
-    prizeLines.length
+    prizeLines.length,
   );
   React.useEffect(() => {
     setPrizeCountInput(prizeLines.length);
@@ -180,7 +175,7 @@ export default function QuestionsMode({
   // ✅ make allRounds stable
   const allRounds = React.useMemo(
     () => showBundle?.rounds ?? [],
-    [showBundle?.rounds]
+    [showBundle?.rounds],
   );
 
   // ✅ make displayRounds stable too
@@ -251,10 +246,10 @@ export default function QuestionsMode({
 
   const isTB = (q) => {
     const questionType = String(
-      q?.questionType || q?.["Question type"] || ""
+      q?.questionType || q?.["Question type"] || "",
     ).toLowerCase();
     const questionOrder = String(
-      q?.questionOrder || q?.["Question order"] || ""
+      q?.questionOrder || q?.["Question order"] || "",
     ).toUpperCase();
     return questionType === "tiebreaker" || questionOrder === "TB";
   };
@@ -298,7 +293,7 @@ export default function QuestionsMode({
       poolPerQuestion,
       poolContribution,
       cachedState?.teams?.length,
-    ]
+    ],
   );
 
   // Helper to calculate points per team for a question
@@ -322,7 +317,7 @@ export default function QuestionsMode({
 
       return null; // Pub mode doesn't show points per team
     },
-    [scoringMode, scoringConfig]
+    [scoringMode, scoringConfig],
   );
 
   // Calculate statistics for each question (teams correct, points per team, etc.)
@@ -333,7 +328,7 @@ export default function QuestionsMode({
     const grid = cachedState.grid;
 
     const teamNames = new Map(
-      teams.map((t) => [t.showTeamId, t.teamName || "(Unnamed team)"])
+      teams.map((t) => [t.showTeamId, t.teamName || "(Unnamed team)"]),
     );
 
     const result = {}; // { [roundId]: { [showQuestionId]: stats } }
@@ -372,7 +367,7 @@ export default function QuestionsMode({
       const correctCountMap = buildCorrectCountMap(
         teams,
         roundQuestions,
-        adaptedGrid
+        adaptedGrid,
       );
 
       // For adaptive pooled mode: count only teams active in THIS round
@@ -425,7 +420,7 @@ export default function QuestionsMode({
     const entries = Object.entries(groupedQuestions);
     const hasVisual = (cat) =>
       Object.values(cat?.questions || {}).some((q) =>
-        (q?.["Question type"] || "").includes("Visual")
+        (q?.["Question type"] || "").includes("Visual"),
       );
 
     return entries.sort(([, a], [, b]) => {
@@ -449,7 +444,7 @@ export default function QuestionsMode({
       const catQuestionType = String(
         cat?.categoryInfo?.questionType ||
           cat?.categoryInfo?.["Question type"] ||
-          ""
+          "",
       ).toLowerCase();
 
       // Visual categories don't get a number
@@ -524,7 +519,7 @@ export default function QuestionsMode({
 
         // Get category question type for carousel button
         const categoryQuestionType = String(
-          categoryInfo?.questionType || categoryInfo?.["Question type"] || ""
+          categoryInfo?.questionType || categoryInfo?.["Question type"] || "",
         ).toLowerCase();
         const isVisualCategory = categoryQuestionType.includes("visual");
 
@@ -552,7 +547,7 @@ export default function QuestionsMode({
               }}
               dangerouslySetInnerHTML={{
                 __html: marked.parseInline(
-                  `${Number.isFinite(number) ? `${number}. ` : ""}${categoryName || ""}`
+                  `${Number.isFinite(number) ? `${number}. ` : ""}${categoryName || ""}`,
                 ),
               }}
             />
@@ -609,111 +604,6 @@ export default function QuestionsMode({
                 >
                   Show category image{catImagesArr.length > 1 ? "s" : ""}
                 </Button>
-                {sendToDisplay && displayControlsOpen && (
-                  <>
-                    <Button
-                      onClick={() => {
-                        if (imageOverlayActive) {
-                          // Close the image overlay
-                          sendToDisplay("closeImageOverlay", null);
-                          setImageOverlayActive(false);
-                        } else {
-                          // Send image to display
-                          const idx = currentCategoryImageIndex[groupKey] || 0;
-                          sendToDisplay("imageOverlay", {
-                            images: catImagesArr.map((img) => ({
-                              url: img.url,
-                            })),
-                            currentIndex: idx,
-                          });
-                          setImageOverlayActive(true);
-                        }
-                      }}
-                      style={{
-                        fontSize: tokens.font.size,
-                        fontFamily: tokens.font.body,
-                        marginBottom: "0.25rem",
-                        marginLeft: "0.5rem",
-                      }}
-                      title={
-                        imageOverlayActive
-                          ? "Close image on display"
-                          : "Push category image to display"
-                      }
-                    >
-                      {imageOverlayActive
-                        ? "Close image"
-                        : "Push image to display"}
-                    </Button>
-                    {imageOverlayActive && catImagesArr.length > 1 && (
-                      <div
-                        style={{
-                          display: "inline-block",
-                          marginLeft: "0.5rem",
-                        }}
-                      >
-                        <button
-                          onClick={() => {
-                            const currentIdx =
-                              currentCategoryImageIndex[groupKey] || 0;
-                            const newIdx =
-                              (currentIdx - 1 + catImagesArr.length) %
-                              catImagesArr.length;
-                            setCurrentCategoryImageIndex((prev) => ({
-                              ...prev,
-                              [groupKey]: newIdx,
-                            }));
-                            sendToDisplay("imageOverlay", {
-                              images: catImagesArr.map((img) => ({
-                                url: img.url,
-                              })),
-                              currentIndex: newIdx,
-                            });
-                          }}
-                          style={{
-                            fontSize: "1rem",
-                            padding: "0.25rem 0.5rem",
-                            cursor: "pointer",
-                            border: `1px solid ${theme.accent}`,
-                            background: theme.white,
-                            borderRadius: "0.25rem 0 0 0.25rem",
-                          }}
-                        >
-                          ←
-                        </button>
-                        <button
-                          onClick={() => {
-                            const currentIdx =
-                              currentCategoryImageIndex[groupKey] || 0;
-                            const newIdx =
-                              (currentIdx + 1) % catImagesArr.length;
-                            setCurrentCategoryImageIndex((prev) => ({
-                              ...prev,
-                              [groupKey]: newIdx,
-                            }));
-                            sendToDisplay("imageOverlay", {
-                              images: catImagesArr.map((img) => ({
-                                url: img.url,
-                              })),
-                              currentIndex: newIdx,
-                            });
-                          }}
-                          style={{
-                            fontSize: "1rem",
-                            padding: "0.25rem 0.5rem",
-                            cursor: "pointer",
-                            border: `1px solid ${theme.accent}`,
-                            background: theme.white,
-                            borderRadius: "0 0.25rem 0.25rem 0",
-                            marginLeft: "-1px",
-                          }}
-                        >
-                          →
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
 
                 {visibleCategoryImages[groupKey] && (
                   <div
@@ -746,9 +636,9 @@ export default function QuestionsMode({
                 <div style={{ marginTop: "0.5rem", marginLeft: "1rem" }}>
                   <Button
                     onClick={() => {
-                      if (imageOverlayActive) {
+                      if (carouselActive) {
                         sendToDisplay("closeQuestionCarousel", null);
-                        setImageOverlayActive(false);
+                        setCarouselActive(false);
                       } else {
                         // Prepare questions for carousel - just question + images, no answers/stats
                         const questionsForCarousel = categoryQuestions.map(
@@ -761,7 +651,7 @@ export default function QuestionsMode({
                                 ? q.Images.map((img) => ({ url: img.url }))
                                 : [],
                             currentInlineImageIndex: 0,
-                          })
+                          }),
                         );
 
                         sendToDisplay("questionCarousel", {
@@ -769,7 +659,7 @@ export default function QuestionsMode({
                           currentIndex: 0,
                           autoCycle: true,
                         });
-                        setImageOverlayActive(true);
+                        setCarouselActive(true);
                       }
                     }}
                     style={{
@@ -777,12 +667,12 @@ export default function QuestionsMode({
                       fontFamily: tokens.font.body,
                     }}
                     title={
-                      imageOverlayActive
+                      carouselActive
                         ? "Close question carousel on display"
                         : "Push question carousel to display (auto-cycles every 8 seconds)"
                     }
                   >
-                    {imageOverlayActive
+                    {carouselActive
                       ? "Close carousel"
                       : "Push question carousel to display"}
                   </Button>
@@ -929,7 +819,7 @@ export default function QuestionsMode({
                           </div>
                         )}
                       </div>
-                    )
+                    ),
                 )}
               </div>
             )}
@@ -1078,7 +968,7 @@ export default function QuestionsMode({
                                           0,
                                       });
                                       setInlineVisualQuestionId(
-                                        q["Question ID"]
+                                        q["Question ID"],
                                       );
                                     } else {
                                       sendToDisplay("question", {
@@ -1141,7 +1031,7 @@ export default function QuestionsMode({
                                           0,
                                       });
                                       setInlineVisualQuestionId(
-                                        q["Question ID"]
+                                        q["Question ID"],
                                       );
                                     }}
                                     style={{
@@ -1213,7 +1103,7 @@ export default function QuestionsMode({
                           <span
                             dangerouslySetInnerHTML={{
                               __html: marked.parseInline(
-                                q["Question text"] || ""
+                                q["Question text"] || "",
                               ),
                             }}
                           />
@@ -1237,7 +1127,7 @@ export default function QuestionsMode({
                           <span
                             dangerouslySetInnerHTML={{
                               __html: marked.parseInline(
-                                `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">💭</span> ${q["Question notes"]}`
+                                `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">💭</span> ${q["Question notes"]}`,
                               ),
                             }}
                           />
@@ -1262,7 +1152,7 @@ export default function QuestionsMode({
                             <span
                               dangerouslySetInnerHTML={{
                                 __html: marked.parseInline(
-                                  `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">🗣️</span> ${q["Question pronunciation guide"]}`
+                                  `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">🗣️</span> ${q["Question pronunciation guide"]}`,
                                 ),
                               }}
                             />
@@ -1290,142 +1180,71 @@ export default function QuestionsMode({
                           >
                             Show image
                           </Button>
-                          {sendToDisplay && displayControlsOpen && (
-                            <>
-                              <Button
-                                onClick={() => {
-                                  if (imageOverlayActive) {
-                                    // Close the image overlay
-                                    sendToDisplay("closeImageOverlay", null);
-                                    setImageOverlayActive(false);
-                                  } else {
-                                    // Send image to display
-                                    const idx =
-                                      currentImageIndex[q["Question ID"]] || 0;
-                                    sendToDisplay("imageOverlay", {
-                                      images: q.Images.map((img) => ({
-                                        url: img.url,
-                                      })),
-                                      currentIndex: idx,
-                                    });
-                                    setImageOverlayActive(true);
-                                  }
-                                }}
+                          {/* Arrow buttons for inline images on display */}
+                          {sendToDisplay &&
+                            displayControlsOpen &&
+                            inlineVisualQuestionId === q["Question ID"] &&
+                            q.Images.length > 1 && (
+                              <div
                                 style={{
-                                  marginBottom: "0.25rem",
+                                  display: "inline-block",
                                   marginLeft: "0.5rem",
                                 }}
-                                title={
-                                  imageOverlayActive
-                                    ? "Close image on display"
-                                    : "Push image to display"
-                                }
                               >
-                                {imageOverlayActive
-                                  ? "Close image"
-                                  : "Push image to display"}
-                              </Button>
-                              {(imageOverlayActive ||
-                                inlineVisualQuestionId === q["Question ID"]) &&
-                                q.Images.length > 1 && (
-                                  <div
-                                    style={{
-                                      display: "inline-block",
-                                      marginLeft: "0.5rem",
-                                    }}
-                                  >
-                                    <button
-                                      onClick={() => {
-                                        const currentIdx =
-                                          currentImageIndex[q["Question ID"]] ||
-                                          0;
-                                        const newIdx =
-                                          (currentIdx - 1 + q.Images.length) %
-                                          q.Images.length;
-                                        setCurrentImageIndex({
-                                          ...currentImageIndex,
-                                          [q["Question ID"]]: newIdx,
-                                        });
-
-                                        // Update overlay or inline image depending on which is active
-                                        if (imageOverlayActive) {
-                                          sendToDisplay("imageOverlay", {
-                                            images: q.Images.map((img) => ({
-                                              url: img.url,
-                                            })),
-                                            currentIndex: newIdx,
-                                          });
-                                        } else if (
-                                          inlineVisualQuestionId ===
-                                          q["Question ID"]
-                                        ) {
-                                          sendToDisplay(
-                                            "updateInlineImageIndex",
-                                            {
-                                              currentIndex: newIdx,
-                                            }
-                                          );
-                                        }
-                                      }}
-                                      style={{
-                                        fontSize: "1rem",
-                                        padding: "0.25rem 0.5rem",
-                                        cursor: "pointer",
-                                        border: `1px solid ${theme.accent}`,
-                                        background: theme.white,
-                                        borderRadius: "0.25rem 0 0 0.25rem",
-                                      }}
-                                    >
-                                      ←
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        const currentIdx =
-                                          currentImageIndex[q["Question ID"]] ||
-                                          0;
-                                        const newIdx =
-                                          (currentIdx + 1) % q.Images.length;
-                                        setCurrentImageIndex({
-                                          ...currentImageIndex,
-                                          [q["Question ID"]]: newIdx,
-                                        });
-
-                                        // Update overlay or inline image depending on which is active
-                                        if (imageOverlayActive) {
-                                          sendToDisplay("imageOverlay", {
-                                            images: q.Images.map((img) => ({
-                                              url: img.url,
-                                            })),
-                                            currentIndex: newIdx,
-                                          });
-                                        } else if (
-                                          inlineVisualQuestionId ===
-                                          q["Question ID"]
-                                        ) {
-                                          sendToDisplay(
-                                            "updateInlineImageIndex",
-                                            {
-                                              currentIndex: newIdx,
-                                            }
-                                          );
-                                        }
-                                      }}
-                                      style={{
-                                        fontSize: "1rem",
-                                        padding: "0.25rem 0.5rem",
-                                        cursor: "pointer",
-                                        border: `1px solid ${theme.accent}`,
-                                        background: theme.white,
-                                        borderRadius: "0 0.25rem 0.25rem 0",
-                                        marginLeft: "-1px",
-                                      }}
-                                    >
-                                      →
-                                    </button>
-                                  </div>
-                                )}
-                            </>
-                          )}
+                                <button
+                                  onClick={() => {
+                                    const currentIdx =
+                                      currentImageIndex[q["Question ID"]] || 0;
+                                    const newIdx =
+                                      (currentIdx - 1 + q.Images.length) %
+                                      q.Images.length;
+                                    setCurrentImageIndex({
+                                      ...currentImageIndex,
+                                      [q["Question ID"]]: newIdx,
+                                    });
+                                    sendToDisplay("updateInlineImageIndex", {
+                                      currentIndex: newIdx,
+                                    });
+                                  }}
+                                  style={{
+                                    fontSize: "1rem",
+                                    padding: "0.25rem 0.5rem",
+                                    cursor: "pointer",
+                                    border: `1px solid ${theme.accent}`,
+                                    background: theme.white,
+                                    borderRadius: "0.25rem 0 0 0.25rem",
+                                  }}
+                                >
+                                  ←
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const currentIdx =
+                                      currentImageIndex[q["Question ID"]] || 0;
+                                    const newIdx =
+                                      (currentIdx + 1) % q.Images.length;
+                                    setCurrentImageIndex({
+                                      ...currentImageIndex,
+                                      [q["Question ID"]]: newIdx,
+                                    });
+                                    sendToDisplay("updateInlineImageIndex", {
+                                      currentIndex: newIdx,
+                                    });
+                                  }}
+                                  style={{
+                                    fontSize: "1rem",
+                                    padding: "0.25rem 0.5rem",
+                                    cursor: "pointer",
+                                    border: `1px solid ${theme.accent}`,
+                                    background: theme.white,
+                                    borderRadius: "0 0.25rem 0.25rem 0",
+                                    marginLeft: "-1px",
+                                  }}
+                                >
+                                  →
+                                </button>
+                              </div>
+                            )}
 
                           {visibleImages[q["Question ID"]] && (
                             <div
@@ -1550,12 +1369,12 @@ export default function QuestionsMode({
                                       🎵{" "}
                                       {(audioObj.filename || "").replace(
                                         /\.[^/.]+$/,
-                                        ""
+                                        "",
                                       )}
                                     </div>
                                   )}
                                 </div>
-                              )
+                              ),
                           )}
                         </div>
                       )}
@@ -1575,7 +1394,7 @@ export default function QuestionsMode({
                           <span
                             dangerouslySetInnerHTML={{
                               __html: marked.parseInline(
-                                `<span style="font-size:0.7em; position: relative; top: -1px;">🟢</span> **Answer:** ${q["Answer"]}`
+                                `<span style="font-size:0.7em; position: relative; top: -1px;">🟢</span> **Answer:** ${q["Answer"]}`,
                               ),
                             }}
                           />
@@ -1594,7 +1413,7 @@ export default function QuestionsMode({
                               const qPointsPerTeam = qStats
                                 ? calculatePointsPerTeam(
                                     qStats.correctCount,
-                                    qStats.activeTeamCount
+                                    qStats.activeTeamCount,
                                   )
                                 : null;
 
@@ -1646,13 +1465,13 @@ export default function QuestionsMode({
                                       // Include inline images when "Show image by default" is checked
                                       if (hasImages) {
                                         payload.inlineImages = q.Images.map(
-                                          (img) => ({ url: img.url })
+                                          (img) => ({ url: img.url }),
                                         );
                                         payload.currentInlineImageIndex =
                                           currentImageIndex[q["Question ID"]] ||
                                           0;
                                         setInlineVisualQuestionId(
-                                          q["Question ID"]
+                                          q["Question ID"],
                                         );
                                       } else {
                                         setInlineVisualQuestionId(null);
@@ -1802,13 +1621,13 @@ export default function QuestionsMode({
 
                                         // Always add images for this button
                                         payload.inlineImages = q.Images.map(
-                                          (img) => ({ url: img.url })
+                                          (img) => ({ url: img.url }),
                                         );
                                         payload.currentInlineImageIndex =
                                           currentImageIndex[q["Question ID"]] ||
                                           0;
                                         setInlineVisualQuestionId(
-                                          q["Question ID"]
+                                          q["Question ID"],
                                         );
 
                                         sendToDisplay("question", payload);
@@ -1861,7 +1680,7 @@ export default function QuestionsMode({
                         const qPointsPerTeam = qStats
                           ? calculatePointsPerTeam(
                               qStats.correctCount,
-                              qStats.activeTeamCount
+                              qStats.activeTeamCount,
                             )
                           : null;
 
@@ -2387,22 +2206,22 @@ export default function QuestionsMode({
                     editQuestionField(
                       editingQuestion.showQuestionId,
                       "question",
-                      safeTrim(editingQuestion.questionText)
+                      safeTrim(editingQuestion.questionText),
                     );
                     editQuestionField(
                       editingQuestion.showQuestionId,
                       "notes",
-                      safeTrim(editingQuestion.questionNotes)
+                      safeTrim(editingQuestion.questionNotes),
                     );
                     editQuestionField(
                       editingQuestion.showQuestionId,
                       "answer",
-                      safeTrim(editingQuestion.answer)
+                      safeTrim(editingQuestion.answer),
                     );
                     editQuestionField(
                       editingQuestion.showQuestionId,
                       "pronunciationGuide",
-                      safeTrim(editingQuestion.pronunciationGuide)
+                      safeTrim(editingQuestion.pronunciationGuide),
                     );
                   }
                   setEditingQuestion(null);

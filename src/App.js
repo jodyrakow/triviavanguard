@@ -79,6 +79,7 @@ export default function App() {
   const [visibleCategoryImages, setVisibleCategoryImages] = useState({});
   const [activeMode, setActiveMode] = useState("show");
   const [currentImageIndex, setCurrentImageIndex] = useState({});
+  const [carouselActive, setCarouselActive] = useState(false);
   const timerRef = useRef(null);
   const displayControlsRef = useRef(null);
   const [rtStatus, setRtStatus] = useState("INIT"); // ✅ moved inside
@@ -179,19 +180,19 @@ export default function App() {
 
   // Global scoring settings
   const [scoringMode, setScoringMode] = useState(
-    () => localStorage.getItem("tv_scoringMode") || "pub"
+    () => localStorage.getItem("tv_scoringMode") || "pub",
   );
   const [pubPoints, setPubPoints] = useState(
-    () => Number(localStorage.getItem("tv_pubPoints")) || 10
+    () => Number(localStorage.getItem("tv_pubPoints")) || 10,
   );
   const [poolPerQuestion, setPoolPerQuestion] = useState(
-    () => Number(localStorage.getItem("tv_poolPerQuestion")) || 500
+    () => Number(localStorage.getItem("tv_poolPerQuestion")) || 500,
   );
   const [poolContribution, setPoolContribution] = useState(
-    () => Number(localStorage.getItem("tv_poolContribution")) || 10
+    () => Number(localStorage.getItem("tv_poolContribution")) || 10,
   );
   const [factionBonus, setFactionBonus] = useState(
-    () => Number(localStorage.getItem("tv_factionBonus")) || 10
+    () => Number(localStorage.getItem("tv_factionBonus")) || 10,
   );
 
   // Persist scoring settings to localStorage, scoringCache, and Supabase
@@ -291,7 +292,7 @@ export default function App() {
 
     const t = setTimeout(
       () => setTimeLeft((prev) => Math.max(prev - 1, 0)),
-      1000
+      1000,
     );
     return () => clearTimeout(t);
   }, [timerRunning, timeLeft, timerDuration]);
@@ -486,7 +487,7 @@ export default function App() {
         const nextTeams = (show.teams || []).map((t) =>
           t.showTeamId === teamId
             ? { ...t, showBonus: Number(showBonus || 0) }
-            : t
+            : t,
         );
 
         const next = {
@@ -510,7 +511,7 @@ export default function App() {
       if (showId === currentShowIdRef.current) {
         console.log("[Reload Scoring] Fetching fresh state from Supabase...");
         fetch(
-          `/.netlify/functions/supaLoadScoring?showId=${showId}&roundId=all`
+          `/.netlify/functions/supaLoadScoring?showId=${showId}&roundId=all`,
         )
           .then((r) => r.json())
           .then((row) => {
@@ -576,7 +577,7 @@ export default function App() {
         const show = prev[showId] || DEFAULT_SHOW_STATE;
 
         const nextTeams = (show.teams || []).map((t) =>
-          t.showTeamId === teamId ? { ...t, teamName } : t
+          t.showTeamId === teamId ? { ...t, teamName } : t,
         );
 
         const next = {
@@ -606,7 +607,7 @@ export default function App() {
         const show = prev[showId] || DEFAULT_SHOW_STATE;
 
         const nextTeams = (show.teams || []).filter(
-          (t) => t.showTeamId !== teamId
+          (t) => t.showTeamId !== teamId,
         );
         const nextEntry = (show.entryOrder || []).filter((id) => id !== teamId);
 
@@ -810,7 +811,7 @@ export default function App() {
         try {
           localStorage.setItem(
             "trivia.questionEdits.backup",
-            JSON.stringify(next)
+            JSON.stringify(next),
           );
         } catch {}
         return next;
@@ -833,7 +834,7 @@ export default function App() {
             const hasTB = (r.questions || []).some(
               (q) =>
                 (q.questionType || "").toLowerCase() === "tiebreaker" ||
-                String(q.questionOrder).toUpperCase() === "TB"
+                String(q.questionOrder).toUpperCase() === "TB",
             );
             if (hasTB) return r; // Already has TB, don't add again
 
@@ -872,7 +873,7 @@ export default function App() {
         if (window._tvQueue?.length) {
           const q = window._tvQueue.splice(0);
           q.forEach(({ event, payload }) =>
-            ch.send({ type: "broadcast", event, payload })
+            ch.send({ type: "broadcast", event, payload }),
           );
         }
       }
@@ -926,7 +927,7 @@ export default function App() {
     if (selectedShowId.startsWith("archived-")) {
       console.log(
         "[supaLoadScoring] Skipping Supabase fetch for archived show:",
-        selectedShowId
+        selectedShowId,
       );
       return;
     }
@@ -935,10 +936,10 @@ export default function App() {
       try {
         console.log(
           "[supaLoadScoring] Fetching scoring data for show:",
-          selectedShowId
+          selectedShowId,
         );
         const res = await fetch(
-          `/.netlify/functions/supaLoadScoring?showId=${encodeURIComponent(selectedShowId)}`
+          `/.netlify/functions/supaLoadScoring?showId=${encodeURIComponent(selectedShowId)}`,
         );
         console.log("[supaLoadScoring] Response status:", res.status);
         const json = await res.json();
@@ -958,21 +959,21 @@ export default function App() {
             "[supaLoadScoring] gridHasData:",
             gridHasData,
             "grid keys:",
-            Object.keys(loadedData?.grid || {}).length
+            Object.keys(loadedData?.grid || {}).length,
           );
           console.log(
             "[supaLoadScoring] showHasBeenStarted:",
-            showHasBeenStarted
+            showHasBeenStarted,
           );
           console.log(
             "[supaLoadScoring] loadedData.teams:",
             loadedData?.teams?.length || 0,
-            "teams"
+            "teams",
           );
 
           if (showHasBeenStarted) {
             console.log(
-              "[supaLoadScoring] Applying scoring settings from Supabase"
+              "[supaLoadScoring] Applying scoring settings from Supabase",
             );
             // Update local scoring state from loaded Supabase data (show in progress)
             if (loadedData.scoringMode) setScoringMode(loadedData.scoringMode);
@@ -986,7 +987,7 @@ export default function App() {
               setFactionBonus(Number(loadedData.factionBonus));
           } else {
             console.log(
-              "[supaLoadScoring] No grid data found, keeping Airtable config"
+              "[supaLoadScoring] No grid data found, keeping Airtable config",
             );
           }
 
@@ -996,7 +997,7 @@ export default function App() {
           };
           console.log(
             "[supaLoadScoring] Final scoringCache for this show:",
-            result[selectedShowId]
+            result[selectedShowId],
           );
           return result;
         });
@@ -1074,7 +1075,7 @@ export default function App() {
     if (selectedShowId.startsWith("archived-")) {
       console.log(
         "[fetchShowBundle] Skipping bundle fetch for archived show:",
-        selectedShowId
+        selectedShowId,
       );
       return;
     }
@@ -1095,7 +1096,7 @@ export default function App() {
         if (bundle?.rounds?.[0]?.categories?.[0]?.questions?.[0]) {
           console.log(
             "[App] First question from bundle:",
-            bundle.rounds[0].categories[0].questions[0]
+            bundle.rounds[0].categories[0].questions[0],
           );
         }
 
@@ -1110,14 +1111,14 @@ export default function App() {
           // DEBUG: Log the entire config to see what we're getting
           console.log(
             "[App] Bundle config received:",
-            JSON.stringify(config, null, 2)
+            JSON.stringify(config, null, 2),
           );
 
           // Only set scoring mode if it's provided and valid
           if (config.scoringMode) {
             console.log(
               "[App] Applying scoring mode from config:",
-              config.scoringMode
+              config.scoringMode,
             );
             const mode = config.scoringMode
               .toLowerCase()
@@ -1135,14 +1136,14 @@ export default function App() {
           if (typeof config.pubPoints === "number") {
             console.log(
               "[App] Setting pubPoints from config:",
-              config.pubPoints
+              config.pubPoints,
             );
             setPubPoints(config.pubPoints);
           } else {
             console.log(
               "[App] pubPoints not a number, got:",
               typeof config.pubPoints,
-              config.pubPoints
+              config.pubPoints,
             );
           }
 
@@ -1150,14 +1151,14 @@ export default function App() {
           if (typeof config.poolPerQuestion === "number") {
             console.log(
               "[App] Setting poolPerQuestion from config:",
-              config.poolPerQuestion
+              config.poolPerQuestion,
             );
             setPoolPerQuestion(config.poolPerQuestion);
           } else {
             console.log(
               "[App] poolPerQuestion not a number, got:",
               typeof config.poolPerQuestion,
-              config.poolPerQuestion
+              config.poolPerQuestion,
             );
           }
 
@@ -1165,14 +1166,14 @@ export default function App() {
           if (typeof config.poolContribution === "number") {
             console.log(
               "[App] Setting poolContribution from config:",
-              config.poolContribution
+              config.poolContribution,
             );
             setPoolContribution(config.poolContribution);
           } else {
             console.log(
               "[App] poolContribution not a number, got:",
               typeof config.poolContribution,
-              config.poolContribution
+              config.poolContribution,
             );
           }
 
@@ -1241,7 +1242,7 @@ export default function App() {
           .map((r) => Number(r.round))
           .filter((n) => Number.isFinite(n));
         const uniqueSorted = Array.from(new Set(roundNums)).sort(
-          (a, b) => a - b
+          (a, b) => a - b,
         );
 
         if (!uniqueSorted.length) {
@@ -1366,7 +1367,7 @@ export default function App() {
       }),
     }).then(() => {
       console.log(
-        "[Push Scoring] Saved. Broadcasting reload to other hosts..."
+        "[Push Scoring] Saved. Broadcasting reload to other hosts...",
       );
       window.tvSend?.("reloadScoring", { showId: selectedShowId });
     });
@@ -1447,7 +1448,7 @@ export default function App() {
           const hasTB = questions.some(
             (q) =>
               (q.questionType || "").toLowerCase() === "tiebreaker" ||
-              String(q.questionOrder).toUpperCase() === "TB"
+              String(q.questionOrder).toUpperCase() === "TB",
           );
           if (!hasTB) {
             questions = [...questions, tb];
@@ -1483,7 +1484,7 @@ export default function App() {
       try {
         localStorage.setItem(
           "trivia.questionEdits.backup",
-          JSON.stringify(next)
+          JSON.stringify(next),
         );
       } catch {}
 
@@ -1534,7 +1535,7 @@ export default function App() {
           const hasTB = (r.questions || []).some(
             (q) =>
               (q.questionType || "").toLowerCase() === "tiebreaker" ||
-              String(q.questionOrder).toUpperCase() === "TB"
+              String(q.questionOrder).toUpperCase() === "TB",
           );
           if (hasTB) {
             alert("This round already has a tiebreaker.");
@@ -1622,10 +1623,10 @@ export default function App() {
       // Confirm before loading
       const ok = selectedShowId
         ? window.confirm(
-            `Load archived show "${archivedShow.showName}" from ${archivedShow.showDate}?\n\nThis will delete all scores and data you've entered for the current show.`
+            `Load archived show "${archivedShow.showName}" from ${archivedShow.showDate}?\n\nThis will delete all scores and data you've entered for the current show.`,
           )
         : window.confirm(
-            `Load archived show "${archivedShow.showName}" from ${archivedShow.showDate}?`
+            `Load archived show "${archivedShow.showName}" from ${archivedShow.showDate}?`,
           );
 
       if (!ok) {
@@ -1769,7 +1770,7 @@ export default function App() {
               setDisplayControlsPosition(newPos);
               localStorage.setItem(
                 "displayControlsPosition",
-                JSON.stringify(newPos)
+                JSON.stringify(newPos),
               );
             }}
           >
@@ -1825,7 +1826,7 @@ export default function App() {
                     const newWindow = window.open(
                       window.location.origin + "?display",
                       "displayMode",
-                      "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no"
+                      "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no",
                     );
                     if (newWindow) newWindow.focus();
 
@@ -1849,6 +1850,7 @@ export default function App() {
                     sendToDisplay("closeImageOverlay", null);
                     sendToDisplay("closeQuestionCarousel", null);
                     sendToDisplay("standby", null);
+                    setCarouselActive(false);
                   }}
                   title="Clear the display (standby screen)"
                   style={{
@@ -2121,7 +2123,7 @@ export default function App() {
                 }
 
                 const ok = window.confirm(
-                  "Switch shows? This will delete all scores and data you've entered for the current show."
+                  "Switch shows? This will delete all scores and data you've entered for the current show.",
                 );
                 if (!ok) return;
 
@@ -2134,7 +2136,7 @@ export default function App() {
                   // Update localStorage immediately
                   localStorage.setItem(
                     "trivia.scoring.backup",
-                    JSON.stringify(next)
+                    JSON.stringify(next),
                   );
                   return next;
                 });
@@ -2250,6 +2252,8 @@ export default function App() {
             addTiebreaker={addTiebreaker}
             sendToDisplay={sendToDisplay}
             refreshBundle={refreshBundle}
+            carouselActive={carouselActive}
+            setCarouselActive={setCarouselActive}
           />
         )}
 
@@ -2260,7 +2264,7 @@ export default function App() {
                 ? {
                     ...showBundle,
                     rounds: (showBundle.rounds || []).filter(
-                      (r) => Number(r.round) === Number(selectedRoundId)
+                      (r) => Number(r.round) === Number(selectedRoundId),
                     ),
                   }
                 : { rounds: [], teams: [] }
@@ -2315,7 +2319,7 @@ export default function App() {
                 try {
                   localStorage.setItem(
                     "trivia.scoring.backup",
-                    JSON.stringify(next)
+                    JSON.stringify(next),
                   );
                 } catch {}
 
@@ -2377,7 +2381,7 @@ export default function App() {
                 onClick={async () => {
                   try {
                     const res = await axios.get(
-                      "/.netlify/functions/fetchOlderShows"
+                      "/.netlify/functions/fetchOlderShows",
                     );
                     setOlderShows(res.data?.Shows || []);
                   } catch (err) {
@@ -2397,7 +2401,7 @@ export default function App() {
                   onClick={() => {
                     const ok = selectedShowId
                       ? window.confirm(
-                          "Switch to this show? This will delete all scores and data you've entered for the current show."
+                          "Switch to this show? This will delete all scores and data you've entered for the current show.",
                         )
                       : true;
                     if (!ok) return;
@@ -2412,7 +2416,7 @@ export default function App() {
                         // Update localStorage immediately
                         localStorage.setItem(
                           "trivia.scoring.backup",
-                          JSON.stringify(next)
+                          JSON.stringify(next),
                         );
                         return next;
                       });
@@ -2575,7 +2579,7 @@ export default function App() {
 
           // Reset the select dropdown back to the current show
           const selectElement = document.querySelector(
-            'select[aria-label="Show selector"], select'
+            'select[aria-label="Show selector"], select',
           );
           if (selectElement) {
             selectElement.value = selectedShowId || "";
