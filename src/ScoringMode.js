@@ -1,4 +1,4 @@
-// ScoringMode.js — local/offline scoring with parent-provided cache
+// ScoringMode.js — scoring with Supabase as source of truth
 import React, {
   useCallback,
   useEffect,
@@ -19,6 +19,47 @@ import {
   buildTeamTotals,
   computeSolosForRound,
 } from "./scoring/compute.js";
+import { supabase } from "./App.js";
+
+// Save a single cell to Supabase (debounced calls happen in the component)
+const saveCellToSupabase = async (showId, showTeamId, showQuestionId, cell) => {
+  try {
+    const res = await fetch("/.netlify/functions/supaSaveScoringCell", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        showId,
+        showTeamId,
+        showQuestionId,
+        cell,
+        updatedBy: window.localStorage.getItem("hostDevice") || "unknown",
+      }),
+    });
+    if (!res.ok) {
+      console.error("Failed to save cell:", await res.text());
+    }
+  } catch (err) {
+    console.error("saveCellToSupabase error:", err);
+  }
+};
+
+// Load all scoring cells for a show from Supabase
+const loadGridFromSupabase = async (showId) => {
+  try {
+    const res = await fetch(
+      `/.netlify/functions/supaLoadScoringCells?showId=${encodeURIComponent(showId)}`
+    );
+    if (!res.ok) {
+      console.error("Failed to load grid:", await res.text());
+      return null;
+    }
+    const { grid } = await res.json();
+    return grid || {};
+  } catch (err) {
+    console.error("loadGridFromSupabase error:", err);
+    return null;
+  }
+};
 
 // Small helper to make local IDs for teams added during the show
 const makeLocalId = (prefix = "local") =>
@@ -138,6 +179,21 @@ export default function ScoringMode({
   const [grid, setGrid] = useState({}); // {[showTeamId]: {[showQuestionId]: {isCorrect, bonusCount}}}
   const [entryOrder, setEntryOrder] = useState([]); // [showTeamId]
   const seededOnceRef = useRef(false);
+
+  // Helper to update a cell locally AND save to Supabase
+  const updateCell = useCallback((showTeamId, showQuestionId, updates) => {
+    setGrid((prev) => {
+      const byTeam = prev[showTeamId] ? { ...prev[showTeamId] } : {};
+      const cell = byTeam[showQuestionId] || { isCorrect: null, bonusCount: 0 };
+      const newCell = { ...cell, ...updates };
+      byTeam[showQuestionId] = newCell;
+
+      // Save to Supabase (fire and forget)
+      saveCellToSupabase(selectedShowId, showTeamId, showQuestionId, newCell);
+
+      return { ...prev, [showTeamId]: byTeam };
+    });
+  }, [selectedShowId]);
   // Search results state (used by Add Team modal)
   const [searchResults, setSearchResults] = useState([]);
   // 🔁 MOVED UP: Add Team modal state so it's defined before useEffect below
@@ -392,8 +448,68 @@ export default function ScoringMode({
     setGrid(seededGrid);
     setEntryOrder(seededEntryOrder);
     setFocus({ teamIdx: 0, qIdx: 0 });
-    seededOnceRef.current = true; // ✅ don’t auto-import again
+    seededOnceRef.current = true; // ✅ don't auto-import again
   }, [teams.length, cachedState, preloadedTeams]);
+
+  // ---------- Load grid from Supabase scoring_cells table ----------
+  const supabaseLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!selectedShowId) return;
+    if (supabaseLoadedRef.current) return;
+
+    const loadFromSupabase = async () => {
+      const supabaseGrid = await loadGridFromSupabase(selectedShowId);
+      if (supabaseGrid && Object.keys(supabaseGrid).length > 0) {
+        setGrid(supabaseGrid);
+        supabaseLoadedRef.current = true;
+      }
+    };
+    loadFromSupabase();
+  }, [selectedShowId]);
+
+  // Reset supabase loaded flag when show changes
+  useEffect(() => {
+    supabaseLoadedRef.current = false;
+  }, [selectedShowId]);
+
+  // ---------- Supabase realtime subscription for scoring_cells ----------
+  useEffect(() => {
+    if (!supabase || !selectedShowId) return;
+
+    const channel = supabase
+      .channel(`scoring_cells:${selectedShowId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "scoring_cells",
+          filter: `show_id=eq.${selectedShowId}`,
+        },
+        (payload) => {
+          const { new: newRow } = payload;
+          if (!newRow) return;
+
+          const { show_team_id, show_question_id, is_correct, bonus_count, tiebreaker_guess, tiebreaker_guess_raw } = newRow;
+
+          setGrid((prev) => {
+            const byTeam = prev[show_team_id] ? { ...prev[show_team_id] } : {};
+            byTeam[show_question_id] = {
+              isCorrect: is_correct,
+              bonusCount: bonus_count || 0,
+              tiebreakerGuess: tiebreaker_guess,
+              tiebreakerGuessRaw: tiebreaker_guess_raw,
+            };
+            return { ...prev, [show_team_id]: byTeam };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedShowId]);
 
   // ---------- Persist local changes up to App ----------
   const lastSentRef = useRef("");
@@ -600,11 +716,15 @@ export default function ScoringMode({
           nextBonusCount = 0;
         }
 
-        byTeam[showQuestionId] = {
+        const newCell = {
           ...cell,
           isCorrect: nextOn,
           bonusCount: nextBonusCount,
         };
+        byTeam[showQuestionId] = newCell;
+
+        // Save to Supabase
+        saveCellToSupabase(selectedShowId, showTeamId, showQuestionId, newCell);
 
         console.log("[toggleCell]", {
           question: q.order,
@@ -1037,8 +1157,10 @@ export default function ScoringMode({
         bonusCount: 0,
       };
 
+      const showQuestionId = tiebreaker.showQuestionId || tiebreaker.id;
+      let newCell;
       if (raw === "" || Number.isNaN(num)) {
-        byTeam[(tiebreaker.showQuestionId || tiebreaker.id)] = {
+        newCell = {
           ...cell,
           tiebreakerGuess: null,
           tiebreakerGuessRaw: "",
@@ -1046,12 +1168,16 @@ export default function ScoringMode({
       } else {
         // normalize stored raw to canonical string
         const normalized = String(num);
-        byTeam[(tiebreaker.showQuestionId || tiebreaker.id)] = {
+        newCell = {
           ...cell,
           tiebreakerGuess: num,
           tiebreakerGuessRaw: normalized,
         };
       }
+      byTeam[showQuestionId] = newCell;
+
+      // Save to Supabase
+      saveCellToSupabase(selectedShowId, showTeamId, showQuestionId, newCell);
 
       return { ...prev, [showTeamId]: byTeam };
     });
