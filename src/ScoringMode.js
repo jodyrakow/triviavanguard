@@ -143,6 +143,10 @@ export default function ScoringMode({
   // 🔁 MOVED UP: Add Team modal state so it's defined before useEffect below
   const [addingTeam, setAddingTeam] = useState(false);
   const [teamInput, setTeamInput] = useState("");
+  const [isCreatingTeam, setIsCreatingTeam] = useState(false);
+  // Debounce and abort refs for team search
+  const searchDebounceRef = useRef(null);
+  const searchAbortRef = useRef(null);
   // Keep refs to each cell <div> for scrolling into view
   const cellRefs = useRef({});
   const tbRefs = useRef({});
@@ -904,34 +908,69 @@ export default function ScoringMode({
     } catch {}
   };
 
-  const addTeamLocal = (teamName, airtableId = null) => {
+  const addTeamLocal = async (teamName, airtableTeamId = null) => {
     const trimmed = (teamName || "").trim();
     if (!trimmed) return;
-    const newTeam = {
-      showTeamId: makeLocalId("team"),
-      teamId: airtableId, // ✅ keep Airtable Team recordId if available
-      teamName: trimmed,
-      showBonus: 0,
-    };
-    setTeams((prev) => {
-      const updated = [...prev, newTeam];
-      // Set focus to the new team (will be last in visible teams)
-      // Use setTimeout to ensure visibleTeams updates first
-      setTimeout(() => {
-        setTeamIdxSolo(updated.length - 1);
-        setFocus({ teamIdx: updated.length - 1, qIdx: 0 });
-      }, 0);
-      return updated;
-    });
-    setEntryOrder((prev) => [...prev, newTeam.showTeamId]);
+
+    setIsCreatingTeam(true);
+
     try {
-      window.sendTeamAdd?.({
-        showId: selectedShowId,
-        teamId: newTeam.showTeamId,
-        teamName: newTeam.teamName,
-        ts: Date.now(),
+      // Call Airtable to create ShowTeam (and Team if needed)
+      const res = await fetch("/.netlify/functions/createShowTeam", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          showId: selectedShowId,
+          teamName: trimmed,
+          teamId: airtableTeamId, // Pass existing Team ID if from search
+        }),
       });
-    } catch {}
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || "Failed to create team");
+      }
+
+      const { showTeamId, teamId, teamName: finalName } = await res.json();
+
+      const newTeam = {
+        showTeamId,  // Real Airtable ShowTeam ID
+        teamId,      // Real Airtable Team ID
+        teamName: finalName || trimmed,
+        showBonus: 0,
+      };
+
+      setTeams((prev) => {
+        const updated = [...prev, newTeam];
+        // Set focus to the new team (will be last in visible teams)
+        setTimeout(() => {
+          setTeamIdxSolo(updated.length - 1);
+          setFocus({ teamIdx: updated.length - 1, qIdx: 0 });
+        }, 0);
+        return updated;
+      });
+      setEntryOrder((prev) => [...prev, newTeam.showTeamId]);
+
+      // Notify other hosts via broadcast
+      try {
+        window.sendTeamAdd?.({
+          showId: selectedShowId,
+          teamId: newTeam.showTeamId,
+          teamName: newTeam.teamName,
+          ts: Date.now(),
+        });
+      } catch {}
+
+      // Close modal and reset input
+      setAddingTeam(false);
+      setTeamInput("");
+      setSearchResults([]);
+    } catch (err) {
+      console.error("Failed to create team:", err);
+      alert(`Failed to add team: ${err.message}`);
+    } finally {
+      setIsCreatingTeam(false);
+    }
   };
 
   // --- TB ADD: helpers to read/write tiebreaker guesses in local grid -------
@@ -1847,49 +1886,68 @@ export default function ScoringMode({
             <input
               autoFocus
               value={teamInput}
-              onChange={async (e) => {
+              onChange={(e) => {
                 const val = e.target.value;
                 setTeamInput(val);
 
-                if (val.length >= 2) {
-                  try {
-                    const res = await fetch(
-                      `/.netlify/functions/searchTeams?q=${encodeURIComponent(val)}`
-                    );
-                    const json = await res.json();
-                    console.log("searchTeams matches (raw):", json.matches);
+                // Clear any pending debounce
+                if (searchDebounceRef.current) {
+                  clearTimeout(searchDebounceRef.current);
+                }
 
-                    // Normalize to { id, name, recentShowTeams: [{id,label}] }
-                    const normalized = (json.matches || []).map((m) => {
-                      const id = m.teamId ?? m.id ?? "";
-                      const name = m.teamName ?? m.name ?? "";
-                      // If backend returns strings in m.showTeams, convert to [{id,label}]
-                      const recentShowTeams = Array.isArray(m.showTeams)
-                        ? m.showTeams.map((label, idx) => ({
-                            id: `${id}::${idx}`, // unique key for React
-                            label: String(label || ""),
-                          }))
-                        : Array.isArray(m.recentShowTeams)
-                          ? m.recentShowTeams.map((r, idx) => ({
-                              id: r.id ?? `${id}::${idx}`,
-                              label: r.label ?? String(r || ""),
+                // Abort any in-flight request
+                if (searchAbortRef.current) {
+                  searchAbortRef.current.abort();
+                }
+
+                if (val.length >= 3) {
+                  // Debounce: wait 300ms after last keystroke
+                  searchDebounceRef.current = setTimeout(async () => {
+                    const controller = new AbortController();
+                    searchAbortRef.current = controller;
+
+                    try {
+                      const res = await fetch(
+                        `/.netlify/functions/searchTeams?q=${encodeURIComponent(val)}`,
+                        { signal: controller.signal }
+                      );
+                      const json = await res.json();
+
+                      // Normalize to { id, name, recentShowTeams: [{id,label}] }
+                      const normalized = (json.matches || []).map((m) => {
+                        const id = m.teamId ?? m.id ?? "";
+                        const name = m.teamName ?? m.name ?? "";
+                        // If backend returns strings in m.showTeams, convert to [{id,label}]
+                        const recentShowTeams = Array.isArray(m.showTeams)
+                          ? m.showTeams.map((label, idx) => ({
+                              id: `${id}::${idx}`, // unique key for React
+                              label: String(label || ""),
                             }))
-                          : [];
+                          : Array.isArray(m.recentShowTeams)
+                            ? m.recentShowTeams.map((r, idx) => ({
+                                id: r.id ?? `${id}::${idx}`,
+                                label: r.label ?? String(r || ""),
+                              }))
+                            : [];
 
-                      return { id, name, recentShowTeams };
-                    });
+                        return { id, name, recentShowTeams };
+                      });
 
-                    setSearchResults(normalized);
-                  } catch (err) {
-                    console.error("searchTeams error:", err);
-                    setSearchResults([]);
-                  }
+                      setSearchResults(normalized);
+                    } catch (err) {
+                      // Ignore abort errors (expected when typing fast)
+                      if (err.name !== "AbortError") {
+                        console.error("searchTeams error:", err);
+                        setSearchResults([]);
+                      }
+                    }
+                  }, 300);
                 } else {
                   setSearchResults([]);
                 }
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === "Enter" && !isCreatingTeam) {
                   e.preventDefault();
                   if (searchResults.length > 0) {
                     const t = searchResults[0];
@@ -1897,10 +1955,8 @@ export default function ScoringMode({
                   } else if (teamInput.trim()) {
                     addTeamLocal(teamInput.trim());
                   }
-                  setTeamInput("");
-                  setAddingTeam(false);
-                  setSearchResults([]);
-                } else if (e.key === "Escape") {
+                  // Modal closing handled by addTeamLocal on success
+                } else if (e.key === "Escape" && !isCreatingTeam) {
                   e.preventDefault();
                   setAddingTeam(false);
                 }
@@ -1919,10 +1975,9 @@ export default function ScoringMode({
               <div
                 key={t.id} // ✅ unique team key
                 onClick={() => {
+                  if (isCreatingTeam) return;
                   addTeamLocal(t.name, t.id);
-                  setTeamInput("");
-                  setAddingTeam(false);
-                  setSearchResults([]);
+                  // Modal closing handled by addTeamLocal on success
                 }}
                 style={{
                   padding: ".45rem .6rem",
@@ -1957,35 +2012,45 @@ export default function ScoringMode({
               </div>
             ))}
 
+            {/* Loading indicator */}
+            {isCreatingTeam && (
+              <div style={{ padding: "0.5rem", textAlign: "center", color: theme.accent }}>
+                Adding team...
+              </div>
+            )}
+
             {/* Manual add fallback */}
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <button
+                disabled={isCreatingTeam || !teamInput.trim()}
                 onClick={() => {
+                  if (isCreatingTeam) return;
                   addTeamLocal(teamInput); // no Airtable ID
-                  setTeamInput("");
-                  setAddingTeam(false);
-                  setSearchResults([]);
+                  // Modal closing handled by addTeamLocal on success
                 }}
                 style={{
                   padding: "0.5rem 0.75rem",
                   border: `1px solid ${theme.accent}`,
-                  background: theme.accent,
+                  background: isCreatingTeam ? "#ccc" : theme.accent,
                   color: "#fff",
                   borderRadius: "0.25rem",
-                  cursor: "pointer",
+                  cursor: isCreatingTeam ? "wait" : "pointer",
                   flex: 1,
+                  opacity: isCreatingTeam || !teamInput.trim() ? 0.6 : 1,
                 }}
               >
-                Add “{teamInput || "Unnamed"}”
+                {isCreatingTeam ? "Adding..." : `Add "${teamInput || "Unnamed"}"`}
               </button>
               <button
+                disabled={isCreatingTeam}
                 onClick={() => setAddingTeam(false)}
                 style={{
                   padding: "0.5rem 0.75rem",
                   border: "1px solid #ccc",
                   background: "#f7f7f7",
                   borderRadius: "0.25rem",
-                  cursor: "pointer",
+                  cursor: isCreatingTeam ? "not-allowed" : "pointer",
+                  opacity: isCreatingTeam ? 0.6 : 1,
                 }}
               >
                 Cancel
