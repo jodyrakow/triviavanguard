@@ -371,12 +371,19 @@ export default function ScoringMode({
 
     console.log("🔵 FALLBACK: Seeding from cache/preloaded (Supabase had no teams)");
     const seededTeams = source.map(normalizeTeam);
-    const seededGrid = cachedState?.grid || {};
     const seededEntryOrder =
       cachedState?.entryOrder || seededTeams.map((t) => t.showTeamId);
 
     setTeams(seededTeams);
-    setGrid(seededGrid);
+    // Don't overwrite grid - it may have been loaded from Supabase even if teams weren't
+    // Only seed grid if it's currently empty
+    setGrid((prevGrid) => {
+      if (Object.keys(prevGrid).length > 0) {
+        console.log("🔵 FALLBACK: Keeping existing grid (already has data)");
+        return prevGrid;
+      }
+      return cachedState?.grid || {};
+    });
     setEntryOrder(seededEntryOrder);
     setFocus({ teamIdx: 0, qIdx: 0 });
     seededOnceRef.current = true;
@@ -548,13 +555,17 @@ export default function ScoringMode({
   // ---------- Sync state back to App-level cache for ResultsMode ----------
   const lastSentRef = useRef("");
   useEffect(() => {
+    // Don't sync empty state to cache before Supabase has loaded
+    // This prevents clobbering the cache during initial component mount
+    if (!supabaseLoaded) return;
+
     const payload = { teams, grid, entryOrder };
     const key = JSON.stringify(payload);
     if (key !== lastSentRef.current) {
       lastSentRef.current = key;
       onChangeState(payload);
     }
-  }, [teams, grid, entryOrder, onChangeState]);
+  }, [teams, grid, entryOrder, onChangeState, supabaseLoaded]);
 
   // ---------------- View wiring (sorting, team mode, nav) ----------------
   const [sortMode, setSortMode] = useState("entry"); // "entry" | "alpha"
