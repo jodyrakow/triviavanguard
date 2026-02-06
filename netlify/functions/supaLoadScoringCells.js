@@ -67,10 +67,11 @@ export const handler = async (event) => {
     };
   } catch (err) {
     console.error("supaLoadScoringCells failed:", err);
+    const errorMsg = err?.message || err?.details || JSON.stringify(err);
     return {
       statusCode: 500,
       headers: { "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ error: String(err) }),
+      body: JSON.stringify({ error: errorMsg }),
     };
   }
 };
