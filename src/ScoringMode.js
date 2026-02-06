@@ -346,15 +346,9 @@ export default function ScoringMode({
       const supabaseTeams = await loadShowTeamsFromSupabase(selectedShowId);
       if (supabaseTeams && supabaseTeams.length > 0) {
         console.log("🔵 SUPABASE: Loaded", supabaseTeams.length, "teams");
-        const normalizedTeams = supabaseTeams.map((t) => ({
-          showTeamId: t.show_team_id,
-          teamId: t.team_id,
-          teamName: t.team_name,
-          showBonus: t.show_bonus || 0,
-          isLeague: t.is_league || false,
-        }));
-        setTeams(normalizedTeams);
-        setEntryOrder(supabaseTeams.map((t) => t.show_team_id));
+        // supabaseTeams is already in camelCase from the Netlify function
+        setTeams(supabaseTeams);
+        setEntryOrder(supabaseTeams.map((t) => t.showTeamId));
       }
 
       // Load grid from Supabase
