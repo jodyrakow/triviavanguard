@@ -66,12 +66,6 @@ const loadGridFromSupabase = async (showId) => {
   }
 };
 
-// Small helper to make local IDs for teams added during the show
-const makeLocalId = (prefix = "local") =>
-  `${prefix}:${Date.now().toString(36)}:${Math.random()
-    .toString(36)
-    .slice(2, 7)}`;
-
 // Save a ShowTeam to Supabase (add, rename, bonus, league toggle)
 const saveShowTeamToSupabase = async (showId, showTeam) => {
   try {
@@ -245,11 +239,10 @@ export default function ScoringMode({
     );
   }, [roundObj]);
 
-  // ---------------- Local state (seeded from cachedState OR preloadedTeams) ----------------
+  // ---------------- Local state (loaded from Supabase - the source of truth) ----------------
   const [teams, setTeams] = useState([]); // [{showTeamId, teamId?, teamName, showBonus}]
   const [grid, setGrid] = useState({}); // {[showTeamId]: {[showQuestionId]: {isCorrect, bonusCount}}}
   const [entryOrder, setEntryOrder] = useState([]); // [showTeamId]
-  const seededOnceRef = useRef(false);
   const [supabaseLoaded, setSupabaseLoaded] = useState(false); // track if Supabase load finished
 
   // Search results state (used by Add Team modal)
@@ -335,71 +328,24 @@ export default function ScoringMode({
     });
   };
 
-  // helper: coerce Airtable-ish shapes into what the grid expects
-  const normalizeTeam = (t) => ({
-    showTeamId: t.showTeamId || makeLocalId("team"),
-    teamId: t.teamId ?? null,
-    teamName: Array.isArray(t.teamName)
-      ? t.teamName[0]
-      : t.teamName || "(Unnamed team)",
-    showBonus: Number(t.showBonus || 0),
-    isLeague: !!t.isLeague, // Include league status
-  });
-
-  // Clear local state when the SHOW changes (not the round)
+  // ---------- Load teams and grid from Supabase (the ONLY source of truth) ----------
   useEffect(() => {
+    if (!selectedShowId) return;
+
+    // Clear state and reload from Supabase
     setTeams([]);
     setGrid({});
     setEntryOrder([]);
     setFocus({ teamIdx: 0, qIdx: 0 });
-    seededOnceRef.current = false; // allow a fresh seed for the new show
-  }, [selectedShowId]);
-
-  // Fallback seed from cache/preloaded ONLY if Supabase has loaded but found no teams
-  // This handles the case of a brand new show with no Supabase data yet
-  useEffect(() => {
-    if (seededOnceRef.current) return; // already seeded (from Supabase or earlier)
-    if (!supabaseLoaded) return; // wait for Supabase to finish loading first
-    if (teams.length > 0) return; // local already has teams
-
-    const source =
-      (cachedState?.teams?.length && cachedState.teams) ||
-      (preloadedTeams?.length && preloadedTeams) ||
-      null;
-
-    if (!source) return; // no fallback data available
-
-    console.log("🔵 FALLBACK: Seeding from cache/preloaded (Supabase had no teams)");
-    const seededTeams = source.map(normalizeTeam);
-    const seededEntryOrder =
-      cachedState?.entryOrder || seededTeams.map((t) => t.showTeamId);
-
-    setTeams(seededTeams);
-    // Don't overwrite grid - it may have been loaded from Supabase even if teams weren't
-    // Only seed grid if it's currently empty
-    setGrid((prevGrid) => {
-      if (Object.keys(prevGrid).length > 0) {
-        console.log("🔵 FALLBACK: Keeping existing grid (already has data)");
-        return prevGrid;
-      }
-      return cachedState?.grid || {};
-    });
-    setEntryOrder(seededEntryOrder);
-    setFocus({ teamIdx: 0, qIdx: 0 });
-    seededOnceRef.current = true;
-  }, [teams.length, cachedState, preloadedTeams, supabaseLoaded]);
-
-  // ---------- Load teams and grid from Supabase on mount ----------
-  const supabaseLoadedRef = useRef(false);
-  useEffect(() => {
-    if (!selectedShowId) return;
-    if (supabaseLoadedRef.current) return;
+    setSupabaseLoaded(false);
 
     const loadFromSupabase = async () => {
-      // Load teams from Supabase (the authoritative source)
+      console.log("🔵 SUPABASE: Loading teams and grid for show", selectedShowId);
+
+      // Load teams from Supabase
       const supabaseTeams = await loadShowTeamsFromSupabase(selectedShowId);
       if (supabaseTeams && supabaseTeams.length > 0) {
-        console.log("🔵 SUPABASE: Setting teams from Supabase", supabaseTeams.length);
+        console.log("🔵 SUPABASE: Loaded", supabaseTeams.length, "teams");
         const normalizedTeams = supabaseTeams.map((t) => ({
           showTeamId: t.show_team_id,
           teamId: t.team_id,
@@ -409,24 +355,18 @@ export default function ScoringMode({
         }));
         setTeams(normalizedTeams);
         setEntryOrder(supabaseTeams.map((t) => t.show_team_id));
-        seededOnceRef.current = true; // Mark as seeded from Supabase
       }
 
       // Load grid from Supabase
       const supabaseGrid = await loadGridFromSupabase(selectedShowId);
-      if (supabaseGrid && Object.keys(supabaseGrid).length > 0) {
+      if (supabaseGrid) {
+        console.log("🔵 SUPABASE: Loaded grid with", Object.keys(supabaseGrid).length, "teams");
         setGrid(supabaseGrid);
       }
-      supabaseLoadedRef.current = true;
-      setSupabaseLoaded(true); // Trigger fallback seeding check
+
+      setSupabaseLoaded(true);
     };
     loadFromSupabase();
-  }, [selectedShowId]);
-
-  // Reset supabase loaded flag when show changes
-  useEffect(() => {
-    supabaseLoadedRef.current = false;
-    setSupabaseLoaded(false);
   }, [selectedShowId]);
 
   // ---------- Supabase realtime subscription for scoring_cells ----------
