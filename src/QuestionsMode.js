@@ -234,6 +234,7 @@ export default function QuestionsMode({
             Answer: q?.answer || "",
             "Question type": q?.questionType || "",
             "Show image by default": !!q?.showImageByDefault,
+            "Auto-reveal answer image": !!q?.autoRevealAnswerImage,
             Images: Array.isArray(q?.questionImages) ? q.questionImages : [],
             Audio: Array.isArray(q?.questionAudio) ? q.questionAudio : [],
             _edited: q._edited || false, // flag if question has been edited
@@ -1467,9 +1468,27 @@ export default function QuestionsMode({
                                         payload.inlineImages = q.Images.map(
                                           (img) => ({ url: img.url }),
                                         );
-                                        payload.currentInlineImageIndex =
-                                          currentImageIndex[q["Question ID"]] ||
-                                          0;
+                                        // If "Auto-reveal answer image" is checked, use image #1 for question, image #2 for answer/stats
+                                        const autoRevealAnswerImage =
+                                          !!q["Auto-reveal answer image"];
+                                        console.log("DEBUG auto-reveal:", {
+                                          autoRevealAnswerImage,
+                                          imageCount: q.Images.length,
+                                          nextStage,
+                                          questionData: q,
+                                        });
+                                        if (
+                                          autoRevealAnswerImage &&
+                                          q.Images.length >= 2
+                                        ) {
+                                          payload.currentInlineImageIndex =
+                                            nextStage >= 1 ? 1 : 0;
+                                        } else {
+                                          payload.currentInlineImageIndex =
+                                            currentImageIndex[
+                                              q["Question ID"]
+                                            ] || 0;
+                                        }
                                         setInlineVisualQuestionId(
                                           q["Question ID"],
                                         );

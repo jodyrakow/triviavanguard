@@ -295,6 +295,7 @@ export async function handler(event) {
         sortOrder: typeof f["Sort order"] === "number" ? f["Sort order"] : null,
         questionType: f["Question type"] || null,
         showImageByDefault: !!f["Show image by default"],
+        autoRevealAnswerImage: !!f["Auto-reveal answer image"],
         faction: f["Faction"] || null,
         questionText: hasEditedQuestion
           ? f["Edited question"]

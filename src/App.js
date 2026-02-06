@@ -130,8 +130,8 @@ export default function App() {
 
   // Timer state
   const [timerPosition, setTimerPosition] = useState({ x: 0, y: 0 });
-  const [timerDuration, setTimerDuration] = useState(60);
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timerDuration, setTimerDuration] = useState(null); // No default - loaded from Airtable/Supabase
+  const [timeLeft, setTimeLeft] = useState(null);
   const [timerRunning, setTimerRunning] = useState(false);
 
   // Timer hidden by default
@@ -195,6 +195,165 @@ export default function App() {
     () => Number(localStorage.getItem("tv_factionBonus")) || 10,
   );
 
+  // Track if we've loaded settings from Supabase for this show AND if they existed
+  // Format: { showId: string, exists: boolean } or null
+  const supabaseSettingsLoadedRef = useRef(null);
+
+  // Debounce timer for Supabase settings saves (avoids saving on every keystroke)
+  const supabaseSettingsSaveTimeoutRef = useRef(null);
+  const supabaseHostInfoSaveTimeoutRef = useRef(null);
+
+  // Load settings from Supabase show_settings when show changes
+  useEffect(() => {
+    if (!selectedShowId) return;
+    if (supabaseSettingsLoadedRef.current?.showId === selectedShowId) return;
+
+    const loadSettings = async () => {
+      try {
+        console.log("🔵 SUPABASE SETTINGS LOAD: Fetching for show", selectedShowId);
+        const res = await fetch(
+          `/.netlify/functions/supaLoadShowSettings?showId=${encodeURIComponent(selectedShowId)}`
+        );
+        if (!res.ok) {
+          console.error("Failed to load show settings:", await res.text());
+          return;
+        }
+        const { settings, exists } = await res.json();
+        console.log("🔵 SUPABASE SETTINGS LOAD:", exists ? "Found settings" : "No settings yet", settings);
+
+        // Mark as loaded BEFORE applying settings so Airtable config can check
+        supabaseSettingsLoadedRef.current = { showId: selectedShowId, exists };
+
+        if (settings) {
+          // Apply settings from Supabase (these override Airtable defaults)
+          if (settings.scoring_mode) {
+            const mode = settings.scoring_mode;
+            if (mode === "pub") setScoringMode("pub");
+            else if (mode === "pooled-adaptive") setScoringMode("pooled-adaptive");
+            else if (mode === "pooled") setScoringMode("pooled");
+          }
+          if (typeof settings.pub_points === "number") {
+            setPubPoints(settings.pub_points);
+          }
+          if (typeof settings.pool_per_question === "number") {
+            setPoolPerQuestion(settings.pool_per_question);
+          }
+          if (typeof settings.pool_contribution === "number") {
+            setPoolContribution(settings.pool_contribution);
+          }
+          if (typeof settings.timer_default === "number") {
+            setTimerDuration(settings.timer_default);
+            setTimeLeft(settings.timer_default);
+          }
+
+          // Apply hostInfo and prizes from Supabase to scoringCache
+          setScoringCache((prev) => {
+            const show = prev[selectedShowId] || DEFAULT_SHOW_STATE;
+            const currentHostInfo = show.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
+
+            const updatedHostInfo = { ...currentHostInfo };
+            if (settings.host_name) updatedHostInfo.host = settings.host_name;
+            if (settings.cohost_name) updatedHostInfo.cohost = settings.cohost_name;
+            if (settings.location_name) updatedHostInfo.location = settings.location_name;
+            if (typeof settings.total_games === "number") updatedHostInfo.totalGames = String(settings.total_games);
+            if (settings.start_times) updatedHostInfo.startTimesText = settings.start_times;
+            if (settings.announcements) updatedHostInfo.announcements = settings.announcements;
+
+            return {
+              ...prev,
+              [selectedShowId]: {
+                ...show,
+                hostInfo: updatedHostInfo,
+                prizes: settings.prizes || show.prizes || "",
+              },
+            };
+          });
+        }
+      } catch (err) {
+        console.error("supaLoadShowSettings error:", err);
+      }
+    };
+    loadSettings();
+  }, [selectedShowId]);
+
+  // Reset supabase settings loaded flag when show changes
+  useEffect(() => {
+    supabaseSettingsLoadedRef.current = null;
+  }, [selectedShowId]);
+
+  // Supabase realtime subscription for show_settings (sync between hosts)
+  useEffect(() => {
+    if (!supabase || !selectedShowId) return;
+
+    console.log("🟣 SUPABASE REALTIME: Subscribing to show_settings for show", selectedShowId);
+    const channel = supabase
+      .channel(`show_settings:${selectedShowId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "show_settings",
+          filter: `show_id=eq.${selectedShowId}`,
+        },
+        (payload) => {
+          const { new: settings } = payload;
+          if (!settings) return;
+
+          console.log("🟣 SUPABASE REALTIME SETTINGS UPDATE:", settings);
+
+          // Apply updated settings - scoring settings
+          if (settings.scoring_mode) {
+            const mode = settings.scoring_mode;
+            if (mode === "pub") setScoringMode("pub");
+            else if (mode === "pooled-adaptive") setScoringMode("pooled-adaptive");
+            else if (mode === "pooled") setScoringMode("pooled");
+          }
+          if (typeof settings.pub_points === "number") {
+            setPubPoints(settings.pub_points);
+          }
+          if (typeof settings.pool_per_question === "number") {
+            setPoolPerQuestion(settings.pool_per_question);
+          }
+          if (typeof settings.pool_contribution === "number") {
+            setPoolContribution(settings.pool_contribution);
+          }
+          if (typeof settings.timer_default === "number") {
+            setTimerDuration(settings.timer_default);
+            setTimeLeft(settings.timer_default);
+          }
+
+          // Apply updated hostInfo and prizes to scoringCache
+          setScoringCache((prev) => {
+            const show = prev[selectedShowId] || DEFAULT_SHOW_STATE;
+            const currentHostInfo = show.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
+
+            const updatedHostInfo = { ...currentHostInfo };
+            if (settings.host_name !== undefined) updatedHostInfo.host = settings.host_name || "";
+            if (settings.cohost_name !== undefined) updatedHostInfo.cohost = settings.cohost_name || "";
+            if (settings.location_name !== undefined) updatedHostInfo.location = settings.location_name || "";
+            if (settings.total_games !== undefined) updatedHostInfo.totalGames = settings.total_games ? String(settings.total_games) : "";
+            if (settings.start_times !== undefined) updatedHostInfo.startTimesText = settings.start_times || "";
+            if (settings.announcements !== undefined) updatedHostInfo.announcements = settings.announcements || "";
+
+            return {
+              ...prev,
+              [selectedShowId]: {
+                ...show,
+                hostInfo: updatedHostInfo,
+                ...(settings.prizes !== undefined && { prizes: settings.prizes || "" }),
+              },
+            };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedShowId]);
+
   // Persist scoring settings to localStorage, scoringCache, and Supabase
   useEffect(() => {
     localStorage.setItem("tv_scoringMode", scoringMode);
@@ -204,6 +363,45 @@ export default function App() {
     localStorage.setItem("tv_factionBonus", String(factionBonus));
 
     if (!selectedShowId) return;
+
+    // DON'T save to Supabase until we've loaded settings first (prevents saving uninitialized values)
+    if (supabaseSettingsLoadedRef.current?.showId !== selectedShowId) {
+      console.log("🟡 SUPABASE SETTINGS SAVE SKIPPED: Settings not loaded yet for this show");
+      return;
+    }
+
+    // Debounce Supabase save - wait 500ms after last change before saving
+    if (supabaseSettingsSaveTimeoutRef.current) {
+      clearTimeout(supabaseSettingsSaveTimeoutRef.current);
+    }
+    supabaseSettingsSaveTimeoutRef.current = setTimeout(() => {
+      // Save to Supabase show_settings table (NEW per-field storage)
+      // Only include timer_default if it has a value (not null)
+      const settingsToSave = {
+        scoring_mode: scoringMode,
+        pub_points: pubPoints,
+        pool_per_question: poolPerQuestion,
+        pool_contribution: poolContribution,
+      };
+      if (timerDuration !== null) {
+        settingsToSave.timer_default = timerDuration;
+      }
+      console.log("🟢 SUPABASE SETTINGS SAVE:", settingsToSave);
+      fetch("/.netlify/functions/supaSaveShowSettings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          showId: selectedShowId,
+          settings: settingsToSave,
+          updatedBy: window.localStorage.getItem("hostDevice") || "unknown",
+        }),
+      })
+        .then((res) => {
+          if (res.ok) console.log("🟢 SUPABASE SETTINGS SAVE SUCCESS");
+          else console.error("Failed to save show settings");
+        })
+        .catch((err) => console.error("supaSaveShowSettings error:", err));
+    }, 500);
 
     setScoringCache((prev) => {
       const show = prev[selectedShowId] || DEFAULT_SHOW_STATE;
@@ -222,43 +420,32 @@ export default function App() {
         [selectedShowId]: nextShow,
       };
 
-      // Save to Supabase with round_id="all"
-      saveDebounced("all", () => {
-        fetch("/.netlify/functions/supaSaveScoring", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            showId: selectedShowId,
-            roundId: "all",
-            payload: {
-              teams: nextShow.teams ?? [],
-              entryOrder: nextShow.entryOrder ?? [],
-              prizes: nextShow.prizes ?? "",
-              scoringMode: nextShow.scoringMode ?? "pub",
-              pubPoints: nextShow.pubPoints ?? 10,
-              poolPerQuestion: nextShow.poolPerQuestion ?? 500,
-              poolContribution: nextShow.poolContribution ?? 10,
-              factionBonus: nextShow.factionBonus ?? 10,
-              hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
-              tiebreakers: nextShow.tiebreakers ?? {},
-              grid: nextShow.grid ?? {},
-            },
-          }),
-        }).catch(() => {});
-      });
+      // OLD SYSTEM DISABLED - now using Supabase show_settings table
+      // saveDebounced("all", () => {
+      //   fetch("/.netlify/functions/supaSaveScoring", {
+      //     method: "POST",
+      //     headers: { "Content-Type": "application/json" },
+      //     body: JSON.stringify({
+      //       showId: selectedShowId,
+      //       roundId: "all",
+      //       payload: {
+      //         teams: nextShow.teams ?? [],
+      //         entryOrder: nextShow.entryOrder ?? [],
+      //         prizes: nextShow.prizes ?? "",
+      //         scoringMode: nextShow.scoringMode ?? "pub",
+      //         pubPoints: nextShow.pubPoints ?? 10,
+      //         poolPerQuestion: nextShow.poolPerQuestion ?? 500,
+      //         poolContribution: nextShow.poolContribution ?? 10,
+      //         factionBonus: nextShow.factionBonus ?? 10,
+      //         hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
+      //         tiebreakers: nextShow.tiebreakers ?? {},
+      //         grid: nextShow.grid ?? {},
+      //       },
+      //     }),
+      //   }).catch(() => {});
+      // });
 
-      // Broadcast to other hosts
-      try {
-        window.tvSend?.("scoringSettingsUpdate", {
-          showId: selectedShowId,
-          scoringMode,
-          pubPoints,
-          poolPerQuestion,
-          poolContribution,
-          factionBonus,
-          ts: Date.now(),
-        });
-      } catch {}
+      // OLD BROADCAST REMOVED - now using Supabase show_settings realtime
 
       try {
         localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
@@ -272,6 +459,7 @@ export default function App() {
     pubPoints,
     poolContribution,
     factionBonus,
+    timerDuration,
   ]);
 
   useEffect(() => {
@@ -314,8 +502,10 @@ export default function App() {
   };
   const handleDurationChange = (e) => {
     const newDuration = parseInt(e.target.value);
-    setTimerDuration(newDuration);
-    setTimeLeft(newDuration);
+    if (!Number.isNaN(newDuration) && newDuration > 0) {
+      setTimerDuration(newDuration);
+      setTimeLeft(newDuration);
+    }
   };
 
   useEffect(() => {
@@ -340,441 +530,15 @@ export default function App() {
     ch.on("broadcast", { event: "ping" }, (payload) => {
       console.log("[realtime] ping received:", payload);
     });
-    ch.on("broadcast", { event: "mark" }, (msg) => {
-      const data = msg?.payload ?? msg;
-      window.dispatchEvent(new CustomEvent("tv:mark", { detail: data }));
+    // OLD "mark" and "cellEdit" HANDLERS REMOVED - now using Supabase scoring_cells realtime
+    // OLD "teamBonus", "teamAdd", "teamRename", "teamRemove" HANDLERS REMOVED - now using Supabase show_teams realtime
+    // OLD "reloadScoring" HANDLER REMOVED - not needed with Supabase realtime
+    // OLD "tbEdit" HANDLER REMOVED - now using Supabase scoring_cells realtime (tiebreaker_guess fields)
+    // OLD "prizesUpdate" HANDLER REMOVED - now using Supabase show_settings realtime
+    // OLD "hostInfoUpdate" HANDLER REMOVED - now using Supabase show_settings realtime
+    // OLD "scoringSettingsUpdate" HANDLER REMOVED - now using Supabase show_settings realtime
 
-      // Also update scoringCache so isCorrect persists
-      const {
-        showId,
-        roundId,
-        teamId,
-        showQuestionId,
-        nowCorrect,
-        bonusCount,
-      } = data || {};
-      if (!showId || !roundId || !teamId || !showQuestionId) return;
-
-      setScoringCache((prev) => {
-        const show = prev[showId] || DEFAULT_SHOW_STATE;
-        const byTeam = show.grid?.[teamId] ? { ...show.grid[teamId] } : {};
-        const cell = byTeam[showQuestionId] || {
-          isCorrect: false,
-          bonusCount: 0,
-        };
-
-        byTeam[showQuestionId] = {
-          ...cell,
-          isCorrect: !!nowCorrect,
-          bonusCount: bonusCount ?? 0,
-        };
-
-        const nextShow = {
-          ...show,
-          grid: { ...(show.grid || {}), [teamId]: byTeam },
-        };
-
-        const next = {
-          ...prev,
-          [showId]: nextShow,
-        };
-
-        // Save to Supabase with debouncing
-        saveDebounced(roundId, () => {
-          fetch("/.netlify/functions/supaSaveScoring", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              showId: showId,
-              roundId: "all",
-              payload: {
-                teams: nextShow.teams ?? [],
-                entryOrder: nextShow.entryOrder ?? [],
-                prizes: nextShow.prizes ?? "",
-                scoringMode: nextShow.scoringMode ?? "pub",
-                pubPoints: nextShow.pubPoints ?? 10,
-                poolPerQuestion: nextShow.poolPerQuestion ?? 500,
-                poolContribution: nextShow.poolContribution ?? 10,
-                factionBonus: nextShow.factionBonus ?? 10,
-                hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
-                tiebreakers: nextShow.tiebreakers ?? {},
-                grid: nextShow.grid ?? {},
-              },
-            }),
-          }).catch(() => {});
-        });
-
-        try {
-          localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-    });
-    ch.on("broadcast", { event: "cellEdit" }, (msg) => {
-      const data = msg?.payload ?? msg;
-      window.dispatchEvent(new CustomEvent("tv:cellEdit", { detail: data }));
-
-      // Also update scoringCache so bonus/override persists
-      const { showId, roundId, teamId, showQuestionId, bonusCount } =
-        data || {};
-      if (!showId || !roundId || !teamId || !showQuestionId) return;
-
-      setScoringCache((prev) => {
-        const show = prev[showId] || DEFAULT_SHOW_STATE;
-        const byTeam = show.grid?.[teamId] ? { ...show.grid[teamId] } : {};
-        const cell = byTeam[showQuestionId] || {
-          isCorrect: false,
-          bonusCount: 0,
-        };
-
-        byTeam[showQuestionId] = {
-          ...cell,
-          bonusCount: Number(bonusCount || 0),
-        };
-
-        const nextShow = {
-          ...show,
-          grid: { ...(show.grid || {}), [teamId]: byTeam },
-        };
-
-        const next = {
-          ...prev,
-          [showId]: nextShow,
-        };
-
-        // Save to Supabase with debouncing
-        saveDebounced(roundId, () => {
-          fetch("/.netlify/functions/supaSaveScoring", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              showId: showId,
-              roundId: "all",
-              payload: {
-                teams: nextShow.teams ?? [],
-                entryOrder: nextShow.entryOrder ?? [],
-                prizes: nextShow.prizes ?? "",
-                scoringMode: nextShow.scoringMode ?? "pub",
-                pubPoints: nextShow.pubPoints ?? 10,
-                poolPerQuestion: nextShow.poolPerQuestion ?? 500,
-                poolContribution: nextShow.poolContribution ?? 10,
-                factionBonus: nextShow.factionBonus ?? 10,
-                hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
-                tiebreakers: nextShow.tiebreakers ?? {},
-                grid: nextShow.grid ?? {},
-              },
-            }),
-          }).catch(() => {});
-        });
-
-        try {
-          localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-    });
-    ch.on("broadcast", { event: "teamBonus" }, (msg) => {
-      const data = msg?.payload ?? msg;
-      window.dispatchEvent(new CustomEvent("tv:teamBonus", { detail: data }));
-
-      const { showId, teamId, showBonus } = data || {};
-      if (!showId || !teamId) return;
-      if (showId !== currentShowIdRef.current) return;
-
-      setScoringCache((prev) => {
-        const show = prev[showId] || DEFAULT_SHOW_STATE;
-
-        const nextTeams = (show.teams || []).map((t) =>
-          t.showTeamId === teamId
-            ? { ...t, showBonus: Number(showBonus || 0) }
-            : t,
-        );
-
-        const next = {
-          ...prev,
-          [showId]: {
-            ...show,
-            teams: nextTeams,
-          },
-        };
-
-        try {
-          localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-    });
-    // RELOAD SCORING (force other hosts to reload from Supabase)
-    ch.on("broadcast", { event: "reloadScoring" }, (msg) => {
-      const { showId } = msg?.payload ?? {};
-      console.log("[Reload Scoring] Received reload signal for show:", showId);
-      if (showId === currentShowIdRef.current) {
-        console.log("[Reload Scoring] Fetching fresh state from Supabase...");
-        fetch(
-          `/.netlify/functions/supaLoadScoring?showId=${showId}&roundId=all`,
-        )
-          .then((r) => r.json())
-          .then((row) => {
-            if (row?.payload) {
-              console.log("[Reload Scoring] State updated from Supabase");
-              setScoringCache((prev) => ({ ...prev, [showId]: row.payload }));
-            }
-          });
-      }
-    });
-    // TEAM ADDED
-    ch.on("broadcast", { event: "teamAdd" }, (msg) => {
-      const data = msg?.payload ?? msg;
-      window.dispatchEvent(new CustomEvent("tv:teamAdd", { detail: data }));
-
-      const { showId, teamId, teamName } = data || {};
-      if (!showId || !teamId || !teamName) return;
-      if (showId !== currentShowIdRef.current) return;
-
-      setScoringCache((prev) => {
-        const show = prev[showId] || DEFAULT_SHOW_STATE;
-
-        // skip if already present
-        if (show.teams?.some((t) => t.showTeamId === teamId)) return prev;
-
-        const nextTeams = [
-          ...(show.teams || []),
-          {
-            showTeamId: teamId,
-            teamName,
-            showBonus: 0,
-          },
-        ];
-        const nextEntry = show.entryOrder?.includes(teamId)
-          ? show.entryOrder
-          : [...(show.entryOrder || []), teamId];
-
-        const next = {
-          ...prev,
-          [showId]: {
-            ...show,
-            teams: nextTeams,
-            entryOrder: nextEntry,
-          },
-        };
-
-        try {
-          localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-    });
-
-    ch.on("broadcast", { event: "teamRename" }, (msg) => {
-      const data = msg?.payload ?? msg;
-      window.dispatchEvent(new CustomEvent("tv:teamRename", { detail: data }));
-
-      const { showId, teamId, teamName } = data || {};
-      if (!showId || !teamId || !teamName) return;
-      if (showId !== currentShowIdRef.current) return;
-
-      setScoringCache((prev) => {
-        const show = prev[showId] || DEFAULT_SHOW_STATE;
-
-        const nextTeams = (show.teams || []).map((t) =>
-          t.showTeamId === teamId ? { ...t, teamName } : t,
-        );
-
-        const next = {
-          ...prev,
-          [showId]: {
-            ...show,
-            teams: nextTeams,
-          },
-        };
-
-        try {
-          localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-    });
-
-    ch.on("broadcast", { event: "teamRemove" }, (msg) => {
-      const data = msg?.payload ?? msg;
-      window.dispatchEvent(new CustomEvent("tv:teamRemove", { detail: data }));
-
-      const { showId, teamId } = data || {};
-      if (!showId || !teamId) return;
-      if (showId !== currentShowIdRef.current) return;
-
-      setScoringCache((prev) => {
-        const show = prev[showId] || DEFAULT_SHOW_STATE;
-
-        const nextTeams = (show.teams || []).filter(
-          (t) => t.showTeamId !== teamId,
-        );
-        const nextEntry = (show.entryOrder || []).filter((id) => id !== teamId);
-
-        const next = {
-          ...prev,
-          [showId]: {
-            ...show,
-            teams: nextTeams,
-            entryOrder: nextEntry,
-          },
-        };
-
-        try {
-          localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-    });
-    // TIEBREAKER EDIT
-    ch.on("broadcast", { event: "tbEdit" }, (msg) => {
-      const data = msg?.payload ?? msg;
-      console.log("[App.js] Received tbEdit broadcast:", data);
-
-      // 1) Keep the DOM event for ScoringMode if it's mounted
-      window.dispatchEvent(new CustomEvent("tv:tbEdit", { detail: data }));
-
-      // 2) ALSO patch scoringCache so late-joining hosts see the latest guess
-      const {
-        showId, // string
-        roundId, // string
-        teamId, // showTeamId
-        showQuestionId, // tb question id
-        tiebreakerGuessRaw,
-        tiebreakerGuess,
-      } = data || {};
-
-      if (!showId || !roundId || !teamId || !showQuestionId) return;
-      if (showId !== currentShowIdRef.current) return;
-
-      setScoringCache((prev) => {
-        const show = prev[showId] || DEFAULT_SHOW_STATE;
-
-        const byTeam = show.grid?.[teamId] ? { ...show.grid[teamId] } : {};
-        const cell = byTeam[showQuestionId] || {
-          isCorrect: false,
-          bonusCount: 0,
-        };
-
-        byTeam[showQuestionId] = {
-          ...cell,
-          tiebreakerGuessRaw: tiebreakerGuessRaw ?? "",
-          tiebreakerGuess:
-            tiebreakerGuess === null || tiebreakerGuess === undefined
-              ? null
-              : Number(tiebreakerGuess),
-        };
-
-        const nextShow = {
-          ...show,
-          grid: { ...(show.grid || {}), [teamId]: byTeam },
-        };
-
-        const next = {
-          ...prev,
-          [showId]: nextShow,
-        };
-
-        // Save to Supabase with debouncing
-        saveDebounced(roundId, () => {
-          fetch("/.netlify/functions/supaSaveScoring", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              showId: showId,
-              roundId: "all",
-              payload: {
-                teams: nextShow.teams ?? [],
-                entryOrder: nextShow.entryOrder ?? [],
-                prizes: nextShow.prizes ?? "",
-                scoringMode: nextShow.scoringMode ?? "pub",
-                pubPoints: nextShow.pubPoints ?? 10,
-                poolPerQuestion: nextShow.poolPerQuestion ?? 500,
-                poolContribution: nextShow.poolContribution ?? 10,
-                factionBonus: nextShow.factionBonus ?? 10,
-                hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
-                tiebreakers: nextShow.tiebreakers ?? {},
-                grid: nextShow.grid ?? {},
-              },
-            }),
-          }).catch(() => {});
-        });
-
-        try {
-          localStorage.setItem("trivia.scoring.backup", JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-    });
-
-    ch.on("broadcast", { event: "prizesUpdate" }, (msg) => {
-      const data = msg?.payload ?? msg;
-      const showId = data?.showId;
-      const val = typeof data?.prizes === "string" ? data.prizes : "";
-      if (!showId) return;
-      if (showId !== currentShowIdRef.current) return;
-
-      setScoringCache((prev) => {
-        const show = prev[showId] || DEFAULT_SHOW_STATE;
-        return {
-          ...prev,
-          [showId]: { ...show, prizes: val },
-        };
-      });
-    });
-
-    ch.on("broadcast", { event: "hostInfoUpdate" }, (msg) => {
-      const data = msg?.payload ?? msg;
-      const showId = data?.showId;
-      const hostInfo = data?.hostInfo;
-      if (!showId || !hostInfo) return;
-      if (showId !== currentShowIdRef.current) return;
-
-      setScoringCache((prev) => {
-        const show = prev[showId] || DEFAULT_SHOW_STATE;
-        return {
-          ...prev,
-          [showId]: { ...show, hostInfo },
-        };
-      });
-    });
-
-    ch.on("broadcast", { event: "scoringSettingsUpdate" }, (msg) => {
-      const data = msg?.payload ?? msg;
-      const {
-        showId,
-        scoringMode: mode,
-        pubPoints: pub,
-        poolPerQuestion: pool,
-        poolContribution: contrib,
-      } = data || {};
-      if (!showId) return;
-      if (showId !== currentShowIdRef.current) return;
-
-      // Update local state
-      if (mode !== undefined) setScoringMode(mode);
-      if (pub !== undefined) setPubPoints(Number(pub));
-      if (pool !== undefined) setPoolPerQuestion(Number(pool));
-      if (contrib !== undefined) setPoolContribution(Number(contrib));
-
-      // Update cache
-      setScoringCache((prev) => {
-        const show = prev[showId] || DEFAULT_SHOW_STATE;
-        const nextShow = {
-          ...show,
-          ...(mode !== undefined && { scoringMode: mode }),
-          ...(pub !== undefined && { pubPoints: Number(pub) }),
-          ...(pool !== undefined && { poolPerQuestion: Number(pool) }),
-          ...(contrib !== undefined && { poolContribution: Number(contrib) }),
-        };
-        return {
-          ...prev,
-          [showId]: nextShow,
-        };
-      });
-    });
-
-    // QUESTION EDIT
+    // QUESTION EDIT (keeping this - not yet in Supabase)
     ch.on("broadcast", { event: "questionEdit" }, (msg) => {
       const data = msg?.payload ?? msg;
       const {
@@ -851,14 +615,8 @@ export default function App() {
     });
 
     // expose helpers (safe via tvSend queue)
-    window.sendMark = (payload) => window.tvSend("mark", payload);
-    // App.js (right after window.tvSend is defined)
-    window.sendTBEdit = (payload) => window.tvSend("tbEdit", payload);
-    window.sendCellEdit = (payload) => window.tvSend("cellEdit", payload);
-    window.sendTeamBonus = (payload) => window.tvSend("teamBonus", payload);
-    window.sendTeamAdd = (payload) => window.tvSend("teamAdd", payload);
-    window.sendTeamRename = (payload) => window.tvSend("teamRename", payload);
-    window.sendTeamRemove = (payload) => window.tvSend("teamRemove", payload);
+    // NOTE: sendMark, sendCellEdit, sendTBEdit, sendTeamBonus/Add/Rename/Remove REMOVED - now using Supabase realtime
+    // Keep only sendQuestionEdit and sendTiebreakerAdded until they're migrated to Supabase
     window.sendQuestionEdit = (payload) =>
       window.tvSend("questionEdit", payload);
     window.sendTiebreakerAdded = (payload) =>
@@ -882,15 +640,9 @@ export default function App() {
     // single cleanup
     return () => {
       try {
-        delete window.sendMark;
-        delete window.sendCellEdit;
-        delete window.sendTeamBonus;
-        delete window.sendTeamAdd;
-        delete window.sendTeamRename;
-        delete window.sendTeamRemove;
         delete window.tvSend;
-        delete window.sendTBEdit;
         delete window.sendQuestionEdit;
+        delete window.sendTiebreakerAdded;
       } catch {}
       window._tvReady = false;
       window._tvQueue = [];
@@ -1105,12 +857,20 @@ export default function App() {
         setShowBundle(bundle);
 
         // Pre-populate settings from Airtable config (if available)
-        if (bundle?.config) {
+        // BUT skip if Supabase settings already exist (Supabase takes precedence)
+        const supabaseHasSettings = supabaseSettingsLoadedRef.current?.showId === selectedShowId
+          && supabaseSettingsLoadedRef.current?.exists;
+
+        if (supabaseHasSettings) {
+          console.log("[App] Skipping Airtable config - Supabase settings take precedence");
+        }
+
+        if (bundle?.config && !supabaseHasSettings) {
           const config = bundle.config;
 
           // DEBUG: Log the entire config to see what we're getting
           console.log(
-            "[App] Bundle config received:",
+            "[App] Bundle config received (applying because no Supabase settings):",
             JSON.stringify(config, null, 2),
           );
 
@@ -1312,25 +1072,44 @@ export default function App() {
         }).catch(() => {});
       });
 
-      // Realtime broadcast so other hosts update instantly
-      try {
-        // Broadcast prizes if they changed
-        if (patch.prizes !== undefined) {
-          window.tvSend?.("prizesUpdate", {
-            showId: selectedShowId,
-            prizes: nextShow.prizes ?? "",
-            ts: Date.now(),
-          });
+      // Save hostInfo and prizes to Supabase show_settings table (NEW per-field storage)
+      // Debounced to avoid saving on every keystroke
+      if (patch.hostInfo !== undefined || patch.prizes !== undefined) {
+        const hi = nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo;
+        const prizesVal = nextShow.prizes;
+        const showIdForSave = selectedShowId;
+
+        if (supabaseHostInfoSaveTimeoutRef.current) {
+          clearTimeout(supabaseHostInfoSaveTimeoutRef.current);
         }
-        // Broadcast hostInfo if it changed
-        if (patch.hostInfo !== undefined) {
-          window.tvSend?.("hostInfoUpdate", {
-            showId: selectedShowId,
-            hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
-            ts: Date.now(),
-          });
-        }
-      } catch {}
+        supabaseHostInfoSaveTimeoutRef.current = setTimeout(() => {
+          console.log("🟢 SUPABASE SETTINGS SAVE (hostInfo/prizes):", { hostInfo: hi, prizes: prizesVal });
+          fetch("/.netlify/functions/supaSaveShowSettings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              showId: showIdForSave,
+              settings: {
+                host_name: hi.host || null,
+                cohost_name: hi.cohost || null,
+                location_name: hi.location || null,
+                total_games: hi.totalGames ? parseInt(hi.totalGames, 10) || null : null,
+                start_times: hi.startTimesText || null,
+                announcements: hi.announcements || null,
+                prizes: prizesVal || null,
+              },
+              updatedBy: window.localStorage.getItem("hostDevice") || "unknown",
+            }),
+          })
+            .then((res) => {
+              if (res.ok) console.log("🟢 SUPABASE SETTINGS SAVE SUCCESS (hostInfo/prizes)");
+              else console.error("Failed to save hostInfo/prizes to show_settings");
+            })
+            .catch((err) => console.error("supaSaveShowSettings (hostInfo/prizes) error:", err));
+        }, 500);
+      }
+
+      // OLD BROADCASTS REMOVED - now using Supabase show_settings realtime
 
       // optional local backup
       try {
@@ -2515,7 +2294,7 @@ export default function App() {
                     marginBottom: "0.5rem",
                   }}
                 >
-                  {timeLeft}s
+                  {timeLeft !== null ? `${timeLeft}s` : "--"}
                 </div>
 
                 <div
@@ -2539,8 +2318,9 @@ export default function App() {
 
                 <input
                   type="number"
-                  value={timerDuration}
+                  value={timerDuration ?? ""}
                   onChange={handleDurationChange}
+                  placeholder="--"
                   style={{
                     width: "80px",
                     padding: "0.25rem",

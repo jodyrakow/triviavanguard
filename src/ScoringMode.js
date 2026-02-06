@@ -24,6 +24,7 @@ import { supabase } from "./App.js";
 // Save a single cell to Supabase (debounced calls happen in the component)
 const saveCellToSupabase = async (showId, showTeamId, showQuestionId, cell) => {
   try {
+    console.log("🟢 SUPABASE SAVE:", { showTeamId, showQuestionId, cell });
     const res = await fetch("/.netlify/functions/supaSaveScoringCell", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -37,6 +38,8 @@ const saveCellToSupabase = async (showId, showTeamId, showQuestionId, cell) => {
     });
     if (!res.ok) {
       console.error("Failed to save cell:", await res.text());
+    } else {
+      console.log("🟢 SUPABASE SAVE SUCCESS");
     }
   } catch (err) {
     console.error("saveCellToSupabase error:", err);
@@ -46,6 +49,7 @@ const saveCellToSupabase = async (showId, showTeamId, showQuestionId, cell) => {
 // Load all scoring cells for a show from Supabase
 const loadGridFromSupabase = async (showId) => {
   try {
+    console.log("🔵 SUPABASE LOAD: Fetching grid for show", showId);
     const res = await fetch(
       `/.netlify/functions/supaLoadScoringCells?showId=${encodeURIComponent(showId)}`
     );
@@ -53,7 +57,8 @@ const loadGridFromSupabase = async (showId) => {
       console.error("Failed to load grid:", await res.text());
       return null;
     }
-    const { grid } = await res.json();
+    const { grid, cellCount } = await res.json();
+    console.log("🔵 SUPABASE LOAD SUCCESS:", cellCount, "cells loaded");
     return grid || {};
   } catch (err) {
     console.error("loadGridFromSupabase error:", err);
@@ -66,6 +71,72 @@ const makeLocalId = (prefix = "local") =>
   `${prefix}:${Date.now().toString(36)}:${Math.random()
     .toString(36)
     .slice(2, 7)}`;
+
+// Save a ShowTeam to Supabase (add, rename, bonus, league toggle)
+const saveShowTeamToSupabase = async (showId, showTeam) => {
+  try {
+    console.log("🟢 SUPABASE SAVE SHOWTEAM:", { showId, showTeam });
+    const res = await fetch("/.netlify/functions/supaSaveShowTeam", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        showId,
+        showTeam,
+        updatedBy: window.localStorage.getItem("hostDevice") || "unknown",
+      }),
+    });
+    if (!res.ok) {
+      console.error("Failed to save ShowTeam:", await res.text());
+    } else {
+      console.log("🟢 SUPABASE SAVE SHOWTEAM SUCCESS");
+    }
+  } catch (err) {
+    console.error("saveShowTeamToSupabase error:", err);
+  }
+};
+
+// Remove a ShowTeam from Supabase (soft delete)
+const removeShowTeamFromSupabase = async (showId, showTeamId) => {
+  try {
+    console.log("🟢 SUPABASE REMOVE SHOWTEAM:", { showId, showTeamId });
+    const res = await fetch("/.netlify/functions/supaRemoveShowTeam", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        showId,
+        showTeamId,
+        updatedBy: window.localStorage.getItem("hostDevice") || "unknown",
+      }),
+    });
+    if (!res.ok) {
+      console.error("Failed to remove ShowTeam:", await res.text());
+    } else {
+      console.log("🟢 SUPABASE REMOVE SHOWTEAM SUCCESS");
+    }
+  } catch (err) {
+    console.error("removeShowTeamFromSupabase error:", err);
+  }
+};
+
+// Load all ShowTeams for a show from Supabase
+const loadShowTeamsFromSupabase = async (showId) => {
+  try {
+    console.log("🔵 SUPABASE LOAD SHOWTEAMS: Fetching for show", showId);
+    const res = await fetch(
+      `/.netlify/functions/supaLoadShowTeams?showId=${encodeURIComponent(showId)}`
+    );
+    if (!res.ok) {
+      console.error("Failed to load ShowTeams:", await res.text());
+      return null;
+    }
+    const { teams, count } = await res.json();
+    console.log("🔵 SUPABASE LOAD SHOWTEAMS SUCCESS:", count, "teams loaded");
+    return teams || [];
+  } catch (err) {
+    console.error("loadShowTeamsFromSupabase error:", err);
+    return null;
+  }
+};
 
 // Feature flag for faction battle (matches SidebarMenu.js)
 const ENABLE_FACTION_BATTLE = false;
@@ -180,20 +251,6 @@ export default function ScoringMode({
   const [entryOrder, setEntryOrder] = useState([]); // [showTeamId]
   const seededOnceRef = useRef(false);
 
-  // Helper to update a cell locally AND save to Supabase
-  const updateCell = useCallback((showTeamId, showQuestionId, updates) => {
-    setGrid((prev) => {
-      const byTeam = prev[showTeamId] ? { ...prev[showTeamId] } : {};
-      const cell = byTeam[showQuestionId] || { isCorrect: null, bonusCount: 0 };
-      const newCell = { ...cell, ...updates };
-      byTeam[showQuestionId] = newCell;
-
-      // Save to Supabase (fire and forget)
-      saveCellToSupabase(selectedShowId, showTeamId, showQuestionId, newCell);
-
-      return { ...prev, [showTeamId]: byTeam };
-    });
-  }, [selectedShowId]);
   // Search results state (used by Add Team modal)
   const [searchResults, setSearchResults] = useState([]);
   // 🔁 MOVED UP: Add Team modal state so it's defined before useEffect below
@@ -213,131 +270,7 @@ export default function ScoringMode({
     }
   };
 
-  useEffect(() => {
-    const onMark = (e) => {
-      const {
-        showId,
-        roundId,
-        teamId,
-        showQuestionId,
-        nowCorrect,
-        bonusCount,
-      } = e.detail || {};
-
-      // Scope to active show/round
-      if (showId !== selectedShowId) return;
-      if (roundId && roundId !== selectedRoundId) return;
-
-      // Basic shape
-      if (!teamId || !showQuestionId) return;
-
-      // Ignore unknowns (avoid creating stray cells)
-      if (!teams.some((t) => t.showTeamId === teamId)) return;
-      if (!questions.some((q) => q.showQuestionId === showQuestionId)) return;
-
-      setGrid((prev) => {
-        const byTeam = prev[teamId] ? { ...prev[teamId] } : {};
-        const cell = byTeam[showQuestionId] || {
-          isCorrect: false,
-          bonusCount: 0,
-        };
-        byTeam[showQuestionId] = {
-          ...cell,
-          isCorrect: !!nowCorrect,
-          bonusCount: bonusCount ?? 0,
-        };
-        return { ...prev, [teamId]: byTeam };
-      });
-    };
-
-    window.addEventListener("tv:mark", onMark);
-    return () => window.removeEventListener("tv:mark", onMark);
-  }, [selectedShowId, selectedRoundId, teams, questions]); // ✅ keep closure fresh
-
-  useEffect(() => {
-    const onTeamBonus = (e) => {
-      const { teamId, showBonus, showId } = e.detail || {};
-      if (!teamId) return;
-      if (showId !== selectedShowId) return;
-      setTeams((prev) =>
-        prev.map((t) =>
-          t.showTeamId === teamId
-            ? { ...t, showBonus: Number(showBonus || 0) }
-            : t
-        )
-      );
-    };
-    window.addEventListener("tv:teamBonus", onTeamBonus);
-    return () => window.removeEventListener("tv:teamBonus", onTeamBonus);
-    // We intentionally attach once; the handler itself handles latest state.
-    /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, []);
-
-  useEffect(() => {
-    const onCellEdit = (e) => {
-      const { showId, roundId, teamId, showQuestionId, bonusCount } =
-        e.detail || {};
-      if (showId !== selectedShowId || roundId !== selectedRoundId) return;
-      if (!teamId || !showQuestionId) return;
-
-      setGrid((prev) => {
-        const byTeam = prev[teamId] ? { ...prev[teamId] } : {};
-        const cell = byTeam[showQuestionId] || {
-          isCorrect: false,
-          bonusCount,
-        };
-        byTeam[showQuestionId] = {
-          ...cell,
-          bonusCount: Number(bonusCount || 0),
-        };
-        return { ...prev, [teamId]: byTeam };
-      });
-    };
-
-    window.addEventListener("tv:cellEdit", onCellEdit);
-    return () => window.removeEventListener("tv:cellEdit", onCellEdit);
-  }, [selectedShowId, selectedRoundId]);
-
-  useEffect(() => {
-    const onTBEdit = (e) => {
-      const {
-        showId,
-        roundId,
-        teamId,
-        showQuestionId,
-        tiebreakerGuessRaw,
-        tiebreakerGuess,
-      } = e.detail || {};
-      console.log("[ScoringMode] Received tv:tbEdit:", e.detail);
-      if (!teamId || !showQuestionId) return;
-
-      // ✅ Guard against cross-show/round chatter
-      if (showId !== selectedShowId || roundId !== selectedRoundId) {
-        console.log("[ScoringMode] Ignoring tbEdit - wrong show/round:", { showId, selectedShowId, roundId, selectedRoundId });
-        return;
-      }
-
-      setGrid((prev) => {
-        const byTeam = prev[teamId] ? { ...prev[teamId] } : {};
-        const cell = byTeam[showQuestionId] || {
-          isCorrect: false,
-          bonusCount: 0,
-        };
-        byTeam[showQuestionId] = {
-          ...cell,
-          tiebreakerGuessRaw: tiebreakerGuessRaw ?? "",
-          tiebreakerGuess:
-            tiebreakerGuess === null || tiebreakerGuess === undefined
-              ? null
-              : Number(tiebreakerGuess),
-        };
-        return { ...prev, [teamId]: byTeam };
-      });
-    };
-
-    window.addEventListener("tv:tbEdit", onTBEdit);
-    return () => window.removeEventListener("tv:tbEdit", onTBEdit);
-  }, [selectedShowId, selectedRoundId]);
+  // OLD tv:mark, tv:cellEdit, tv:tbEdit, tv:teamBonus listeners REMOVED - now using Supabase realtime
 
   // Remove a team and all their cells
   const removeTeam = (showTeamId) => {
@@ -371,14 +304,8 @@ export default function ScoringMode({
       return { teamIdx: newTeamIdx, qIdx: f.qIdx };
     });
 
-    // inside removeTeam(showTeamId) AFTER updating teams/grid/entryOrder/focus
-    try {
-      window.sendTeamRemove?.({
-        showId: selectedShowId,
-        teamId: showTeamId,
-        ts: Date.now(),
-      });
-    } catch {}
+    // Save removal to Supabase (soft delete)
+    removeShowTeamFromSupabase(selectedShowId, showTeamId);
   };
 
   useEffect(() => {
@@ -476,6 +403,7 @@ export default function ScoringMode({
   useEffect(() => {
     if (!supabase || !selectedShowId) return;
 
+    console.log("🟣 SUPABASE REALTIME: Subscribing to scoring_cells for show", selectedShowId);
     const channel = supabase
       .channel(`scoring_cells:${selectedShowId}`)
       .on(
@@ -490,6 +418,11 @@ export default function ScoringMode({
           const { new: newRow } = payload;
           if (!newRow) return;
 
+          console.log("🟣 SUPABASE REALTIME UPDATE:", {
+            team: newRow.show_team_id,
+            question: newRow.show_question_id,
+            isCorrect: newRow.is_correct
+          });
           const { show_team_id, show_question_id, is_correct, bonus_count, tiebreaker_guess, tiebreaker_guess_raw } = newRow;
 
           setGrid((prev) => {
@@ -511,16 +444,94 @@ export default function ScoringMode({
     };
   }, [selectedShowId]);
 
-  // ---------- Persist local changes up to App ----------
-  const lastSentRef = useRef("");
+  // ---------- Supabase realtime subscription for show_teams ----------
   useEffect(() => {
-    const payload = { teams, grid, entryOrder };
-    const key = JSON.stringify(payload);
-    if (key !== lastSentRef.current) {
-      lastSentRef.current = key;
-      onChangeState(payload);
-    }
-  }, [teams, grid, entryOrder, onChangeState]);
+    if (!supabase || !selectedShowId) return;
+
+    console.log("🟣 SUPABASE REALTIME: Subscribing to show_teams for show", selectedShowId);
+    const channel = supabase
+      .channel(`show_teams:${selectedShowId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "show_teams",
+          filter: `show_id=eq.${selectedShowId}`,
+        },
+        (payload) => {
+          const { new: newRow, eventType } = payload;
+          if (!newRow) return;
+
+          console.log("🟣 SUPABASE REALTIME SHOWTEAM UPDATE:", {
+            event: eventType,
+            showTeamId: newRow.show_team_id,
+            teamName: newRow.team_name,
+            isRemoved: newRow.is_removed,
+          });
+
+          const showTeamId = newRow.show_team_id;
+
+          // Handle removal (soft delete)
+          if (newRow.is_removed) {
+            setTeams((prev) => prev.filter((t) => t.showTeamId !== showTeamId));
+            setGrid((prev) => {
+              const next = { ...prev };
+              delete next[showTeamId];
+              return next;
+            });
+            setEntryOrder((prev) => prev.filter((id) => id !== showTeamId));
+            return;
+          }
+
+          // Handle add or update
+          const updatedTeam = {
+            showTeamId: newRow.show_team_id,
+            teamId: newRow.team_id,
+            teamName: newRow.team_name,
+            showBonus: newRow.show_bonus || 0,
+            isLeague: newRow.is_league || false,
+          };
+
+          setTeams((prev) => {
+            const existingIdx = prev.findIndex((t) => t.showTeamId === showTeamId);
+            if (existingIdx >= 0) {
+              // Update existing team
+              const updated = [...prev];
+              updated[existingIdx] = { ...updated[existingIdx], ...updatedTeam };
+              return updated;
+            } else {
+              // Add new team
+              return [...prev, updatedTeam];
+            }
+          });
+
+          // Add to entry order if new
+          setEntryOrder((prev) => {
+            if (!prev.includes(showTeamId)) {
+              return [...prev, showTeamId];
+            }
+            return prev;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedShowId]);
+
+  // ---------- OLD SYSTEM DISABLED - now using Supabase per-cell storage ----------
+  // const lastSentRef = useRef("");
+  // useEffect(() => {
+  //   const payload = { teams, grid, entryOrder };
+  //   const key = JSON.stringify(payload);
+  //   if (key !== lastSentRef.current) {
+  //     lastSentRef.current = key;
+  //     onChangeState(payload);
+  //   }
+  // }, [teams, grid, entryOrder, onChangeState]);
 
   // ---------------- View wiring (sorting, team mode, nav) ----------------
   const [sortMode, setSortMode] = useState("entry"); // "entry" | "alpha"
@@ -559,97 +570,45 @@ export default function ScoringMode({
     setTeamIdxSolo((i) => (i - 1 + visibleTeams.length) % visibleTeams.length);
   }, [visibleTeams.length]);
 
-  useEffect(() => {
-    const onTeamAdd = (e) => {
-      const { showId, teamId, teamName } = e.detail || {};
-      if (!teamId || !teamName) return;
-      if (showId !== selectedShowId) return; // ✅ ignore other shows
-
-      setTeams((prev) => {
-        // skip if already present
-        if (prev.some((t) => t.showTeamId === teamId)) return prev;
-        return [...prev, { showTeamId: teamId, teamName, showBonus: 0 }];
-      });
-
-      setEntryOrder((prev) =>
-        prev.includes(teamId) ? prev : [...prev, teamId]
-      );
-    };
-    window.addEventListener("tv:teamAdd", onTeamAdd);
-    return () => window.removeEventListener("tv:teamAdd", onTeamAdd);
-  }, [selectedShowId]);
-
-  useEffect(() => {
-    const onTeamRemove = (e) => {
-      const { showId, teamId } = e.detail || {};
-      if (!teamId) return;
-      if (showId !== selectedShowId) return; // ✅ ignore other shows
-
-      // remove from local state
-      setTeams((prev) => prev.filter((t) => t.showTeamId !== teamId));
-      setGrid((prev) => {
-        const next = { ...prev };
-        delete next[teamId];
-        return next;
-      });
-      setEntryOrder((prev) => prev.filter((id) => id !== teamId));
-
-      // fix focus if we deleted the focused column
-      setFocus((f) => {
-        const newTeamCount = Math.max(0, renderTeams.length - 1);
-        const clampedIdx = Math.max(0, Math.min(f.teamIdx, newTeamCount - 1));
-        return { teamIdx: clampedIdx, qIdx: f.qIdx };
-      });
-    };
-
-    window.addEventListener("tv:teamRemove", onTeamRemove);
-    return () => window.removeEventListener("tv:teamRemove", onTeamRemove);
-    // it's fine to leave deps empty; we only use setters
-  }, [renderTeams.length, selectedShowId]);
-
-  useEffect(() => {
-    const onTeamRename = (e) => {
-      const { showId, teamId, teamName } = e.detail || {};
-      if (!teamId || !teamName) return;
-      if (showId !== selectedShowId) return; // ✅ ignore other shows
-      setTeams((prev) =>
-        prev.map((t) => (t.showTeamId === teamId ? { ...t, teamName } : t))
-      );
-    };
-    window.addEventListener("tv:teamRename", onTeamRename);
-    return () => window.removeEventListener("tv:teamRename", onTeamRename);
-  }, [selectedShowId]);
+  // OLD tv:teamAdd, tv:teamRemove, tv:teamRename listeners REMOVED - now using Supabase show_teams realtime
 
   const renameTeam = (showTeamId, nextName) => {
     const name = String(nextName ?? "").trim();
     if (!name) return;
+
+    let updatedTeam = null;
     setTeams((prev) =>
-      prev.map((t) =>
-        t.showTeamId === showTeamId ? { ...t, teamName: name } : t
-      )
+      prev.map((t) => {
+        if (t.showTeamId === showTeamId) {
+          updatedTeam = { ...t, teamName: name };
+          return updatedTeam;
+        }
+        return t;
+      })
     );
-    try {
-      window.sendTeamRename?.({
-        showId: selectedShowId,
-        teamId: showTeamId,
-        teamName: name,
-        ts: Date.now(),
-      });
-    } catch {}
+
+    // Save to Supabase
+    if (updatedTeam) {
+      saveShowTeamToSupabase(selectedShowId, updatedTeam);
+    }
   };
 
   const toggleLeague = (showTeamId, isLeague) => {
+    let updatedTeam = null;
     setTeams((prev) =>
-      prev.map((t) => (t.showTeamId === showTeamId ? { ...t, isLeague } : t))
+      prev.map((t) => {
+        if (t.showTeamId === showTeamId) {
+          updatedTeam = { ...t, isLeague };
+          return updatedTeam;
+        }
+        return t;
+      })
     );
-    try {
-      window.sendLeagueToggle?.({
-        showId: selectedShowId,
-        teamId: showTeamId,
-        isLeague,
-        ts: Date.now(),
-      });
-    } catch {}
+
+    // Save to Supabase
+    if (updatedTeam) {
+      saveShowTeamToSupabase(selectedShowId, updatedTeam);
+    }
   };
 
   const setFactionPledge = (showTeamId, factionPledge) => {
@@ -735,20 +694,7 @@ export default function ScoringMode({
           maxBonuses: q.maxBonuses,
         });
 
-        // Broadcast inside the same scope so it sees the correct values:
-        try {
-          window.sendMark?.({
-            showId: selectedShowId,
-            roundId: selectedRoundId,
-            teamId: showTeamId,
-            teamName: t.teamName,
-            showQuestionId: showQuestionId,
-            questionOrder: q.order,
-            nowCorrect: nextOn,
-            bonusCount: nextBonusCount,
-            ts: Date.now(),
-          });
-        } catch {}
+        // OLD BROADCAST REMOVED - now using Supabase scoring_cells realtime
 
         return { ...prev, [showTeamId]: byTeam };
       });
@@ -1010,22 +956,21 @@ export default function ScoringMode({
   const updateShowBonus = (showTeamId, val) => {
     const v = Number(val) || 0;
 
-    // local update
+    let updatedTeam = null;
     setTeams((prev) =>
-      prev.map((t) =>
-        t.showTeamId === showTeamId ? { ...t, showBonus: v } : t
-      )
+      prev.map((t) => {
+        if (t.showTeamId === showTeamId) {
+          updatedTeam = { ...t, showBonus: v };
+          return updatedTeam;
+        }
+        return t;
+      })
     );
 
-    // broadcast to other browsers
-    try {
-      window.sendTeamBonus?.({
-        showId: selectedShowId,
-        teamId: showTeamId,
-        showBonus: v,
-        ts: Date.now(),
-      });
-    } catch {}
+    // Save to Supabase
+    if (updatedTeam) {
+      saveShowTeamToSupabase(selectedShowId, updatedTeam);
+    }
   };
 
   const addTeamLocal = async (teamName, airtableTeamId = null) => {
@@ -1060,7 +1005,9 @@ export default function ScoringMode({
         showBonus: 0,
       };
 
+      let entryOrderIdx = 0;
       setTeams((prev) => {
+        entryOrderIdx = prev.length; // Will be the index in the new array
         const updated = [...prev, newTeam];
         // Set focus to the new team (will be last in visible teams)
         setTimeout(() => {
@@ -1071,15 +1018,11 @@ export default function ScoringMode({
       });
       setEntryOrder((prev) => [...prev, newTeam.showTeamId]);
 
-      // Notify other hosts via broadcast
-      try {
-        window.sendTeamAdd?.({
-          showId: selectedShowId,
-          teamId: newTeam.showTeamId,
-          teamName: newTeam.teamName,
-          ts: Date.now(),
-        });
-      } catch {}
+      // Save to Supabase
+      saveShowTeamToSupabase(selectedShowId, {
+        ...newTeam,
+        entryOrder: entryOrderIdx,
+      });
 
       // Close modal and reset input
       setAddingTeam(false);
@@ -1128,20 +1071,7 @@ export default function ScoringMode({
       return { ...prev, [showTeamId]: byTeam };
     });
 
-    // ✅ NEW: Broadcast the raw value in real-time so other hosts see it as the user types
-    try {
-      const tbPayload = {
-        showId: selectedShowId,
-        roundId: selectedRoundId,
-        teamId: showTeamId,
-        showQuestionId: (tiebreaker.showQuestionId || tiebreaker.id),
-        tiebreakerGuessRaw: raw,
-        tiebreakerGuess: null, // Don't convert to number yet, just sync the raw string
-        ts: Date.now(),
-      };
-      console.log("[ScoringMode] Sending tbEdit:", tbPayload);
-      window.sendTBEdit?.(tbPayload);
-    } catch {}
+    // OLD BROADCAST REMOVED - now using Supabase scoring_cells realtime (sync happens on blur/save)
   };
 
   // Commit on blur: coerce to number if valid, else clear
@@ -1182,18 +1112,7 @@ export default function ScoringMode({
       return { ...prev, [showTeamId]: byTeam };
     });
 
-    // ✅ NEW: realtime broadcast so other hosts update instantly
-    try {
-      window.sendTBEdit?.({
-        showId: selectedShowId,
-        roundId: selectedRoundId,
-        teamId: showTeamId,
-        showQuestionId: (tiebreaker.showQuestionId || tiebreaker.id),
-        tiebreakerGuessRaw: raw === "" || Number.isNaN(num) ? "" : String(num),
-        tiebreakerGuess: raw === "" || Number.isNaN(num) ? null : num,
-        ts: Date.now(),
-      });
-    } catch {}
+    // OLD BROADCAST REMOVED - Supabase realtime syncs via saveCellToSupabase above
   };
 
   // ---------------- Sticky & tile styles ----------------
