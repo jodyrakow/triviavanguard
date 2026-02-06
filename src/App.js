@@ -111,6 +111,125 @@ export default function App() {
     }
   }, []);
 
+  // ---------- Global Supabase realtime for scoring (updates cache for all modes) ----------
+  useEffect(() => {
+    if (!supabase || !selectedShowId) return;
+
+    console.log("🟣 APP: Subscribing to global scoring realtime for show", selectedShowId);
+
+    // Subscribe to scoring_cells changes
+    const cellsChannel = supabase
+      .channel(`app_scoring_cells:${selectedShowId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "scoring_cells",
+          filter: `show_id=eq.${selectedShowId}`,
+        },
+        (payload) => {
+          const { new: newRow } = payload;
+          if (!newRow) return;
+
+          const { show_team_id, show_question_id, is_correct, bonus_count, tiebreaker_guess, tiebreaker_guess_raw } = newRow;
+
+          setScoringCache((prev) => {
+            const showCache = prev[selectedShowId] || {};
+            const grid = showCache.grid || {};
+            const teamGrid = grid[show_team_id] || {};
+
+            return {
+              ...prev,
+              [selectedShowId]: {
+                ...showCache,
+                grid: {
+                  ...grid,
+                  [show_team_id]: {
+                    ...teamGrid,
+                    [show_question_id]: {
+                      isCorrect: is_correct,
+                      bonusCount: bonus_count || 0,
+                      tiebreakerGuess: tiebreaker_guess,
+                      tiebreakerGuessRaw: tiebreaker_guess_raw,
+                    },
+                  },
+                },
+              },
+            };
+          });
+        }
+      )
+      .subscribe();
+
+    // Subscribe to show_teams changes
+    const teamsChannel = supabase
+      .channel(`app_show_teams:${selectedShowId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "show_teams",
+          filter: `show_id=eq.${selectedShowId}`,
+        },
+        (payload) => {
+          const { new: newRow } = payload;
+          if (!newRow) return;
+
+          const showTeamId = newRow.show_team_id;
+
+          setScoringCache((prev) => {
+            const showCache = prev[selectedShowId] || {};
+            const teams = showCache.teams || [];
+
+            // Handle removal
+            if (newRow.is_removed) {
+              return {
+                ...prev,
+                [selectedShowId]: {
+                  ...showCache,
+                  teams: teams.filter((t) => t.showTeamId !== showTeamId),
+                },
+              };
+            }
+
+            // Handle add or update
+            const updatedTeam = {
+              showTeamId: newRow.show_team_id,
+              teamId: newRow.team_id,
+              teamName: newRow.team_name,
+              showBonus: newRow.show_bonus || 0,
+              isLeague: newRow.is_league || false,
+            };
+
+            const existingIdx = teams.findIndex((t) => t.showTeamId === showTeamId);
+            let newTeams;
+            if (existingIdx >= 0) {
+              newTeams = [...teams];
+              newTeams[existingIdx] = { ...newTeams[existingIdx], ...updatedTeam };
+            } else {
+              newTeams = [...teams, updatedTeam];
+            }
+
+            return {
+              ...prev,
+              [selectedShowId]: {
+                ...showCache,
+                teams: newTeams,
+              },
+            };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(cellsChannel);
+      supabase.removeChannel(teamsChannel);
+    };
+  }, [selectedShowId]);
+
   // Question edits cache: { [showId]: { [showQuestionId]: { question?, notes?, pronunciationGuide?, answer? } } }
   const [questionEdits, setQuestionEdits] = useState({});
   // Restore question edits backup (if any) on app load
