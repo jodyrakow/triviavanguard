@@ -250,6 +250,7 @@ export default function ScoringMode({
   const [grid, setGrid] = useState({}); // {[showTeamId]: {[showQuestionId]: {isCorrect, bonusCount}}}
   const [entryOrder, setEntryOrder] = useState([]); // [showTeamId]
   const seededOnceRef = useRef(false);
+  const [supabaseLoaded, setSupabaseLoaded] = useState(false); // track if Supabase load finished
 
   // Search results state (used by Add Team modal)
   const [searchResults, setSearchResults] = useState([]);
@@ -354,18 +355,21 @@ export default function ScoringMode({
     seededOnceRef.current = false; // allow a fresh seed for the new show
   }, [selectedShowId]);
 
-  // Seed once we have a source (cache or preloadedTeams). Avoid seeding empty.
+  // Fallback seed from cache/preloaded ONLY if Supabase has loaded but found no teams
+  // This handles the case of a brand new show with no Supabase data yet
   useEffect(() => {
-    if (seededOnceRef.current) return; // we've already seeded for this show
-    if (teams.length > 0) return; // local already has teams (user-added)
+    if (seededOnceRef.current) return; // already seeded (from Supabase or earlier)
+    if (!supabaseLoaded) return; // wait for Supabase to finish loading first
+    if (teams.length > 0) return; // local already has teams
 
     const source =
       (cachedState?.teams?.length && cachedState.teams) ||
       (preloadedTeams?.length && preloadedTeams) ||
       null;
 
-    if (!source) return; // wait until data arrives
+    if (!source) return; // no fallback data available
 
+    console.log("🔵 FALLBACK: Seeding from cache/preloaded (Supabase had no teams)");
     const seededTeams = source.map(normalizeTeam);
     const seededGrid = cachedState?.grid || {};
     const seededEntryOrder =
@@ -375,21 +379,39 @@ export default function ScoringMode({
     setGrid(seededGrid);
     setEntryOrder(seededEntryOrder);
     setFocus({ teamIdx: 0, qIdx: 0 });
-    seededOnceRef.current = true; // ✅ don't auto-import again
-  }, [teams.length, cachedState, preloadedTeams]);
+    seededOnceRef.current = true;
+  }, [teams.length, cachedState, preloadedTeams, supabaseLoaded]);
 
-  // ---------- Load grid from Supabase scoring_cells table ----------
+  // ---------- Load teams and grid from Supabase on mount ----------
   const supabaseLoadedRef = useRef(false);
   useEffect(() => {
     if (!selectedShowId) return;
     if (supabaseLoadedRef.current) return;
 
     const loadFromSupabase = async () => {
+      // Load teams from Supabase (the authoritative source)
+      const supabaseTeams = await loadShowTeamsFromSupabase(selectedShowId);
+      if (supabaseTeams && supabaseTeams.length > 0) {
+        console.log("🔵 SUPABASE: Setting teams from Supabase", supabaseTeams.length);
+        const normalizedTeams = supabaseTeams.map((t) => ({
+          showTeamId: t.show_team_id,
+          teamId: t.team_id,
+          teamName: t.team_name,
+          showBonus: t.show_bonus || 0,
+          isLeague: t.is_league || false,
+        }));
+        setTeams(normalizedTeams);
+        setEntryOrder(supabaseTeams.map((t) => t.show_team_id));
+        seededOnceRef.current = true; // Mark as seeded from Supabase
+      }
+
+      // Load grid from Supabase
       const supabaseGrid = await loadGridFromSupabase(selectedShowId);
       if (supabaseGrid && Object.keys(supabaseGrid).length > 0) {
         setGrid(supabaseGrid);
-        supabaseLoadedRef.current = true;
       }
+      supabaseLoadedRef.current = true;
+      setSupabaseLoaded(true); // Trigger fallback seeding check
     };
     loadFromSupabase();
   }, [selectedShowId]);
@@ -397,6 +419,7 @@ export default function ScoringMode({
   // Reset supabase loaded flag when show changes
   useEffect(() => {
     supabaseLoadedRef.current = false;
+    setSupabaseLoaded(false);
   }, [selectedShowId]);
 
   // ---------- Supabase realtime subscription for scoring_cells ----------
@@ -522,16 +545,16 @@ export default function ScoringMode({
     };
   }, [selectedShowId]);
 
-  // ---------- OLD SYSTEM DISABLED - now using Supabase per-cell storage ----------
-  // const lastSentRef = useRef("");
-  // useEffect(() => {
-  //   const payload = { teams, grid, entryOrder };
-  //   const key = JSON.stringify(payload);
-  //   if (key !== lastSentRef.current) {
-  //     lastSentRef.current = key;
-  //     onChangeState(payload);
-  //   }
-  // }, [teams, grid, entryOrder, onChangeState]);
+  // ---------- Sync state back to App-level cache for ResultsMode ----------
+  const lastSentRef = useRef("");
+  useEffect(() => {
+    const payload = { teams, grid, entryOrder };
+    const key = JSON.stringify(payload);
+    if (key !== lastSentRef.current) {
+      lastSentRef.current = key;
+      onChangeState(payload);
+    }
+  }, [teams, grid, entryOrder, onChangeState]);
 
   // ---------------- View wiring (sorting, team mode, nav) ----------------
   const [sortMode, setSortMode] = useState("entry"); // "entry" | "alpha"
