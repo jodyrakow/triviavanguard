@@ -295,6 +295,7 @@ export default function App() {
   // Send message to display window
   const sendToDisplay = (type, data) => {
     if (!displayChannelRef.current) return;
+    console.log("[sendToDisplay]", type, data);
     displayChannelRef.current.postMessage({ type, content: data });
   };
 
