@@ -342,12 +342,13 @@ export default function App() {
         }
         const { settings, exists } = await res.json();
 
-        supabaseSettingsLoadedRef.current = { showId: selectedShowId, exists };
+        supabaseSettingsLoadedRef.current = { showId: selectedShowId, exists, applied: false };
 
         if (exists && settings) {
           // Supabase has settings - use them (show was previously opened)
           console.log("🔵 SUPABASE SETTINGS: Found existing settings, applying", settings);
           applySettings(settings);
+          supabaseSettingsLoadedRef.current.applied = true;
         } else {
           // No Supabase settings - create from Airtable config
           console.log("🔵 SUPABASE SETTINGS: No existing settings, creating from Airtable config");
@@ -379,6 +380,7 @@ export default function App() {
 
           // Apply the settings locally
           applySettings(newSettings);
+          supabaseSettingsLoadedRef.current.applied = true;
         }
       } catch (err) {
         console.error("supaLoadShowSettings error:", err);
@@ -522,9 +524,14 @@ export default function App() {
 
     if (!selectedShowId) return;
 
-    // DON'T save to Supabase until we've loaded settings first (prevents saving uninitialized values)
+    // DON'T save to Supabase until we've loaded AND APPLIED settings
+    // This prevents overwriting correct Supabase/Airtable values with localStorage defaults
     if (supabaseSettingsLoadedRef.current?.showId !== selectedShowId) {
       console.log("🟡 SUPABASE SETTINGS SAVE SKIPPED: Settings not loaded yet for this show");
+      return;
+    }
+    if (!supabaseSettingsLoadedRef.current?.applied) {
+      console.log("🟡 SUPABASE SETTINGS SAVE SKIPPED: Settings loaded but not yet applied");
       return;
     }
 
