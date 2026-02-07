@@ -1145,12 +1145,11 @@ export default function QuestionsMode({
                             marginBottom: "0.01rem",
                           }}
                         >
-                          <span style={{ fontSize: "1em", position: "relative", top: "1px", marginRight: "-1px" }}>💭</span>{" "}
+                          <span style={{ fontSize: "1em", position: "relative", top: "1px", marginRight: "2px" }}>💭</span>
                           <span
                             dangerouslySetInnerHTML={{
-                              __html: marked.parse(q["Question notes"]),
+                              __html: marked.parseInline(q["Question notes"]),
                             }}
-                            style={{ display: "inline" }}
                           />
                         </div>
                       )}
@@ -1169,12 +1168,11 @@ export default function QuestionsMode({
                               marginBottom: "0.01rem",
                             }}
                           >
-                            <span style={{ fontSize: "1em", position: "relative", top: "1px", marginRight: "-1px" }}>🗣️</span>{" "}
+                            <span style={{ fontSize: "1em", position: "relative", top: "1px", marginRight: "2px" }}>🗣️</span>
                             <span
                               dangerouslySetInnerHTML={{
-                                __html: marked.parse(q["Question pronunciation guide"]),
+                                __html: marked.parseInline(q["Question pronunciation guide"]),
                               }}
-                              style={{ display: "inline" }}
                             />
                           </div>
                         )}
