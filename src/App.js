@@ -1219,38 +1219,6 @@ export default function App() {
     });
   };
 
-  // Push current scoring state to Supabase and tell other hosts to reload
-  const handlePushScoringState = () => {
-    const show = scoringCache[selectedShowId] || DEFAULT_SHOW_STATE;
-    console.log("[Push Scoring] Saving to Supabase...");
-    fetch("/.netlify/functions/supaSaveScoring", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        showId: selectedShowId,
-        roundId: "all",
-        payload: {
-          teams: show.teams ?? [],
-          entryOrder: show.entryOrder ?? [],
-          prizes: show.prizes ?? "",
-          scoringMode: show.scoringMode ?? scoringMode,
-          pubPoints: show.pubPoints ?? pubPoints,
-          poolPerQuestion: show.poolPerQuestion ?? poolPerQuestion,
-          poolContribution: show.poolContribution ?? poolContribution,
-          factionBonus: show.factionBonus ?? factionBonus,
-          hostInfo: show.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
-          tiebreakers: show.tiebreakers ?? {},
-          grid: show.grid ?? {},
-        },
-      }),
-    }).then(() => {
-      console.log(
-        "[Push Scoring] Saved. Broadcasting reload to other hosts...",
-      );
-      window.tvSend?.("reloadScoring", { showId: selectedShowId });
-    });
-  };
-
   // 🔸 Compose a single cachedState shape shared by all modes
   const composedCachedState = (() => {
     const show = scoringCache[selectedShowId] ?? null;
@@ -1603,7 +1571,6 @@ export default function App() {
           getClosestQuestionKey={getClosestQuestionKey}
           questionRefs={questionRefs}
           sendToDisplay={sendToDisplay}
-          onPushScoringState={handlePushScoringState}
         />
       </Sidebar>
 

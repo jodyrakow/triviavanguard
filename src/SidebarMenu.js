@@ -34,7 +34,6 @@ export default function SidebarMenu({
   getClosestQuestionKey,
   questionRefs,
   sendToDisplay,
-  onPushScoringState,
 }) {
   const [expandedSections, setExpandedSections] = useState({
     hostTools: false,
@@ -624,15 +623,6 @@ export default function SidebarMenu({
                 </button>
               </div>
             )}
-
-            {/* Push scoring state to other hosts */}
-            <div
-              style={itemStyle}
-              onClick={onPushScoringState}
-              title="Force all other hosts to sync with your scoring grid"
-            >
-              📤 Push Scoring to Other Hosts
-            </div>
 
             {/* Show/hide all answers */}
             <div
