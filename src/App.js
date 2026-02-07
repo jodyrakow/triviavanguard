@@ -322,14 +322,17 @@ export default function App() {
   const supabaseSettingsSaveTimeoutRef = useRef(null);
   const supabaseHostInfoSaveTimeoutRef = useRef(null);
 
-  // Load settings from Supabase show_settings when show changes
+  // Load settings from Supabase AFTER showBundle has loaded
+  // If Supabase has a row → use it (show was previously opened)
+  // If no row → create one from Airtable config, then use it
   useEffect(() => {
     if (!selectedShowId) return;
+    if (!showBundle) return; // Wait for Airtable bundle to load first
     if (supabaseSettingsLoadedRef.current?.showId === selectedShowId) return;
 
-    const loadSettings = async () => {
+    const loadOrCreateSettings = async () => {
       try {
-        console.log("🔵 SUPABASE SETTINGS LOAD: Fetching for show", selectedShowId);
+        console.log("🔵 SUPABASE SETTINGS: Checking for existing settings...", selectedShowId);
         const res = await fetch(
           `/.netlify/functions/supaLoadShowSettings?showId=${encodeURIComponent(selectedShowId)}`
         );
@@ -338,62 +341,98 @@ export default function App() {
           return;
         }
         const { settings, exists } = await res.json();
-        console.log("🔵 SUPABASE SETTINGS LOAD:", exists ? "Found settings" : "No settings yet", settings);
 
-        // Mark as loaded BEFORE applying settings so Airtable config can check
         supabaseSettingsLoadedRef.current = { showId: selectedShowId, exists };
 
-        if (settings) {
-          // Apply settings from Supabase (these override Airtable defaults)
-          if (settings.scoring_mode) {
-            const mode = settings.scoring_mode;
-            if (mode === "pub") setScoringMode("pub");
-            else if (mode === "pooled-adaptive") setScoringMode("pooled-adaptive");
-            else if (mode === "pooled") setScoringMode("pooled");
+        if (exists && settings) {
+          // Supabase has settings - use them (show was previously opened)
+          console.log("🔵 SUPABASE SETTINGS: Found existing settings, applying", settings);
+          applySettings(settings);
+        } else {
+          // No Supabase settings - create from Airtable config
+          console.log("🔵 SUPABASE SETTINGS: No existing settings, creating from Airtable config");
+          const config = showBundle?.config || {};
+
+          // Build settings from Airtable config
+          const newSettings = {};
+
+          if (config.scoringMode) {
+            const mode = config.scoringMode.toLowerCase().replace(/[\s()]/g, "");
+            if (mode === "pub") newSettings.scoring_mode = "pub";
+            else if (mode === "pooledadaptive" || mode === "adaptive") newSettings.scoring_mode = "pooled-adaptive";
+            else if (mode === "pooled" || mode === "pooledstatic") newSettings.scoring_mode = "pooled";
           }
-          if (typeof settings.pub_points === "number") {
-            setPubPoints(settings.pub_points);
-          }
-          if (typeof settings.pool_per_question === "number") {
-            setPoolPerQuestion(settings.pool_per_question);
-          }
-          if (typeof settings.pool_contribution === "number") {
-            setPoolContribution(settings.pool_contribution);
-          }
-          if (typeof settings.timer_default === "number") {
-            setTimerDuration(settings.timer_default);
-            setTimeLeft(settings.timer_default);
+          if (typeof config.pubPoints === "number") newSettings.pub_points = config.pubPoints;
+          if (typeof config.poolPerQuestion === "number") newSettings.pool_per_question = config.poolPerQuestion;
+          if (typeof config.poolContribution === "number") newSettings.pool_contribution = config.poolContribution;
+          if (typeof config.timerDefault === "number") newSettings.timer_default = config.timerDefault;
+
+          // Save to Supabase
+          if (Object.keys(newSettings).length > 0) {
+            console.log("🔵 SUPABASE SETTINGS: Saving initial settings from Airtable", newSettings);
+            await fetch("/.netlify/functions/supaSaveShowSettings", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ showId: selectedShowId, settings: newSettings }),
+            });
           }
 
-          // Apply hostInfo and prizes from Supabase to scoringCache
-          setScoringCache((prev) => {
-            const show = prev[selectedShowId] || DEFAULT_SHOW_STATE;
-            const currentHostInfo = show.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
-
-            const updatedHostInfo = { ...currentHostInfo };
-            if (settings.host_name) updatedHostInfo.host = settings.host_name;
-            if (settings.cohost_name) updatedHostInfo.cohost = settings.cohost_name;
-            if (settings.location_name) updatedHostInfo.location = settings.location_name;
-            if (typeof settings.total_games === "number") updatedHostInfo.totalGames = String(settings.total_games);
-            if (settings.start_times) updatedHostInfo.startTimesText = settings.start_times;
-            if (settings.announcements) updatedHostInfo.announcements = settings.announcements;
-
-            return {
-              ...prev,
-              [selectedShowId]: {
-                ...show,
-                hostInfo: updatedHostInfo,
-                prizes: settings.prizes || show.prizes || "",
-              },
-            };
-          });
+          // Apply the settings locally
+          applySettings(newSettings);
         }
       } catch (err) {
         console.error("supaLoadShowSettings error:", err);
       }
     };
-    loadSettings();
-  }, [selectedShowId]);
+
+    // Helper to apply settings to state
+    const applySettings = (settings) => {
+      if (settings.scoring_mode) {
+        const mode = settings.scoring_mode;
+        if (mode === "pub") setScoringMode("pub");
+        else if (mode === "pooled-adaptive") setScoringMode("pooled-adaptive");
+        else if (mode === "pooled") setScoringMode("pooled");
+      }
+      if (typeof settings.pub_points === "number") {
+        setPubPoints(settings.pub_points);
+      }
+      if (typeof settings.pool_per_question === "number") {
+        setPoolPerQuestion(settings.pool_per_question);
+      }
+      if (typeof settings.pool_contribution === "number") {
+        setPoolContribution(settings.pool_contribution);
+      }
+      if (typeof settings.timer_default === "number") {
+        setTimerDuration(settings.timer_default);
+        setTimeLeft(settings.timer_default);
+      }
+
+      // Apply hostInfo and prizes from Supabase to scoringCache
+      setScoringCache((prev) => {
+        const show = prev[selectedShowId] || DEFAULT_SHOW_STATE;
+        const currentHostInfo = show.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
+
+        const updatedHostInfo = { ...currentHostInfo };
+        if (settings.host_name) updatedHostInfo.host = settings.host_name;
+        if (settings.cohost_name) updatedHostInfo.cohost = settings.cohost_name;
+        if (settings.location_name) updatedHostInfo.location = settings.location_name;
+        if (typeof settings.total_games === "number") updatedHostInfo.totalGames = String(settings.total_games);
+        if (settings.start_times) updatedHostInfo.startTimesText = settings.start_times;
+        if (settings.announcements) updatedHostInfo.announcements = settings.announcements;
+
+        return {
+          ...prev,
+          [selectedShowId]: {
+            ...show,
+            hostInfo: updatedHostInfo,
+            prizes: settings.prizes || show.prizes || "",
+          },
+        };
+      });
+    };
+
+    loadOrCreateSettings();
+  }, [selectedShowId, showBundle]);
 
   // Reset supabase settings loaded flag when show changes
   useEffect(() => {
@@ -975,92 +1014,13 @@ export default function App() {
 
         setShowBundle(bundle);
 
-        // Pre-populate settings from Airtable config (if available)
-        // BUT skip if Supabase settings already exist (Supabase takes precedence)
-        const supabaseHasSettings = supabaseSettingsLoadedRef.current?.showId === selectedShowId
-          && supabaseSettingsLoadedRef.current?.exists;
+        // Scoring/timer settings are now handled by the Supabase settings effect
+        // which waits for showBundle to load, then either uses existing Supabase
+        // settings or creates new ones from Airtable config
 
-        if (supabaseHasSettings) {
-          console.log("[App] Skipping Airtable config - Supabase settings take precedence");
-        }
-
-        if (bundle?.config && !supabaseHasSettings) {
+        // Handle prizes and hostInfo from Airtable config (for initial population)
+        if (bundle?.config) {
           const config = bundle.config;
-
-          // DEBUG: Log the entire config to see what we're getting
-          console.log(
-            "[App] Bundle config received (applying because no Supabase settings):",
-            JSON.stringify(config, null, 2),
-          );
-
-          // Only set scoring mode if it's provided and valid
-          if (config.scoringMode) {
-            console.log(
-              "[App] Applying scoring mode from config:",
-              config.scoringMode,
-            );
-            const mode = config.scoringMode
-              .toLowerCase()
-              .replace(/[\s()]/g, ""); // Remove spaces and parentheses but keep all words
-            if (mode === "pub") {
-              setScoringMode("pub");
-            } else if (mode === "pooledadaptive" || mode === "adaptive") {
-              setScoringMode("pooled-adaptive");
-            } else if (mode === "pooled" || mode === "pooledstatic") {
-              setScoringMode("pooled");
-            }
-          }
-
-          // Set pub points if provided
-          if (typeof config.pubPoints === "number") {
-            console.log(
-              "[App] Setting pubPoints from config:",
-              config.pubPoints,
-            );
-            setPubPoints(config.pubPoints);
-          } else {
-            console.log(
-              "[App] pubPoints not a number, got:",
-              typeof config.pubPoints,
-              config.pubPoints,
-            );
-          }
-
-          // Set pool per question if provided
-          if (typeof config.poolPerQuestion === "number") {
-            console.log(
-              "[App] Setting poolPerQuestion from config:",
-              config.poolPerQuestion,
-            );
-            setPoolPerQuestion(config.poolPerQuestion);
-          } else {
-            console.log(
-              "[App] poolPerQuestion not a number, got:",
-              typeof config.poolPerQuestion,
-              config.poolPerQuestion,
-            );
-          }
-
-          // Set pool contribution if provided
-          if (typeof config.poolContribution === "number") {
-            console.log(
-              "[App] Setting poolContribution from config:",
-              config.poolContribution,
-            );
-            setPoolContribution(config.poolContribution);
-          } else {
-            console.log(
-              "[App] poolContribution not a number, got:",
-              typeof config.poolContribution,
-              config.poolContribution,
-            );
-          }
-
-          // Set timer default if provided
-          if (typeof config.timerDefault === "number") {
-            setTimerDuration(config.timerDefault);
-            setTimeLeft(config.timerDefault);
-          }
 
           // Set prizes from config if provided (and not already set by host)
           const currentPrizes = composedCachedState?.prizes || "";
