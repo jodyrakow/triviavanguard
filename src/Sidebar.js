@@ -387,6 +387,7 @@ export default function Sidebar({
             transition: "all 0.3s ease",
           }}
           aria-label={isOpen ? "Close menu" : "Open menu"}
+          title={isOpen ? "Close menu" : "Open menu"}
         >
           {isOpen ? "×" : "☰"}
         </button>
