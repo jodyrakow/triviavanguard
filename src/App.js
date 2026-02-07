@@ -367,6 +367,11 @@ export default function App() {
           if (typeof config.poolPerQuestion === "number") newSettings.pool_per_question = config.poolPerQuestion;
           if (typeof config.poolContribution === "number") newSettings.pool_contribution = config.poolContribution;
           if (typeof config.timerDefault === "number") newSettings.timer_default = config.timerDefault;
+          if (config.prizes) newSettings.prizes = config.prizes;
+          if (config.hostName) newSettings.host_name = config.hostName;
+          if (config.cohostName) newSettings.cohost_name = config.cohostName;
+          if (config.location) newSettings.location_name = config.location;
+          if (config.startTime) newSettings.start_times = config.startTime;
 
           // Save to Supabase
           if (Object.keys(newSettings).length > 0) {
