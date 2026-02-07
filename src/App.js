@@ -372,6 +372,8 @@ export default function App() {
           if (config.cohostName) newSettings.cohost_name = config.cohostName;
           if (config.location) newSettings.location_name = config.location;
           if (config.startTime) newSettings.start_times = config.startTime;
+          if (config.announcements) newSettings.announcements = config.announcements;
+          if (typeof config.totalGames === "number") newSettings.total_games = config.totalGames;
 
           // Save to Supabase
           if (Object.keys(newSettings).length > 0) {
