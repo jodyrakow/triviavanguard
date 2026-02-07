@@ -197,24 +197,78 @@ export function computeSocialsForRound(teams, questions, grid) {
   const correctCountMap = buildCorrectCountMap(teams, questions, grid);
   const socialLabels = [];
 
+  // First, check if any scoring has happened in this round at all
+  // (if no cells exist, we can't determine socials yet)
+  let roundHasAnyCells = false;
+  for (const q of questions) {
+    const sqid = q.showQuestionId;
+    for (const t of teams) {
+      if (grid[t.showTeamId]?.[sqid]) {
+        roundHasAnyCells = true;
+        break;
+      }
+    }
+    if (roundHasAnyCells) break;
+  }
+
+  // If no scoring has happened yet, return empty
+  if (!roundHasAnyCells) {
+    return { count: 0, questionLabels: [] };
+  }
+
+  // Build a sorted list of question orders
+  const questionOrders = questions.map((q) => ({
+    sqid: q.showQuestionId,
+    order: q.order ?? q.questionOrder ?? 0,
+  }));
+  questionOrders.sort((a, b) => a.order - b.order);
+
+  // Find max and second-max question orders in the round
+  const uniqueOrders = [...new Set(questionOrders.map((q) => q.order))].sort((a, b) => b - a);
+  const maxQuestionOrder = uniqueOrders[0] ?? -1;
+  const secondMaxOrder = uniqueOrders[1] ?? -Infinity;
+
+  // Find the highest question order that has any cells
+  let maxScoredOrder = -1;
+  for (const { sqid, order } of questionOrders) {
+    for (const t of teams) {
+      if (grid[t.showTeamId]?.[sqid]) {
+        maxScoredOrder = Math.max(maxScoredOrder, order);
+        break;
+      }
+    }
+  }
+
   for (const q of questions) {
     const sqid = q.showQuestionId;
     const correctCount = correctCountMap[sqid] || 0;
+    const order = q.order ?? q.questionOrder ?? 0;
 
-    // A "social" is when zero teams got it correct
-    if (correctCount === 0) {
-      // Check if any team has answered this question (to avoid counting unanswered questions)
-      let anyAnswered = false;
+    // A "social" is when:
+    // 1. Zero teams got it correct
+    // 2. This question has been "passed" (a later question has scoring data)
+    //    OR this question itself has at least one cell (someone clicked and cycled back)
+    //    OR this is the last question and we've scored up to the second-to-last
+    if (correctCount === 0 && teams.length > 0) {
+      // Check if this question has been passed (later question has cells)
+      const hasBeenPassed = order < maxScoredOrder;
+
+      // Edge case: last question with no cells - consider it passed if
+      // we've scored at least the second-to-last question
+      const isLastQuestion = order === maxQuestionOrder;
+      const penultimateScored = maxScoredOrder >= secondMaxOrder;
+      const lastQuestionPassed = isLastQuestion && penultimateScored;
+
+      // Also check if this question itself has any cells (host cycled through)
+      let thisQuestionHasCells = false;
       for (const t of teams) {
-        const cell = grid[t.showTeamId]?.[sqid];
-        if (cell && typeof cell.isCorrect === "boolean") {
-          anyAnswered = true;
+        if (grid[t.showTeamId]?.[sqid]) {
+          thisQuestionHasCells = true;
           break;
         }
       }
 
-      if (anyAnswered) {
-        const order = q.order ?? q.questionOrder ?? 0;
+      if (hasBeenPassed || thisQuestionHasCells || lastQuestionPassed) {
         socialLabels.push(String(order));
       }
     }

@@ -559,7 +559,6 @@ export default function QuestionsMode({
             <p
               style={{
                 color: "#fff",
-                fontStyle: "italic",
                 fontFamily: tokens.font.flavor,
                 margin: "0 0 0.5rem 0",
                 textAlign: "left",
@@ -572,19 +571,25 @@ export default function QuestionsMode({
 
             {/* Category notes (host-only, not pushed to display) */}
             {categoryNotes && (
-              <p
+              <div
                 style={{
-                  color: "#ddd",
                   fontFamily: tokens.font.body,
-                  fontSize: "0.9rem",
-                  margin: "0 0 0.5rem 0",
-                  textAlign: "left",
+                  fontSize: "1rem",
+                  display: "flex",
+                  alignItems: "flex-start",
                   paddingLeft: "1rem",
+                  paddingTop: "0.25rem",
+                  marginTop: 0,
+                  marginBottom: "0.5rem",
                 }}
-                dangerouslySetInnerHTML={{
-                  __html: marked.parse(categoryNotes),
-                }}
-              />
+              >
+                <span style={{ marginRight: "4px", flexShrink: 0 }}>📋</span>
+                <span
+                  dangerouslySetInnerHTML={{
+                    __html: marked.parseInline(categoryNotes),
+                  }}
+                />
+              </div>
             )}
 
             {/* Push category to display button */}
@@ -1138,14 +1143,15 @@ export default function QuestionsMode({
                           style={{
                             fontFamily: tokens.font.body,
                             fontSize: "1rem",
-                            display: "block",
+                            display: "flex",
+                            alignItems: "flex-start",
                             paddingLeft: "1.5rem",
                             paddingTop: "0.25rem",
                             marginTop: 0,
                             marginBottom: "0.01rem",
                           }}
                         >
-                          <span style={{ fontSize: "1em", position: "relative", top: "1px", marginRight: "2px" }}>💭</span>
+                          <span style={{ marginRight: "4px", flexShrink: 0 }}>💭</span>
                           <span
                             dangerouslySetInnerHTML={{
                               __html: marked.parseInline(q["Question notes"]),
@@ -1161,14 +1167,15 @@ export default function QuestionsMode({
                             style={{
                               fontFamily: tokens.font.body,
                               fontSize: "1rem",
-                              display: "block",
+                              display: "flex",
+                              alignItems: "flex-start",
                               paddingLeft: "1.5rem",
                               paddingTop: "0.25rem",
                               marginTop: 0,
                               marginBottom: "0.01rem",
                             }}
                           >
-                            <span style={{ fontSize: "1em", position: "relative", top: "1px", marginRight: "2px" }}>🗣️</span>
+                            <span style={{ marginRight: "4px", flexShrink: 0 }}>🗣️</span>
                             <span
                               dangerouslySetInnerHTML={{
                                 __html: marked.parseInline(q["Question pronunciation guide"]),
