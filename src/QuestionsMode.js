@@ -501,8 +501,7 @@ export default function QuestionsMode({
           categoryInfo?.["Category name"]?.trim() || "Uncategorized";
         const categoryDescription =
           categoryInfo?.["Category description"]?.trim() || "";
-        const categoryNotes =
-          categoryInfo?.["Category notes"]?.trim() || "";
+        const categoryNotes = categoryInfo?.["Category notes"]?.trim() || "";
         const isSuperSecret = !!categoryInfo?.["Super secret"];
 
         // Category images
@@ -574,6 +573,7 @@ export default function QuestionsMode({
               <div
                 style={{
                   fontFamily: tokens.font.body,
+                  color: "#fff",
                   fontSize: "1rem",
                   display: "flex",
                   alignItems: "baseline",
@@ -583,7 +583,15 @@ export default function QuestionsMode({
                   marginBottom: "0.5rem",
                 }}
               >
-                <span style={{ marginRight: "0.35rem", flexShrink: 0, fontSize: "0.9rem" }}>📋</span>
+                <span
+                  style={{
+                    marginRight: "0.35rem",
+                    flexShrink: 0,
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  💭
+                </span>
                 <span
                   dangerouslySetInnerHTML={{
                     __html: marked.parseInline(categoryNotes),
@@ -1150,7 +1158,15 @@ export default function QuestionsMode({
                             marginBottom: "0.01rem",
                           }}
                         >
-                          <span style={{ marginRight: "0.35rem", flexShrink: 0, fontSize: "0.9rem" }}>💭</span>
+                          <span
+                            style={{
+                              marginRight: "0.35rem",
+                              flexShrink: 0,
+                              fontSize: "0.9rem",
+                            }}
+                          >
+                            💭
+                          </span>
                           <span
                             dangerouslySetInnerHTML={{
                               __html: marked.parseInline(q["Question notes"]),
@@ -1174,10 +1190,20 @@ export default function QuestionsMode({
                               marginBottom: "0.01rem",
                             }}
                           >
-                            <span style={{ marginRight: "0.35rem", flexShrink: 0, fontSize: "0.9rem" }}>🗣️</span>
+                            <span
+                              style={{
+                                marginRight: "0.35rem",
+                                flexShrink: 0,
+                                fontSize: "0.9rem",
+                              }}
+                            >
+                              🗣️
+                            </span>
                             <span
                               dangerouslySetInnerHTML={{
-                                __html: marked.parseInline(q["Question pronunciation guide"]),
+                                __html: marked.parseInline(
+                                  q["Question pronunciation guide"],
+                                ),
                               }}
                             />
                           </div>
