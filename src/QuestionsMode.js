@@ -576,14 +576,14 @@ export default function QuestionsMode({
                   fontFamily: tokens.font.body,
                   fontSize: "1rem",
                   display: "flex",
-                  alignItems: "flex-start",
+                  alignItems: "baseline",
                   paddingLeft: "1rem",
                   paddingTop: "0.25rem",
                   marginTop: 0,
                   marginBottom: "0.5rem",
                 }}
               >
-                <span style={{ marginRight: "4px", flexShrink: 0 }}>📋</span>
+                <span style={{ marginRight: "0.35rem", flexShrink: 0, fontSize: "0.9rem" }}>📋</span>
                 <span
                   dangerouslySetInnerHTML={{
                     __html: marked.parseInline(categoryNotes),
@@ -1078,10 +1078,10 @@ export default function QuestionsMode({
                         <br />
                         <div
                           style={{
-                            display: "block",
-                            paddingLeft: "1.5rem",
+                            display: "flex",
+                            alignItems: "baseline",
+                            paddingLeft: editQuestionField ? "0" : "1.5rem",
                             paddingTop: "0.25rem",
-                            position: "relative",
                           }}
                         >
                           {editQuestionField && (
@@ -1098,17 +1098,16 @@ export default function QuestionsMode({
                                 });
                               }}
                               style={{
-                                position: "absolute",
-                                left: "0.1rem",
-                                top: "0.3rem",
                                 background: "none",
                                 border: "none",
                                 cursor: "pointer",
                                 padding: "0",
+                                marginRight: "0.35rem",
                                 fontSize: "0.9rem",
                                 color: q._edited ? theme.accent : "#8B9DC3",
                                 opacity: q._edited ? 1 : 0.4,
                                 transition: "opacity 0.2s, color 0.2s",
+                                flexShrink: 0,
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.opacity = "1";
@@ -1144,14 +1143,14 @@ export default function QuestionsMode({
                             fontFamily: tokens.font.body,
                             fontSize: "1rem",
                             display: "flex",
-                            alignItems: "flex-start",
+                            alignItems: "baseline",
                             paddingLeft: "1.5rem",
                             paddingTop: "0.25rem",
                             marginTop: 0,
                             marginBottom: "0.01rem",
                           }}
                         >
-                          <span style={{ marginRight: "4px", flexShrink: 0 }}>💭</span>
+                          <span style={{ marginRight: "0.35rem", flexShrink: 0, fontSize: "0.9rem" }}>💭</span>
                           <span
                             dangerouslySetInnerHTML={{
                               __html: marked.parseInline(q["Question notes"]),
@@ -1168,14 +1167,14 @@ export default function QuestionsMode({
                               fontFamily: tokens.font.body,
                               fontSize: "1rem",
                               display: "flex",
-                              alignItems: "flex-start",
+                              alignItems: "baseline",
                               paddingLeft: "1.5rem",
                               paddingTop: "0.25rem",
                               marginTop: 0,
                               marginBottom: "0.01rem",
                             }}
                           >
-                            <span style={{ marginRight: "4px", flexShrink: 0 }}>🗣️</span>
+                            <span style={{ marginRight: "0.35rem", flexShrink: 0, fontSize: "0.9rem" }}>🗣️</span>
                             <span
                               dangerouslySetInnerHTML={{
                                 __html: marked.parseInline(q["Question pronunciation guide"]),
