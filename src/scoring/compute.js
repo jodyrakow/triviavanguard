@@ -148,31 +148,79 @@ export function buildTeamTotals(
  * @param {Array} teams - teams array
  * @param {Array} questions - questions for the round
  * @param {Object} grid - answer grid
- * @returns {{ count: number, teams: Array<{showTeamId: string, teamName: string}> }}
+ * @returns {{ count: number, teams: Array<{showTeamId: string, teamName: string, questionLabels: string[]}> }}
  */
 export function computeSolosForRound(teams, questions, grid) {
   const soloMap = buildSoloMap(teams, questions, grid);
 
   let count = 0;
-  const soloTeamSet = new Set();
+  // Map of showTeamId -> array of question labels
+  const teamSoloQuestions = new Map();
 
-  for (const sqid in soloMap) {
-    if (soloMap[sqid]) {
+  for (const q of questions) {
+    const sqid = q.showQuestionId;
+    const soloTeamId = soloMap[sqid];
+    if (soloTeamId) {
       count++;
-      soloTeamSet.add(soloMap[sqid]);
+      // Get question label (order number or letter)
+      const order = q.order ?? q.questionOrder ?? 0;
+      const label = String(order);
+
+      if (!teamSoloQuestions.has(soloTeamId)) {
+        teamSoloQuestions.set(soloTeamId, []);
+      }
+      teamSoloQuestions.get(soloTeamId).push(label);
     }
   }
 
-  // Build list of unique teams with solos
-  const soloTeamsList = Array.from(soloTeamSet).map((showTeamId) => {
+  // Build list of teams with their solo question labels
+  const soloTeamsList = Array.from(teamSoloQuestions.entries()).map(([showTeamId, labels]) => {
     const team = teams.find((t) => t.showTeamId === showTeamId);
     return {
       showTeamId,
       teamName: team?.teamName || "(Unknown)",
+      questionLabels: labels,
     };
   });
 
   return { count, teams: soloTeamsList };
+}
+
+/**
+ * Compute social statistics for a round (questions where zero teams answered correctly)
+ * @param {Array} teams - teams array
+ * @param {Array} questions - questions for the round
+ * @param {Object} grid - answer grid
+ * @returns {{ count: number, questionLabels: string[] }}
+ */
+export function computeSocialsForRound(teams, questions, grid) {
+  const correctCountMap = buildCorrectCountMap(teams, questions, grid);
+  const socialLabels = [];
+
+  for (const q of questions) {
+    const sqid = q.showQuestionId;
+    const correctCount = correctCountMap[sqid] || 0;
+
+    // A "social" is when zero teams got it correct
+    if (correctCount === 0) {
+      // Check if any team has answered this question (to avoid counting unanswered questions)
+      let anyAnswered = false;
+      for (const t of teams) {
+        const cell = grid[t.showTeamId]?.[sqid];
+        if (cell && typeof cell.isCorrect === "boolean") {
+          anyAnswered = true;
+          break;
+        }
+      }
+
+      if (anyAnswered) {
+        const order = q.order ?? q.questionOrder ?? 0;
+        socialLabels.push(String(order));
+      }
+    }
+  }
+
+  return { count: socialLabels.length, questionLabels: socialLabels };
 }
 
 /**

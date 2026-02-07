@@ -18,6 +18,7 @@ import {
   computeCellPoints,
   buildTeamTotals,
   computeSolosForRound,
+  computeSocialsForRound,
 } from "./scoring/compute.js";
 import { supabase } from "./App.js";
 
@@ -1162,18 +1163,22 @@ export default function ScoringMode({
   // --------- Solos calculation ---------
   const solosData = useMemo(() => {
     const result = computeSolosForRound(teams, questions, adaptedGrid);
-    // Convert to format expected by UI (array of team names, sorted)
+    // Format as "Team Name (#5, #7)" sorted by team name
     const formatted = {
       count: result.count,
-      teams: result.teams.map((t) => t.teamName).sort(),
+      teams: result.teams
+        .map((t) => ({
+          teamName: t.teamName,
+          display: `${t.teamName} (#${t.questionLabels.join(", #")})`,
+        }))
+        .sort((a, b) => a.teamName.localeCompare(b.teamName)),
     };
-    console.log("[ScoringMode] Solos calculation:", {
-      questionCount: questions.length,
-      teamCount: teams.length,
-      solosCount: formatted.count,
-      soloTeams: formatted.teams,
-    });
     return formatted;
+  }, [teams, questions, adaptedGrid]);
+
+  // --------- Socials calculation (questions where zero teams got correct) ---------
+  const socialsData = useMemo(() => {
+    return computeSocialsForRound(teams, questions, adaptedGrid);
   }, [teams, questions, adaptedGrid]);
 
   // ---------------- Render ----------------
@@ -1208,19 +1213,36 @@ export default function ScoringMode({
         >
           Scores
         </h2>
+        {/* Solos display */}
         {solosData.count > 0 && (
           <div
             style={{
               color: "#fff",
               fontFamily: tokens.font.body,
-              fontSize: "1rem",
+              fontSize: "0.95rem",
               marginLeft: "0.5rem",
               marginTop: "0.25rem",
               marginRight: "1rem",
             }}
           >
             {solosData.count} solo{solosData.count !== 1 ? "s" : ""} this round:{" "}
-            {solosData.teams.join(", ")}
+            {solosData.teams.map((t) => t.display).join(", ")}
+          </div>
+        )}
+        {/* Socials display */}
+        {socialsData.count > 0 && (
+          <div
+            style={{
+              color: "#fff",
+              fontFamily: tokens.font.body,
+              fontSize: "0.95rem",
+              marginLeft: "0.5rem",
+              marginTop: "0.25rem",
+              marginRight: "1rem",
+            }}
+          >
+            {socialsData.count} social{socialsData.count !== 1 ? "s" : ""} this round:{" "}
+            #{socialsData.questionLabels.join(", #")}
           </div>
         )}
       </div>

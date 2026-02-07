@@ -1202,8 +1202,8 @@ export default function SidebarMenu({
                   borderTop: "1px solid #eee",
                 }}
               >
-                {/* Push to Display buttons */}
-                {sendToDisplay && (
+                {/* Push to Display buttons - only show when display controls are open */}
+                {sendToDisplay && displayControlsOpen && (
                   <>
                     <div
                       style={{

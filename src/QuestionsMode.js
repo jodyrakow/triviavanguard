@@ -195,6 +195,7 @@ export default function QuestionsMode({
       for (const cat of categories) {
         const catName = (cat?.categoryName || "").trim();
         const catDesc = (cat?.categoryDescription || "").trim();
+        const catNotes = (cat?.categoryNotes || "").trim();
         const catOrder = cat?.categoryOrder ?? 999;
         const key = `${rNum}::${catOrder}::${catName || "Uncategorized"}`;
 
@@ -203,6 +204,7 @@ export default function QuestionsMode({
             categoryInfo: {
               "Category name": catName,
               "Category description": catDesc,
+              "Category notes": catNotes,
               "Category order": catOrder,
               "Super secret": !!cat?.superSecret,
               questionType: cat?.questionType || null, // ✅ Add questionType from category
@@ -499,6 +501,8 @@ export default function QuestionsMode({
           categoryInfo?.["Category name"]?.trim() || "Uncategorized";
         const categoryDescription =
           categoryInfo?.["Category description"]?.trim() || "";
+        const categoryNotes =
+          categoryInfo?.["Category notes"]?.trim() || "";
         const isSuperSecret = !!categoryInfo?.["Super secret"];
 
         // Category images
@@ -565,6 +569,23 @@ export default function QuestionsMode({
                 __html: marked.parseInline(categoryDescription || ""),
               }}
             />
+
+            {/* Category notes (host-only, not pushed to display) */}
+            {categoryNotes && (
+              <p
+                style={{
+                  color: "#ddd",
+                  fontFamily: tokens.font.body,
+                  fontSize: "0.9rem",
+                  margin: "0 0 0.5rem 0",
+                  textAlign: "left",
+                  paddingLeft: "1rem",
+                }}
+                dangerouslySetInnerHTML={{
+                  __html: marked.parse(categoryNotes),
+                }}
+              />
+            )}
 
             {/* Push category to display button */}
             {sendToDisplay && displayControlsOpen && (
@@ -1113,11 +1134,10 @@ export default function QuestionsMode({
 
                       {/* NOTES */}
                       {q["Question notes"]?.trim() && showDetails && (
-                        <p
+                        <div
                           style={{
-                            fontFamily: tokens.font.flavor,
+                            fontFamily: tokens.font.body,
                             fontSize: "1rem",
-                            fontStyle: "italic",
                             display: "block",
                             paddingLeft: "1.5rem",
                             paddingTop: "0.25rem",
@@ -1125,24 +1145,23 @@ export default function QuestionsMode({
                             marginBottom: "0.01rem",
                           }}
                         >
+                          <span style={{ fontSize: "1em", position: "relative", top: "1px", marginRight: "-1px" }}>💭</span>{" "}
                           <span
                             dangerouslySetInnerHTML={{
-                              __html: marked.parseInline(
-                                `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">💭</span> ${q["Question notes"]}`,
-                              ),
+                              __html: marked.parse(q["Question notes"]),
                             }}
+                            style={{ display: "inline" }}
                           />
-                        </p>
+                        </div>
                       )}
 
                       {/* PRONUNCIATION GUIDE */}
                       {q["Question pronunciation guide"]?.trim() &&
                         showDetails && (
-                          <p
+                          <div
                             style={{
-                              fontFamily: tokens.font.flavor,
+                              fontFamily: tokens.font.body,
                               fontSize: "1rem",
-                              fontStyle: "italic",
                               display: "block",
                               paddingLeft: "1.5rem",
                               paddingTop: "0.25rem",
@@ -1150,14 +1169,14 @@ export default function QuestionsMode({
                               marginBottom: "0.01rem",
                             }}
                           >
+                            <span style={{ fontSize: "1em", position: "relative", top: "1px", marginRight: "-1px" }}>🗣️</span>{" "}
                             <span
                               dangerouslySetInnerHTML={{
-                                __html: marked.parseInline(
-                                  `<span style="font-size:1em; position: relative; top: 1px; margin-right:-1px;">🗣️</span> ${q["Question pronunciation guide"]}`,
-                                ),
+                                __html: marked.parse(q["Question pronunciation guide"]),
                               }}
+                              style={{ display: "inline" }}
                             />
-                          </p>
+                          </div>
                         )}
 
                       {/* IMAGE POPUP TOGGLE */}
