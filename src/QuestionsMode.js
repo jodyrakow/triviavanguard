@@ -1155,7 +1155,7 @@ export default function QuestionsMode({
                             paddingLeft: "1.5rem",
                             paddingTop: "0.25rem",
                             marginTop: 0,
-                            marginBottom: "0.01rem",
+                            marginBottom: 0,
                           }}
                         >
                           <span
@@ -1187,7 +1187,7 @@ export default function QuestionsMode({
                               paddingLeft: "1.5rem",
                               paddingTop: "0.25rem",
                               marginTop: 0,
-                              marginBottom: "0.01rem",
+                              marginBottom: 0,
                             }}
                           >
                             <span

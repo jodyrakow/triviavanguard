@@ -171,3 +171,9 @@
   );
   border-radius: 1px;
 }
+
+/* Display controls input placeholder styling */
+.display-controls-input::placeholder {
+  color: #999;
+  opacity: 1;
+}

@@ -1532,21 +1532,26 @@ export default function App() {
       {/* Sidebar with menu */}
       <Sidebar
         setShowDetails={setshowDetails}
+        displayControlsOpen={displayControlsOpen}
         setDisplayControlsOpen={setDisplayControlsOpen}
         showTimer={showTimer}
         setShowTimer={setShowTimer}
+        setShowAnswerKey={setShowAnswerKey}
+        refreshBundle={refreshBundle}
         getClosestQuestionKey={getClosestQuestionKey}
         questionRefs={questionRefs}
+        showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
+        hostInfo={composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo}
+        prizes={composedCachedState?.prizes ?? ""}
+        scoringMode={scoringMode}
+        pubPoints={pubPoints}
+        poolPerQuestion={poolPerQuestion}
+        poolContribution={poolContribution}
+        sendToDisplay={sendToDisplay}
       >
         <SidebarMenu
-          showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
           showTimer={showTimer}
-          setShowTimer={setShowTimer}
           setTimerPosition={setTimerPosition}
-          showDetails={showDetails}
-          setShowDetails={setshowDetails}
-          timerDuration={timerDuration}
-          setTimerDuration={setTimerDuration}
           prizes={composedCachedState?.prizes ?? ""}
           setPrizes={(val) => patchShared({ prizes: String(val || "") })}
           hostInfo={
@@ -1554,10 +1559,7 @@ export default function App() {
           }
           setHostInfo={(val) => patchShared({ hostInfo: val })}
           displayControlsOpen={displayControlsOpen}
-          setDisplayControlsOpen={setDisplayControlsOpen}
           setDisplayControlsPosition={setDisplayControlsPosition}
-          setShowAnswerKey={setShowAnswerKey}
-          refreshBundle={refreshBundle}
           scoringMode={scoringMode}
           setScoringMode={setScoringMode}
           pubPoints={pubPoints}
@@ -1568,9 +1570,6 @@ export default function App() {
           setPoolContribution={setPoolContribution}
           factionBonus={factionBonus}
           setFactionBonus={setFactionBonus}
-          getClosestQuestionKey={getClosestQuestionKey}
-          questionRefs={questionRefs}
-          sendToDisplay={sendToDisplay}
         />
       </Sidebar>
 
@@ -1773,7 +1772,8 @@ export default function App() {
                     type="text"
                     value={customMessage}
                     onChange={(e) => setCustomMessage(e.target.value)}
-                    placeholder="Quick message…"
+                    placeholder="Type a message for the TV…"
+                    className="display-controls-input"
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && (customMessage.trim() || customMessageImage.trim())) {
                         sendToDisplay("message", {
@@ -1789,6 +1789,8 @@ export default function App() {
                       border: `1px solid ${colors.gray?.border || "#ccc"}`,
                       borderRadius: ".6rem",
                       minWidth: "200px",
+                      backgroundColor: "#fff",
+                      color: colors.dark || "#2B394A",
                     }}
                   />
 
@@ -1822,7 +1824,8 @@ export default function App() {
                     type="text"
                     value={customMessageImage}
                     onChange={(e) => setCustomMessageImage(e.target.value)}
-                    placeholder="Image URL (optional)…"
+                    placeholder="Paste image URL here…"
+                    className="display-controls-input"
                     style={{
                       flex: 1,
                       fontSize: ".85rem",
@@ -1830,6 +1833,8 @@ export default function App() {
                       border: `1px solid ${colors.gray?.border || "#ccc"}`,
                       borderRadius: ".6rem",
                       minWidth: "200px",
+                      backgroundColor: "#fff",
+                      color: colors.dark || "#2B394A",
                     }}
                   />
                   {customMessageImage.trim() && (
@@ -2394,6 +2399,20 @@ export default function App() {
                   alignItems: "center",
                 }}
               >
+                {/* Drag handle */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "0.5rem",
+                    left: "0.5rem",
+                    cursor: "grab",
+                    userSelect: "none",
+                    opacity: 0.6,
+                  }}
+                >
+                  ⋮⋮
+                </div>
+
                 <div
                   style={{
                     fontSize: "2rem",
