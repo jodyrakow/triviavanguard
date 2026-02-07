@@ -547,9 +547,97 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
 }
 
 function MessageDisplay({ content, fontSize = 100 }) {
-  const { text, fontSize: customFontSize } = content || {};
+  const { text, fontSize: customFontSize, imageUrl } = content || {};
   const scale = (customFontSize || fontSize) / 100;
 
+  // If we have both text and image, show side-by-side layout
+  if (imageUrl && text) {
+    return (
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "4vw",
+          padding: "4vh 6vw",
+        }}
+      >
+        {/* Image on left */}
+        <div
+          style={{
+            width: "45vw",
+            height: "80vh",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <img
+            src={imageUrl}
+            alt=""
+            style={{
+              maxWidth: "100%",
+              maxHeight: "100%",
+              objectFit: "contain",
+            }}
+          />
+        </div>
+        {/* Text on right */}
+        <div
+          style={{
+            width: "40vw",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            textAlign: "center",
+            fontSize: `${4 * scale}rem`,
+            fontWeight: 600,
+            lineHeight: 1.2,
+            color: theme.dark,
+          }}
+          dangerouslySetInnerHTML={{
+            __html: marked.parseInline(text || ""),
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Image only - center it large
+  if (imageUrl) {
+    return (
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "4vh",
+        }}
+      >
+        <img
+          src={imageUrl}
+          alt=""
+          style={{
+            maxWidth: "90vw",
+            maxHeight: "85vh",
+            objectFit: "contain",
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Text only (original behavior)
   return (
     <div
       style={{

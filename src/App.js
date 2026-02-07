@@ -273,6 +273,7 @@ export default function App() {
   });
 
   const [customMessage, setCustomMessage] = useState("");
+  const [customMessageImage, setCustomMessageImage] = useState("");
 
   // Answer Key state
   const [showAnswerKey, setShowAnswerKey] = useState(false);
@@ -1791,49 +1792,90 @@ export default function App() {
                 </Button>
               </div>
 
-              {/* One custom message row */}
+              {/* Custom message row */}
               <div
-                style={{ display: "flex", gap: ".4rem", alignItems: "center" }}
+                style={{ display: "flex", flexDirection: "column", gap: ".4rem" }}
               >
-                <input
-                  type="text"
-                  value={customMessage}
-                  onChange={(e) => setCustomMessage(e.target.value)}
-                  placeholder="Quick message…"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && customMessage.trim()) {
-                      sendToDisplay("message", { text: customMessage.trim() });
-                    }
-                  }}
-                  style={{
-                    flex: 1,
-                    fontSize: ".9rem",
-                    padding: ".5rem .6rem",
-                    border: `1px solid ${colors.gray?.border || "#ccc"}`,
-                    borderRadius: ".6rem",
-                    minWidth: "240px",
-                  }}
-                />
+                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    placeholder="Quick message…"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (customMessage.trim() || customMessageImage.trim())) {
+                        sendToDisplay("message", {
+                          text: customMessage.trim(),
+                          imageUrl: customMessageImage.trim() || null,
+                        });
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      fontSize: ".9rem",
+                      padding: ".5rem .6rem",
+                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
+                      borderRadius: ".6rem",
+                      minWidth: "200px",
+                    }}
+                  />
 
-                <ButtonPrimary
-                  onClick={() => {
-                    if (customMessage.trim()) {
-                      sendToDisplay("message", { text: customMessage.trim() });
-                    }
-                  }}
-                  disabled={!customMessage.trim()}
-                  title="Push this message to display"
-                  style={{
-                    fontSize: "1rem",
-                    padding: ".45rem .55rem",
-                    minWidth: "2.25rem",
-                    height: "2.25rem",
-                    borderRadius: ".5rem",
-                    opacity: customMessage.trim() ? 1 : 0.5,
-                  }}
-                >
-                  📣
-                </ButtonPrimary>
+                  <ButtonPrimary
+                    onClick={() => {
+                      if (customMessage.trim() || customMessageImage.trim()) {
+                        sendToDisplay("message", {
+                          text: customMessage.trim(),
+                          imageUrl: customMessageImage.trim() || null,
+                        });
+                      }
+                    }}
+                    disabled={!customMessage.trim() && !customMessageImage.trim()}
+                    title="Push this message to display"
+                    style={{
+                      fontSize: "1rem",
+                      padding: ".45rem .55rem",
+                      minWidth: "2.25rem",
+                      height: "2.25rem",
+                      borderRadius: ".5rem",
+                      opacity: (customMessage.trim() || customMessageImage.trim()) ? 1 : 0.5,
+                    }}
+                  >
+                    📣
+                  </ButtonPrimary>
+                </div>
+
+                {/* Image URL row */}
+                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={customMessageImage}
+                    onChange={(e) => setCustomMessageImage(e.target.value)}
+                    placeholder="Image URL (optional)…"
+                    style={{
+                      flex: 1,
+                      fontSize: ".85rem",
+                      padding: ".4rem .6rem",
+                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
+                      borderRadius: ".6rem",
+                      minWidth: "200px",
+                    }}
+                  />
+                  {customMessageImage.trim() && (
+                    <Button
+                      onClick={() => setCustomMessageImage("")}
+                      title="Clear image"
+                      style={{
+                        fontSize: ".85rem",
+                        padding: ".3rem .5rem",
+                        minWidth: "2rem",
+                        height: "2rem",
+                        borderRadius: ".5rem",
+                      }}
+                    >
+                      ✕
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </Draggable>
