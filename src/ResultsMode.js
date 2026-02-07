@@ -233,12 +233,15 @@ export default function ResultsMode({
 
   // ----------------------- Prize editor state -----------------------
   // Convert shared prizes string to array
+  console.log("🎁 RESULTS MODE: prizesString prop =", JSON.stringify(prizesString));
   const prizes = useMemo(() => {
     if (!prizesString) return [];
-    return prizesString
+    const arr = prizesString
       .split(/\r?\n/)
       .map((s) => s.trim())
       .filter(Boolean);
+    console.log("🎁 RESULTS MODE: parsed prizes array =", arr);
+    return arr;
   }, [prizesString]);
 
   const prizeCount = prizes.length;

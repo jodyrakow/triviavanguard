@@ -349,6 +349,7 @@ export default function App() {
         if (exists && settings) {
           // Supabase has settings - use them (show was previously opened)
           console.log("🔵 SUPABASE SETTINGS: Found existing settings, applying", settings);
+          console.log("🔵 SUPABASE SETTINGS: prizes value =", JSON.stringify(settings.prizes));
           applySettings(settings);
           supabaseSettingsLoadedRef.current.applied = true;
         } else {
@@ -431,12 +432,15 @@ export default function App() {
         if (settings.start_times) updatedHostInfo.startTimesText = settings.start_times;
         if (settings.announcements) updatedHostInfo.announcements = settings.announcements;
 
+        const finalPrizes = settings.prizes || show.prizes || "";
+        console.log("🔵 APPLY SETTINGS: Setting prizes in scoringCache =", JSON.stringify(finalPrizes));
+
         return {
           ...prev,
           [selectedShowId]: {
             ...show,
             hostInfo: updatedHostInfo,
-            prizes: settings.prizes || show.prizes || "",
+            prizes: finalPrizes,
           },
         };
       });
