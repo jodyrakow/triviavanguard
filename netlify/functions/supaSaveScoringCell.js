@@ -53,6 +53,7 @@ export const handler = async (event) => {
       tiebreaker_guess: cell?.tiebreakerGuess ?? null,
       tiebreaker_guess_raw: cell?.tiebreakerGuessRaw ?? null,
       bonus_count: cell?.bonusCount ?? 0,
+      partial_count: cell?.partialCount ?? 0,
     };
 
     const { data, error } = await supaAdmin

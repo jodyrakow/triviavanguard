@@ -88,9 +88,31 @@ export function computeCellPoints(
   cell,
   scoring,
   correctCount,
-  questionBonus = null
+  questionBonus = null,
+  questionPartial = null
 ) {
   if (!cell) return 0;
+
+  // --- Partial credit path (mutually exclusive with bonus) ---
+  if (questionPartial && questionPartial.numParts > 0) {
+    const partialCount = cell.partialCount || 0;
+    if (partialCount === 0 && !cell.isCorrect) return 0;
+
+    const numParts = questionPartial.numParts;
+
+    // Full credit (partialCount === numParts, isCorrect === true) — use base calculation
+    if (cell.isCorrect) {
+      return computeAutoEarned(cell, scoring, correctCount);
+    }
+
+    // Partial credit: prorate the full-credit value
+    const fullPoints = computeAutoEarned({ isCorrect: true }, scoring, correctCount);
+    if (scoring.mode === "pub") {
+      const pubPoints = Number(scoring.pubPoints) || 0;
+      return Math.round((pubPoints / numParts) * partialCount);
+    }
+    return Math.round((fullPoints / numParts) * partialCount);
+  }
 
   // Only score if marked correct
   if (!cell.isCorrect) return 0;
@@ -136,11 +158,54 @@ export function buildTeamTotals(
       const questionBonus = q.bonusAvailable
         ? { bonusValue: q.bonusValue, maxBonuses: q.maxBonuses }
         : null;
-      sum += computeCellPoints(cell, scoring, correctCount, questionBonus);
+      const questionPartial = q.partialCreditAvailable && q.numParts > 0
+        ? { numParts: q.numParts }
+        : null;
+      sum += computeCellPoints(cell, scoring, correctCount, questionBonus, questionPartial);
     }
     totals[t.showTeamId] = sum;
   }
   return totals;
+}
+
+/**
+ * Compute bonus breakdown for a single question — returns only earned levels.
+ * Used for stats pill display and TV display.
+ */
+export function computeBonusBreakdown(teams, grid, showQuestionId, scoring, correctCount, questionBonus) {
+  if (!questionBonus) return [];
+
+  const levels = new Map(); // bonusCount -> number of teams at that level
+  for (const t of teams) {
+    const cell = grid[t.showTeamId]?.[showQuestionId];
+    if (cell?.isCorrect) {
+      const bc = cell.bonusCount || 0;
+      levels.set(bc, (levels.get(bc) || 0) + 1);
+    }
+  }
+
+  if (levels.size === 0) return [];
+
+  const result = [];
+
+  // Base level (0 bonuses)
+  if (levels.has(0)) {
+    const pts = computeAutoEarned({ isCorrect: true }, scoring, correctCount);
+    result.push({ bonusLevel: 0, pointsPerTeam: pts, teamCount: levels.get(0) });
+  }
+
+  // Each bonus level
+  const maxBonuses = questionBonus.maxBonuses || 0;
+  for (let b = 1; b <= maxBonuses; b++) {
+    if (!levels.has(b)) continue;
+    const pts = computeCellPoints(
+      { isCorrect: true, bonusCount: b },
+      scoring, correctCount, questionBonus
+    );
+    result.push({ bonusLevel: b, pointsPerTeam: pts, teamCount: levels.get(b) });
+  }
+
+  return result;
 }
 
 /**

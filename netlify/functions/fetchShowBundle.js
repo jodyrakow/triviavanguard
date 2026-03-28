@@ -318,6 +318,9 @@ export async function handler(event) {
         bonusValue: f["Bonus value"] || null,
         maxBonuses:
           typeof f["Max bonuses"] === "number" ? f["Max bonuses"] : null,
+        // Partial credit fields
+        partialCreditAvailable: !!f["Partial credit available"],
+        numParts: parseInt(f["# of parts"], 10) || null,
       };
 
       // Initialize round if needed

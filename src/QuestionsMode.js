@@ -10,7 +10,7 @@ import {
   colors as theme,
   tokens,
 } from "./styles";
-import { buildCorrectCountMap, computeAutoEarned } from "./scoring/compute.js";
+import { buildCorrectCountMap, computeAutoEarned, computeBonusBreakdown } from "./scoring/compute.js";
 marked.setOptions({ breaks: true });
 export default function QuestionsMode({
   showBundle = { rounds: [], teams: [] },
@@ -349,11 +349,14 @@ export default function QuestionsMode({
             showQuestionId: q.showQuestionId || q.id,
             questionId: q.questionId,
             order: q.questionOrder,
+            bonusAvailable: !!q.bonusAvailable,
+            bonusValue: q.bonusValue || null,
+            maxBonuses: typeof q.maxBonuses === "number" ? q.maxBonuses : null,
           });
         }
       }
 
-      // Adapt grid format for utility (utility uses bonusPoints/partialCredit)
+      // Adapt grid format for utility
       const adaptedGrid = {};
       for (const teamId in grid) {
         adaptedGrid[teamId] = {};
@@ -362,6 +365,7 @@ export default function QuestionsMode({
           adaptedGrid[teamId][questionId] = {
             isCorrect: cell.isCorrect,
             bonusCount: cell.bonusCount || 0,
+            partialCount: cell.partialCount || 0,
           };
         }
       }
@@ -405,11 +409,21 @@ export default function QuestionsMode({
           }
         }
 
+        // Compute bonus breakdown if this question has bonuses
+        let bonusBreakdown = [];
+        if (q.bonusAvailable && q.bonusValue) {
+          const questionBonus = { bonusValue: q.bonusValue, maxBonuses: q.maxBonuses };
+          bonusBreakdown = computeBonusBreakdown(
+            teams, adaptedGrid, showQuestionId, scoringConfig, correctCount, questionBonus
+          );
+        }
+
         roundStats[showQuestionId] = {
           totalTeams,
           activeTeamCount,
           correctCount,
           correctTeams,
+          bonusBreakdown,
         };
       }
 
@@ -417,7 +431,7 @@ export default function QuestionsMode({
     }
 
     return result;
-  }, [cachedState, showBundle, scoringMode]);
+  }, [cachedState, showBundle, scoringMode, scoringConfig]);
 
   const sortedGroupedEntries = React.useMemo(() => {
     const entries = Object.entries(groupedQuestions);
@@ -1510,6 +1524,8 @@ export default function QuestionsMode({
                                           qStats?.correctCount ?? null;
                                         payload.totalTeams =
                                           qStats?.totalTeams ?? null;
+                                        payload.bonusBreakdown =
+                                          qStats?.bonusBreakdown ?? [];
                                       }
 
                                       // Include inline images when "Show image by default" is checked
@@ -1620,6 +1636,8 @@ export default function QuestionsMode({
                                           qStats?.correctCount ?? null;
                                         payload.totalTeams =
                                           qStats?.totalTeams ?? null;
+                                        payload.bonusBreakdown =
+                                          qStats?.bonusBreakdown ?? [];
                                       }
 
                                       // Never add images for this button
@@ -1685,6 +1703,8 @@ export default function QuestionsMode({
                                             qStats?.correctCount ?? null;
                                           payload.totalTeams =
                                             qStats?.totalTeams ?? null;
+                                          payload.bonusBreakdown =
+                                            qStats?.bonusBreakdown ?? [];
                                         }
 
                                         // Always add images for this button
@@ -1779,7 +1799,25 @@ export default function QuestionsMode({
                               correct
                             </span>
 
-                            {qPointsPerTeam !== null && (
+                            {/* Bonus breakdown or simple points per team */}
+                            {qStats.bonusBreakdown && qStats.bonusBreakdown.length > 1 ? (
+                              <span style={{ marginLeft: ".6rem", fontSize: "1rem" }}>
+                                {qStats.bonusBreakdown.map((level, i) => (
+                                  <span key={level.bonusLevel}>
+                                    {i > 0 && " · "}
+                                    <span style={{ color: theme.accent, fontWeight: 700 }}>
+                                      {level.pointsPerTeam}
+                                    </span>
+                                    {" pts"}
+                                    {level.bonusLevel > 0 && (
+                                      <span style={{ fontSize: ".9rem", opacity: 0.8 }}>
+                                        {" "}({level.bonusLevel} {"bonus" + (level.bonusLevel > 1 ? "es" : "")})
+                                      </span>
+                                    )}
+                                  </span>
+                                ))}
+                              </span>
+                            ) : qPointsPerTeam !== null ? (
                               <span
                                 style={{
                                   marginLeft: ".6rem",
@@ -1796,7 +1834,7 @@ export default function QuestionsMode({
                                 </span>{" "}
                                 points per team
                               </span>
-                            )}
+                            ) : null}
 
                             {qStats.correctCount === 1 &&
                               qStats.correctTeams[0] && (

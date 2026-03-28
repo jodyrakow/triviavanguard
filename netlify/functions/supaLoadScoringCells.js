@@ -51,6 +51,7 @@ export const handler = async (event) => {
         tiebreakerGuess: cell.tiebreaker_guess,
         tiebreakerGuessRaw: cell.tiebreaker_guess_raw,
         bonusCount: cell.bonus_count,
+        partialCount: cell.partial_count ?? 0,
       };
     }
 

@@ -211,6 +211,9 @@ export default function ScoringMode({
       bonusAvailable: !!q.bonusAvailable,
       bonusValue: q.bonusValue || null,
       maxBonuses: typeof q.maxBonuses === "number" ? q.maxBonuses : null,
+      // Partial credit fields
+      partialCreditAvailable: !!q.partialCreditAvailable,
+      numParts: typeof q.numParts === "number" ? q.numParts : null,
     }));
   }, [roundObj]);
 
@@ -388,13 +391,14 @@ export default function ScoringMode({
             question: newRow.show_question_id,
             isCorrect: newRow.is_correct
           });
-          const { show_team_id, show_question_id, is_correct, bonus_count, tiebreaker_guess, tiebreaker_guess_raw } = newRow;
+          const { show_team_id, show_question_id, is_correct, bonus_count, partial_count, tiebreaker_guess, tiebreaker_guess_raw } = newRow;
 
           setGrid((prev) => {
             const byTeam = prev[show_team_id] ? { ...prev[show_team_id] } : {};
             byTeam[show_question_id] = {
               isCorrect: is_correct,
               bonusCount: bonus_count || 0,
+              partialCount: partial_count ?? 0,
               tiebreakerGuess: tiebreaker_guess,
               tiebreakerGuessRaw: tiebreaker_guess_raw,
             };
@@ -619,35 +623,48 @@ export default function ScoringMode({
         const cell = byTeam[showQuestionId] || {
           isCorrect: false,
           bonusCount: 0,
+          partialCount: 0,
         };
 
-        // Click-cycle logic:
-        // - If incorrect → mark correct, bonusCount = 0
-        // - If correct && bonusAvailable && bonusCount < maxBonuses → increment bonusCount
-        // - If correct && (!bonusAvailable || bonusCount >= maxBonuses) → mark incorrect
-        const maxBonuses = q.maxBonuses || 0;
-        const hasBonusAvailable = q.bonusAvailable && maxBonuses > 0;
-        const currentBonusCount = cell.bonusCount || 0;
+        let nextOn, nextBonusCount, nextPartialCount;
 
-        let nextOn, nextBonusCount;
-        if (!cell.isCorrect) {
-          // Click #1: mark correct
-          nextOn = true;
+        // --- Partial credit path (mutually exclusive with bonus) ---
+        if (q.partialCreditAvailable && q.numParts > 0) {
+          const currentPartial = cell.partialCount || 0;
           nextBonusCount = 0;
-        } else if (hasBonusAvailable && currentBonusCount < maxBonuses) {
-          // Click #2+: apply bonus (stay correct, increment bonusCount)
-          nextOn = true;
-          nextBonusCount = currentBonusCount + 1;
+
+          if (currentPartial < q.numParts) {
+            nextPartialCount = currentPartial + 1;
+            nextOn = (nextPartialCount === q.numParts);
+          } else {
+            // Already at max — cycle back to wrong
+            nextPartialCount = 0;
+            nextOn = false;
+          }
         } else {
-          // Max bonuses reached or no bonus available: toggle back to incorrect
-          nextOn = false;
-          nextBonusCount = 0;
+          // --- Bonus path (existing logic) ---
+          nextPartialCount = 0;
+          const maxBonuses = q.maxBonuses || 0;
+          const hasBonusAvailable = q.bonusAvailable && maxBonuses > 0;
+          const currentBonusCount = cell.bonusCount || 0;
+
+          if (!cell.isCorrect) {
+            nextOn = true;
+            nextBonusCount = 0;
+          } else if (hasBonusAvailable && currentBonusCount < maxBonuses) {
+            nextOn = true;
+            nextBonusCount = currentBonusCount + 1;
+          } else {
+            nextOn = false;
+            nextBonusCount = 0;
+          }
         }
 
         const newCell = {
           ...cell,
           isCorrect: nextOn,
           bonusCount: nextBonusCount,
+          partialCount: nextPartialCount,
         };
         byTeam[showQuestionId] = newCell;
 
@@ -909,12 +926,16 @@ export default function ScoringMode({
       const questionBonus = q?.bonusAvailable
         ? { bonusValue: q.bonusValue, maxBonuses: q.maxBonuses }
         : null;
+      const questionPartial = q?.partialCreditAvailable && q?.numParts > 0
+        ? { numParts: q.numParts }
+        : null;
 
       return computeCellPoints(
         adaptedCell,
         config,
         correctCount,
-        questionBonus
+        questionBonus,
+        questionPartial
       );
     },
     [
@@ -935,6 +956,7 @@ export default function ScoringMode({
         adapted[teamId][questionId] = {
           isCorrect: cell.isCorrect,
           bonusCount: cell.bonusCount || 0,
+          partialCount: cell.partialCount || 0,
         };
       }
     }
@@ -1189,6 +1211,7 @@ export default function ScoringMode({
       cursor: "pointer",
     },
     wrong: { background: "#fff1e6", color: "#2B394A", cursor: "pointer" },
+    partialCredit: { background: "#B0B8C1", color: "#fff", cursor: "pointer" },
   };
   const tileFocus = {
     boxShadow: `0 0 0 2px #fff, 0 0 0 4px ${focusColor}`,
@@ -1741,6 +1764,8 @@ export default function ScoringMode({
                   const cell = grid[t.showTeamId]?.[q.showQuestionId];
                   const on = !!cell?.isCorrect;
                   const bonusCount = cell?.bonusCount || 0;
+                  const partialCount = cell?.partialCount || 0;
+                  const numParts = q.numParts || 0;
                   // normalize focus to the single rendered column in team mode
                   const focusTeamIdx = teamMode ? 0 : focus.teamIdx;
 
@@ -1750,9 +1775,11 @@ export default function ScoringMode({
 
                   const pts = earnedFor(cell, q.showQuestionId);
 
-                  // Determine tile state: correct with bonus, correct, or wrong
+                  // Determine tile state: correct with bonus, partial credit, correct, or wrong
                   let tileState = tileStates.wrong;
-                  if (on && bonusCount > 0) {
+                  if (q.partialCreditAvailable && numParts > 0 && partialCount > 0 && !on) {
+                    tileState = tileStates.partialCredit;
+                  } else if (on && bonusCount > 0) {
                     tileState = tileStates.correctWithBonus;
                   } else if (on) {
                     tileState = tileStates.correct;
@@ -1765,6 +1792,13 @@ export default function ScoringMode({
 
                     scrollMarginTop: 8,
                     scrollMarginBottom: 8,
+                    // Gray border for partial credit questions
+                    ...(q.partialCreditAvailable && numParts > 0
+                      ? {
+                          borderColor: "#8896A4",
+                          ...(!on && partialCount === 0 ? { background: "#F0F2F5" } : null),
+                        }
+                      : null),
                     // Dark blue border for questions with bonus available
                     ...(q.bonusAvailable
                       ? {
@@ -1805,7 +1839,9 @@ export default function ScoringMode({
                             ? bonusCount > 0
                               ? `Correct — ${pts} pts (${bonusCount} bonus${bonusCount > 1 ? "es" : ""} applied)\n(Click to toggle • 1/Space to toggle)`
                               : `Correct — ${pts} pts\n(Click to toggle • 1/Space to toggle)`
-                            : `Incorrect\n(Click to toggle • 1/Space to toggle)`
+                            : q.partialCreditAvailable && partialCount > 0
+                              ? `Partial credit — ${partialCount}/${numParts} parts — ${pts} pts\n(Click to toggle • 1/Space to toggle)`
+                              : `Incorrect\n(Click to toggle • 1/Space to toggle)`
                         }
                       >
                         <span
@@ -1819,7 +1855,9 @@ export default function ScoringMode({
                             ? bonusCount > 0
                               ? `(${bonusCount}⭑) ${pts}`
                               : `✓ ${pts}`
-                            : "○"}
+                            : q.partialCreditAvailable && partialCount > 0
+                              ? `${"●".repeat(partialCount)}${"○".repeat(numParts - partialCount)} ${pts}`
+                              : "○"}
                         </span>
                       </div>
                     </td>

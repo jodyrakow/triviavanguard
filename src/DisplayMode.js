@@ -275,6 +275,7 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
     correctCount,
     totalTeams,
     inlineImages,
+    bonusBreakdown,
   } = content || {};
 
   const scale = fontSize / 100;
@@ -507,8 +508,8 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
           </div>
         )}
 
-      {/* Stats wrapper #2 (points per team) */}
-      {answer && pointsPerTeam != null && (
+      {/* Stats wrapper #2 (points per team / bonus breakdown) */}
+      {answer && (pointsPerTeam != null || (bonusBreakdown && bonusBreakdown.length > 0)) && (
         <div
           style={{
             position: "absolute",
@@ -525,20 +526,39 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
         >
           <div
             style={{
-              fontSize: `${2.25 * scale}rem`,
+              fontSize: `${(bonusBreakdown && bonusBreakdown.length > 1 ? 1.8 : 2.25) * scale}rem`,
               color: theme.dark,
               fontFamily: tokens.font.body,
             }}
           >
-            <span
-              style={{
-                color: theme.accent,
-                fontWeight: 700,
-              }}
-            >
-              {pointsPerTeam}
-            </span>{" "}
-            points per team
+            {bonusBreakdown && bonusBreakdown.length > 1 ? (
+              bonusBreakdown.map((level, i) => (
+                <span key={level.bonusLevel}>
+                  {i > 0 && " · "}
+                  <span style={{ color: theme.accent, fontWeight: 700 }}>
+                    {level.pointsPerTeam}
+                  </span>
+                  {" pts"}
+                  {level.bonusLevel > 0 && (
+                    <span style={{ opacity: 0.7 }}>
+                      {" "}({level.bonusLevel} {"bonus" + (level.bonusLevel > 1 ? "es" : "")})
+                    </span>
+                  )}
+                </span>
+              ))
+            ) : (
+              <>
+                <span
+                  style={{
+                    color: theme.accent,
+                    fontWeight: 700,
+                  }}
+                >
+                  {pointsPerTeam}
+                </span>{" "}
+                points per team
+              </>
+            )}
           </div>
         </div>
       )}
