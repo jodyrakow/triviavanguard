@@ -455,7 +455,7 @@ export default function Sidebar({
           }}
           style={{
             position: "absolute",
-            top: "100px",
+            top: "190px",
             right: "8px",
             backgroundColor: "rgba(255,255,255,0.2)",
             border: "none",
@@ -483,7 +483,7 @@ export default function Sidebar({
           onClick={() => setShowTimer((prev) => !prev)}
           style={{
             position: "absolute",
-            top: "145px",
+            top: "280px",
             right: "8px",
             backgroundColor: "rgba(255,255,255,0.2)",
             border: "none",
@@ -511,7 +511,7 @@ export default function Sidebar({
           onClick={() => setShowAnswerKey((prev) => !prev)}
           style={{
             position: "absolute",
-            top: "190px",
+            top: "100px",
             right: "8px",
             backgroundColor: "rgba(255,255,255,0.2)",
             border: "none",
@@ -539,7 +539,7 @@ export default function Sidebar({
           onClick={refreshBundle}
           style={{
             position: "absolute",
-            top: "235px",
+            top: "145px",
             right: "8px",
             backgroundColor: "rgba(255,255,255,0.2)",
             border: "none",
@@ -567,7 +567,7 @@ export default function Sidebar({
           onClick={() => setScriptOpen(true)}
           style={{
             position: "absolute",
-            top: "280px",
+            top: "235px",
             right: "8px",
             backgroundColor: "rgba(255,255,255,0.2)",
             border: "none",
