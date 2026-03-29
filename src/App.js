@@ -1,5 +1,5 @@
 // App.js
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import "./App.css";
 import "react-h5-audio-player/lib/styles.css";
@@ -20,6 +20,7 @@ import {
   Button,
 } from "./styles/index.js";
 import { createClient } from "@supabase/supabase-js";
+import { computeAutoEarned, computeBonusBreakdown } from "./scoring/compute.js";
 
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
 const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
@@ -274,6 +275,11 @@ export default function App() {
 
   const [customMessage, setCustomMessage] = useState("");
   const [customMessageImage, setCustomMessageImage] = useState("");
+
+  // Display nav state
+  const [navIsAnswerMode, setNavIsAnswerMode] = useState(false);
+  const [navIndex, setNavIndex] = useState(0);
+  const [navAnswerStage, setNavAnswerStage] = useState(0); // 0=question, 1=answer, 2=stats
 
   // Answer Key state
   const [showAnswerKey, setShowAnswerKey] = useState(false);
@@ -1308,6 +1314,237 @@ export default function App() {
     return updatedBundle;
   }, [showBundle, questionEdits, selectedShowId, scoringCache]);
 
+  // Build a flat ordered list of display nav items (categories + questions) from the bundle
+  const navFlatList = useMemo(() => {
+    if (!showBundleWithEdits?.rounds) return [];
+    const items = [];
+    for (const round of showBundleWithEdits.rounds) {
+      const sorted = [...(round.categories || [])].sort((a, b) => {
+        const av = (a.questionType || "").toLowerCase().includes("visual") ? 1 : 0;
+        const bv = (b.questionType || "").toLowerCase().includes("visual") ? 1 : 0;
+        if (av !== bv) return bv - av; // visuals first
+        return (a.categoryOrder ?? 999) - (b.categoryOrder ?? 999);
+      });
+      for (const cat of sorted) {
+        if ((cat.questionType || "").toLowerCase() === "tiebreaker") continue;
+        items.push({
+          type: "category",
+          categoryName: cat.categoryName || "",
+          categoryDescription: cat.categoryDescription || "",
+        });
+        const questions = [...(cat.questions || [])].sort(
+          (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+        );
+        for (const q of questions) {
+          if (
+            (q.questionType || "").toLowerCase() === "tiebreaker" ||
+            String(q.questionOrder || "").toUpperCase() === "TB"
+          ) continue;
+          items.push({
+            type: "question",
+            showQuestionId: q.showQuestionId,
+            questionNumber: q.questionOrder,
+            questionText: q.questionText || "",
+            answer: q.answer || "",
+            categoryName: cat.categoryName || "",
+            bonusAvailable: !!q.bonusAvailable,
+            bonusValue: q.bonusValue || null,
+            maxBonuses: q.maxBonuses || null,
+          });
+        }
+      }
+    }
+    return items;
+  }, [showBundleWithEdits]);
+
+  const navQuestionList = useMemo(
+    () => navFlatList.filter((item) => item.type === "question"),
+    [navFlatList]
+  );
+
+  // Reset nav position when show changes
+  useEffect(() => {
+    setNavIndex(0);
+    setNavAnswerStage(0);
+  }, [showBundle]);
+
+  // Push a questions-mode item to the display
+  const pushNavItem = useCallback((item) => {
+    if (!item) return;
+    if (item.type === "category") {
+      sendToDisplay("category", {
+        categoryName: item.categoryName,
+        categoryDescription: item.categoryDescription,
+      });
+    } else {
+      sendToDisplay("question", {
+        questionNumber: item.questionNumber,
+        questionText: item.questionText,
+        categoryName: item.categoryName,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Push an answers-mode question at a given stage (0=question, 1=answer, 2=stats)
+  const pushNavQuestion = useCallback((item, stage) => {
+    if (!item) return;
+    const payload = {
+      questionNumber: item.questionNumber,
+      questionText: item.questionText,
+      categoryName: item.categoryName,
+    };
+    if (stage >= 1) {
+      payload.answer = item.answer;
+    }
+    if (stage >= 2) {
+      const grid = composedCachedState?.grid || {};
+      const teams = composedCachedState?.teams || [];
+      let correctCount = 0;
+      for (const team of teams) {
+        if (grid[team.showTeamId]?.[item.showQuestionId]?.isCorrect === true) {
+          correctCount++;
+        }
+      }
+      const scoringObj = {
+        mode: scoringMode,
+        pubPoints,
+        poolPerQuestion,
+        poolContribution,
+        teamCount: teams.length,
+      };
+      const questionBonus = item.bonusAvailable
+        ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
+        : null;
+      payload.correctCount = correctCount;
+      payload.totalTeams = teams.length;
+      payload.pointsPerTeam = computeAutoEarned({ isCorrect: true }, scoringObj, correctCount);
+      payload.bonusBreakdown = computeBonusBreakdown(
+        teams, grid, item.showQuestionId, scoringObj, correctCount, questionBonus
+      );
+    }
+    sendToDisplay("question", payload);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composedCachedState, scoringMode, pubPoints, poolPerQuestion, poolContribution]);
+
+  // Wrapper around sendToDisplay that also syncs the nav cursor position
+  const sendToDisplayWithNavSync = useCallback((type, data) => {
+    sendToDisplay(type, data);
+    if (type === "question" && data?.questionNumber !== undefined) {
+      const list = navIsAnswerMode ? navQuestionList : navFlatList;
+      const idx = list.findIndex(
+        (item) =>
+          item.type === "question" &&
+          String(item.questionNumber) === String(data.questionNumber) &&
+          item.categoryName === data.categoryName
+      );
+      if (idx >= 0) {
+        setNavIndex(idx);
+        if (navIsAnswerMode) {
+          const stage =
+            data.correctCount !== undefined ? 2
+            : data.answer !== undefined ? 1
+            : 0;
+          setNavAnswerStage(stage);
+        }
+      }
+    } else if (type === "category" && !navIsAnswerMode && data?.categoryName) {
+      const idx = navFlatList.findIndex(
+        (item) => item.type === "category" && item.categoryName === data.categoryName
+      );
+      if (idx >= 0) setNavIndex(idx);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navIsAnswerMode, navFlatList, navQuestionList]);
+
+  const navForward = useCallback(() => {
+    if (navIsAnswerMode) {
+      const currentQ = navQuestionList[navIndex];
+      if (!currentQ) return;
+      if (navAnswerStage < 2) {
+        const nextStage = navAnswerStage + 1;
+        setNavAnswerStage(nextStage);
+        pushNavQuestion(currentQ, nextStage);
+      } else if (navIndex < navQuestionList.length - 1) {
+        const nextIdx = navIndex + 1;
+        setNavIndex(nextIdx);
+        setNavAnswerStage(0);
+        pushNavQuestion(navQuestionList[nextIdx], 0);
+      }
+    } else {
+      if (navIndex < navFlatList.length - 1) {
+        const nextIdx = navIndex + 1;
+        setNavIndex(nextIdx);
+        pushNavItem(navFlatList[nextIdx]);
+      }
+    }
+  }, [navIsAnswerMode, navIndex, navAnswerStage, navFlatList, navQuestionList, pushNavItem, pushNavQuestion]);
+
+  const navBackward = useCallback(() => {
+    if (navIsAnswerMode) {
+      const currentQ = navQuestionList[navIndex];
+      if (!currentQ) return;
+      if (navAnswerStage > 0) {
+        const prevStage = navAnswerStage - 1;
+        setNavAnswerStage(prevStage);
+        pushNavQuestion(currentQ, prevStage);
+      } else if (navIndex > 0) {
+        const prevIdx = navIndex - 1;
+        setNavIndex(prevIdx);
+        setNavAnswerStage(2);
+        pushNavQuestion(navQuestionList[prevIdx], 2);
+      }
+    } else {
+      if (navIndex > 0) {
+        const prevIdx = navIndex - 1;
+        setNavIndex(prevIdx);
+        pushNavItem(navFlatList[prevIdx]);
+      }
+    }
+  }, [navIsAnswerMode, navIndex, navAnswerStage, navFlatList, navQuestionList, pushNavItem, pushNavQuestion]);
+
+  const toggleNavMode = useCallback(() => {
+    const nextMode = !navIsAnswerMode;
+    setNavIsAnswerMode(nextMode);
+    if (nextMode) {
+      // Switching to answers mode: find current question in navQuestionList
+      const currentItem = navFlatList[navIndex];
+      if (currentItem?.type === "question") {
+        const idx = navQuestionList.findIndex(
+          (q) => q.showQuestionId === currentItem.showQuestionId
+        );
+        setNavIndex(idx >= 0 ? idx : 0);
+      } else {
+        setNavIndex(0);
+      }
+    } else {
+      // Switching to questions mode: find current question in navFlatList
+      const currentQ = navQuestionList[navIndex];
+      if (currentQ) {
+        const idx = navFlatList.findIndex(
+          (item) => item.type === "question" && item.showQuestionId === currentQ.showQuestionId
+        );
+        setNavIndex(idx >= 0 ? idx : 0);
+      }
+    }
+    setNavAnswerStage(0);
+  }, [navIsAnswerMode, navFlatList, navQuestionList, navIndex]);
+
+  const navCurrentLabel = useMemo(() => {
+    if (navFlatList.length === 0) return "No show";
+    if (navIsAnswerMode) {
+      const q = navQuestionList[navIndex];
+      if (!q) return "—";
+      const stageLabel = ["question", "answer", "stats"][navAnswerStage] || "";
+      return `Q${q.questionNumber} · ${stageLabel}`;
+    }
+    const item = navFlatList[navIndex];
+    if (!item) return "—";
+    return item.type === "category"
+      ? (item.categoryName || "Category")
+      : `Q${item.questionNumber}`;
+  }, [navIsAnswerMode, navFlatList, navQuestionList, navIndex, navAnswerStage]);
+
   // Helper function to edit a question field
   const editQuestionField = (showQuestionId, field, value) => {
     setQuestionEdits((prev) => {
@@ -1547,7 +1784,7 @@ export default function App() {
         pubPoints={pubPoints}
         poolPerQuestion={poolPerQuestion}
         poolContribution={poolContribution}
-        sendToDisplay={sendToDisplay}
+        sendToDisplay={sendToDisplayWithNavSync}
       >
         <SidebarMenu
           showTimer={showTimer}
@@ -1760,6 +1997,83 @@ export default function App() {
                   title="Increase display text size"
                 >
                   A+
+                </Button>
+              </div>
+
+              {/* Display nav row */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: ".4rem",
+                  paddingTop: ".4rem",
+                  borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}`,
+                }}
+              >
+                <Button
+                  onClick={toggleNavMode}
+                  disabled={navFlatList.length === 0}
+                  title={`Switch to ${navIsAnswerMode ? "Questions" : "Answers"} mode`}
+                  style={{
+                    fontSize: ".72rem",
+                    padding: ".25rem .45rem",
+                    borderRadius: ".4rem",
+                    flexShrink: 0,
+                    opacity: navFlatList.length === 0 ? 0.4 : 1,
+                  }}
+                >
+                  {navIsAnswerMode ? "Answers" : "Questions"}
+                </Button>
+                <Button
+                  onClick={navBackward}
+                  disabled={
+                    navFlatList.length === 0 ||
+                    (navIsAnswerMode
+                      ? navIndex === 0 && navAnswerStage === 0
+                      : navIndex === 0)
+                  }
+                  title="Previous"
+                  style={{
+                    fontSize: ".9rem",
+                    padding: ".25rem .45rem",
+                    borderRadius: ".4rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  ←
+                </Button>
+                <span
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    fontSize: ".78rem",
+                    color: colors.dark,
+                    fontFamily: tokens.font.body,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    opacity: navFlatList.length === 0 ? 0.4 : 1,
+                  }}
+                >
+                  {navCurrentLabel}
+                </span>
+                <Button
+                  onClick={navForward}
+                  disabled={
+                    navFlatList.length === 0 ||
+                    (navIsAnswerMode
+                      ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2
+                      : navIndex >= navFlatList.length - 1)
+                  }
+                  title="Next"
+                  style={{
+                    fontSize: ".9rem",
+                    padding: ".25rem .45rem",
+                    borderRadius: ".4rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  →
                 </Button>
               </div>
 
@@ -2141,7 +2455,7 @@ export default function App() {
             editQuestionField={editQuestionField}
             displayControlsOpen={displayControlsOpen}
             addTiebreaker={addTiebreaker}
-            sendToDisplay={sendToDisplay}
+            sendToDisplay={sendToDisplayWithNavSync}
             refreshBundle={refreshBundle}
             carouselActive={carouselActive}
             setCarouselActive={setCarouselActive}
@@ -2246,7 +2560,7 @@ export default function App() {
             prizes={composedCachedState?.prizes ?? ""}
             setPrizes={(val) => patchShared({ prizes: String(val || "") })}
             questionEdits={questionEdits[selectedShowId] ?? {}}
-            sendToDisplay={sendToDisplay}
+            sendToDisplay={sendToDisplayWithNavSync}
             displayControlsOpen={displayControlsOpen}
           />
         )}
