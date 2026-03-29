@@ -4,18 +4,15 @@ import "./index.css";
 import App from "./App";
 import reportWebVitals from "./reportWebVitals";
 import DisplayMode from "./DisplayMode";
-import PrintAnswerKey from "./PrintAnswerKey";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
-// Look for "?display" or "?print-answer-key" in the query string
+// Look for "?display" in the query string
 const search = window.location.search || "";
 const isDisplay = /\bdisplay\b/i.test(search);
-const isPrintAnswerKey = /\bprint-answer-key\b/i.test(search);
 
 let component = <App />;
 if (isDisplay) component = <DisplayMode />;
-if (isPrintAnswerKey) component = <PrintAnswerKey />;
 
 root.render(<React.StrictMode>{component}</React.StrictMode>);
 
