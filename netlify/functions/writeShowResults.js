@@ -48,6 +48,12 @@ async function ensureTeamRecord(team) {
   // team: { teamId|null, teamName }
   // Only use teamId if it's a valid Airtable record ID
   if (team.teamId && isValidRecordId(team.teamId)) {
+    // Update the team name in case it was renamed during the show
+    if (team.teamName) {
+      await base(TBL_TEAMS).update([
+        { id: team.teamId, fields: { [F_TEAMS_NAME]: team.teamName } },
+      ]);
+    }
     return team.teamId;
   }
 
