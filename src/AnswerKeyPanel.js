@@ -105,13 +105,13 @@ function buildPrintHTML(showBundle, showName, { includeLabels, gameLabel }) {
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   font-family: Arial, sans-serif;
-  font-size: 20pt;
+  font-size: 14pt;
   color: #000;
   background: #fff;
   padding: 0.5in;
 }
 .rhead {
-  font-size: 22pt;
+  font-size: 16pt;
   font-weight: bold;
   margin-bottom: 0.3in;
 }
