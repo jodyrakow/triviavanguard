@@ -22,6 +22,11 @@ export default function DisplayMode() {
   const urlHostName = decodeURIComponent(params.get("hostName") || "");
   const isViewer = params.get("viewer") === "1";
 
+  // Set tab title
+  useEffect(() => {
+    document.title = "TriviaVanguard display";
+  }, []);
+
   // Listen for display updates via Supabase Realtime broadcast
   useEffect(() => {
     if (!supabase || !urlHostId) return;
