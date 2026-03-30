@@ -1473,7 +1473,7 @@ export default function App() {
         if ((cat.questionType || "").toLowerCase() === "tiebreaker") continue;
         items.push({
           type: "category",
-          categoryName: cat.categoryName || "",
+          categoryName: (cat.categoryName || "").trim(),
           categoryDescription: cat.categoryDescription || "",
         });
         const questions = [...(cat.questions || [])].sort(
@@ -1490,10 +1490,15 @@ export default function App() {
             questionNumber: q.questionOrder,
             questionText: q.questionText || "",
             answer: q.answer || "",
-            categoryName: cat.categoryName || "",
+            categoryName: (cat.categoryName || "").trim(),
             bonusAvailable: !!q.bonusAvailable,
             bonusValue: q.bonusValue || null,
             maxBonuses: q.maxBonuses || null,
+            showImageByDefault: !!q.showImageByDefault,
+            autoRevealAnswerImage: !!q.autoRevealAnswerImage,
+            inlineImages: Array.isArray(q.questionImages)
+              ? q.questionImages.map((img) => ({ url: img.url }))
+              : [],
           });
         }
       }
@@ -1521,11 +1526,16 @@ export default function App() {
         categoryDescription: item.categoryDescription,
       });
     } else {
-      sendToDisplay("question", {
+      const payload = {
         questionNumber: item.questionNumber,
         questionText: item.questionText,
         categoryName: item.categoryName,
-      });
+      };
+      if (item.showImageByDefault && item.inlineImages?.length > 0) {
+        payload.inlineImages = item.inlineImages;
+        payload.currentInlineImageIndex = 0;
+      }
+      sendToDisplay("question", payload);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1538,6 +1548,15 @@ export default function App() {
       questionText: item.questionText,
       categoryName: item.categoryName,
     };
+    if (item.showImageByDefault && item.inlineImages?.length > 0) {
+      payload.inlineImages = item.inlineImages;
+      // Auto-reveal answer image: image 0 for question, image 1 for answer/stats
+      if (item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
+        payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
+      } else {
+        payload.currentInlineImageIndex = 0;
+      }
+    }
     if (stage >= 1) {
       payload.answer = item.answer;
     }
@@ -1580,7 +1599,7 @@ export default function App() {
         (item) =>
           item.type === "question" &&
           String(item.questionNumber) === String(data.questionNumber) &&
-          item.categoryName === data.categoryName
+          item.categoryName === (data.categoryName || "").trim()
       );
       if (idx >= 0) {
         setNavIndex(idx);
