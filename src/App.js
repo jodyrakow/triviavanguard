@@ -19,14 +19,9 @@ import {
   ui,
   Button,
 } from "./styles/index.js";
-import { createClient } from "@supabase/supabase-js";
 import { computeAutoEarned, computeBonusBreakdown } from "./scoring/compute.js";
-
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
-
-export const supabase =
-  supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+import { supabase } from "./supabaseClient.js";
+export { supabase };
 
 // Default state structure for all shows
 // NEW STRUCTURE: All scoring data in one bundle (not split by round)
@@ -284,26 +279,175 @@ export default function App() {
   // Answer Key state
   const [showAnswerKey, setShowAnswerKey] = useState(false);
 
-  // BroadcastChannel for sending to display window
-  const displayChannelRef = useRef(null);
+  // ── Host identity ──────────────────────────────────────────────
+  const [hostId, setHostId] = useState(null);
+  const [hostName, setHostName] = useState("");
+  const [hostSetupOpen, setHostSetupOpen] = useState(false);
+  const [hostSetupHosts, setHostSetupHosts] = useState([]); // list from Supabase
+  const [hostSetupNewName, setHostSetupNewName] = useState("");
+  const [hostSetupError, setHostSetupError] = useState("");
+
+  // displayTargetHostId: which host's display channel we're sending to
+  // (normally our own; may be set to a co-host's ID when joining their display)
+  const [displayTargetHostId, setDisplayTargetHostId] = useState(null);
+
+  // Active displays detected via Supabase Presence on "tv:displays"
+  const [activeDisplays, setActiveDisplays] = useState([]);
+  // Picker shown when other displays are detected on "Open display" click
+  const [displayPickerOpen, setDisplayPickerOpen] = useState(false);
+
+  // Supabase channel for broadcasting to the display window
+  const displayBroadcastRef = useRef(null);
+
+  // On mount: check localStorage for saved host identity, verify against Supabase
   useEffect(() => {
-    if (typeof BroadcastChannel !== "undefined") {
-      displayChannelRef.current = new BroadcastChannel("tv:display");
+    const savedId = localStorage.getItem("tvHostId");
+    const savedName = localStorage.getItem("tvHostName");
+    if (savedId && savedName) {
+      fetch("/.netlify/functions/supaUpsertHost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hostId: savedId }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.host_id) {
+            setHostId(data.host_id);
+            setHostName(data.host_name);
+            setDisplayTargetHostId(data.host_id);
+          } else {
+            // Not found in Supabase — show setup
+            setHostSetupOpen(true);
+          }
+        })
+        .catch(() => {
+          // Network error — trust localStorage and proceed
+          setHostId(savedId);
+          setHostName(savedName);
+          setDisplayTargetHostId(savedId);
+        });
+    } else {
+      setHostSetupOpen(true);
     }
-    return () => {
-      displayChannelRef.current?.close();
-    };
   }, []);
+
+  // Load host list for the setup modal
+  useEffect(() => {
+    if (!hostSetupOpen) return;
+    fetch("/.netlify/functions/supaGetHosts")
+      .then((r) => r.json())
+      .then((data) => setHostSetupHosts(Array.isArray(data) ? data : []))
+      .catch(() => setHostSetupHosts([]));
+  }, [hostSetupOpen]);
+
+  const selectHost = (id, name) => {
+    setHostId(id);
+    setHostName(name);
+    setDisplayTargetHostId(id);
+    localStorage.setItem("tvHostId", id);
+    localStorage.setItem("tvHostName", name);
+    setHostSetupOpen(false);
+    setHostSetupError("");
+    setHostSetupNewName("");
+  };
+
+  const createHost = async () => {
+    const name = hostSetupNewName.trim();
+    if (!name) return;
+    setHostSetupError("");
+    try {
+      const res = await fetch("/.netlify/functions/supaUpsertHost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hostName: name }),
+      });
+      const data = await res.json();
+      if (data.host_id) {
+        selectHost(data.host_id, data.host_name);
+      } else {
+        setHostSetupError(data.error || "Failed to create host.");
+      }
+    } catch {
+      setHostSetupError("Network error — please try again.");
+    }
+  };
+
+  // Keep display broadcast channel in sync with displayTargetHostId
+  useEffect(() => {
+    if (!supabase || !displayTargetHostId) return;
+
+    // Clean up previous channel
+    if (displayBroadcastRef.current) {
+      supabase.removeChannel(displayBroadcastRef.current);
+      displayBroadcastRef.current = null;
+    }
+
+    const ch = supabase.channel(`tv:display:${displayTargetHostId}`);
+    ch.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        displayBroadcastRef.current = ch;
+      }
+    });
+
+    return () => {
+      supabase.removeChannel(ch);
+      displayBroadcastRef.current = null;
+    };
+  }, [displayTargetHostId]);
+
+  // Subscribe to presence channel to detect active displays
+  useEffect(() => {
+    if (!supabase) return;
+    const ch = supabase.channel("tv:displays");
+    ch.on("presence", { event: "sync" }, () => {
+      const state = ch.presenceState();
+      const displays = Object.values(state).flat();
+      setActiveDisplays(displays);
+    });
+    ch.subscribe();
+    return () => supabase.removeChannel(ch);
+  }, []);
+
   useEffect(() => {
     localStorage.setItem("tv_displayFontSize", String(displayFontSize));
   }, [displayFontSize]);
 
-  // Send message to display window
+  // Send message to display window via Supabase Realtime broadcast
   const sendToDisplay = (type, data) => {
-    if (!displayChannelRef.current) return;
+    if (!displayBroadcastRef.current) return;
     console.log("[sendToDisplay]", type, data);
-    displayChannelRef.current.postMessage({ type, content: data });
+    displayBroadcastRef.current.send({
+      type: "broadcast",
+      event: "display_update",
+      payload: { type, content: data },
+    });
   };
+
+  // Open the display window, with picker if another host's display is already active
+  const openDisplayWindow = useCallback(() => {
+    const others = activeDisplays.filter((d) => d.hostId !== hostId);
+    if (others.length > 0) {
+      setDisplayPickerOpen(true);
+    } else {
+      launchOwnDisplay();
+    }
+  }, [activeDisplays, hostId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const launchOwnDisplay = useCallback(() => {
+    setDisplayTargetHostId(hostId);
+    const url = `${window.location.origin}?display&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}`;
+    const win = window.open(url, "displayMode", "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no");
+    if (win) win.focus();
+    setDisplayPickerOpen(false);
+  }, [hostId, hostName]);
+
+  const joinDisplay = useCallback((targetHostId, targetHostName) => {
+    setDisplayTargetHostId(targetHostId);
+    const url = `${window.location.origin}?display&hostId=${targetHostId}&hostName=${encodeURIComponent(targetHostName)}`;
+    const win = window.open(url, "displayMode", "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no");
+    if (win) win.focus();
+    setDisplayPickerOpen(false);
+  }, []);
 
   // Global scoring settings
   const [scoringMode, setScoringMode] = useState(
@@ -1903,17 +2047,7 @@ export default function App() {
                 }}
               >
                 <Button
-                  onClick={() => {
-                    const newWindow = window.open(
-                      window.location.origin + "?display",
-                      "displayMode",
-                      "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no",
-                    );
-                    if (newWindow) newWindow.focus();
-
-                    // push current host-stored size to display
-                    sendToDisplay("fontSize", { size: displayFontSize });
-                  }}
+                  onClick={openDisplayWindow}
                   title="Open Display Mode in new window"
                   style={{
                     fontSize: "1rem",
@@ -1924,6 +2058,26 @@ export default function App() {
                   }}
                 >
                   📺
+                </Button>
+
+                <Button
+                  onClick={() => {
+                    if (!hostId) return;
+                    const url = `${window.location.origin}?display&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1`;
+                    navigator.clipboard.writeText(url).catch(() =>
+                      window.prompt("Copy viewer link:", url)
+                    );
+                  }}
+                  title="Copy view-only display link"
+                  style={{
+                    fontSize: "1rem",
+                    padding: ".45rem .55rem",
+                    minWidth: "2.25rem",
+                    height: "2.25rem",
+                    borderRadius: ".5rem",
+                  }}
+                >
+                  🔗
                 </Button>
 
                 <Button
@@ -2979,6 +3133,157 @@ export default function App() {
             >
               Only .json archive files are supported
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Host Setup Modal ── */}
+      {hostSetupOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            zIndex: 9000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 10,
+              padding: "2rem",
+              width: 360,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+            }}
+          >
+            <h2 style={{ marginBottom: "1rem", fontSize: "1.1rem" }}>
+              Who's hosting?
+            </h2>
+
+            {hostSetupHosts.length > 0 && (
+              <>
+                <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "#555" }}>
+                  Select an existing host:
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "1rem" }}>
+                  {hostSetupHosts.map((h) => (
+                    <button
+                      key={h.host_id}
+                      onClick={() => selectHost(h.host_id, h.host_name)}
+                      style={{
+                        padding: "0.35rem 0.75rem",
+                        border: "1px solid #ccc",
+                        borderRadius: 6,
+                        background: "#f5f5f5",
+                        cursor: "pointer",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      {h.host_name}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "#555" }}>
+                  Or create a new host:
+                </p>
+              </>
+            )}
+
+            {hostSetupHosts.length === 0 && (
+              <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "#555" }}>
+                Enter your name to get started:
+              </p>
+            )}
+
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                type="text"
+                value={hostSetupNewName}
+                onChange={(e) => setHostSetupNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && createHost()}
+                placeholder="Your name"
+                style={{
+                  flex: 1,
+                  padding: "0.4rem 0.6rem",
+                  border: "1px solid #ccc",
+                  borderRadius: 6,
+                  fontSize: "0.95rem",
+                }}
+              />
+              <Button onClick={createHost}>Add</Button>
+            </div>
+
+            {hostSetupError && (
+              <p style={{ color: "red", fontSize: "0.82rem", marginTop: "0.5rem" }}>
+                {hostSetupError}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Display Picker Modal ── */}
+      {displayPickerOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            zIndex: 9000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 10,
+              padding: "2rem",
+              width: 360,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+            }}
+          >
+            <h2 style={{ marginBottom: "1rem", fontSize: "1.1rem" }}>
+              Open which display?
+            </h2>
+
+            <Button
+              onClick={launchOwnDisplay}
+              style={{ width: "100%", marginBottom: "0.5rem" }}
+            >
+              My display ({hostName})
+            </Button>
+
+            {activeDisplays
+              .filter((d) => d.hostId !== hostId)
+              .map((d) => (
+                <Button
+                  key={d.hostId}
+                  onClick={() => joinDisplay(d.hostId, d.hostName)}
+                  style={{ width: "100%", marginBottom: "0.5rem" }}
+                >
+                  Join {d.hostName}'s display
+                </Button>
+              ))}
+
+            <button
+              onClick={() => setDisplayPickerOpen(false)}
+              style={{
+                marginTop: "0.5rem",
+                background: "transparent",
+                border: "none",
+                color: "#888",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                width: "100%",
+              }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

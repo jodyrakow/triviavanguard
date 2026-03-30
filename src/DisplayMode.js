@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { colors as theme, tokens } from "./styles";
 import triviaVanguardLogo from "./trivia-vanguard-logo-white.svg";
 import { marked } from "marked";
+import { supabase } from "./supabaseClient.js";
 marked.setOptions({ breaks: true });
 export default function DisplayMode() {
   const [displayState, setDisplayState] = useState({
@@ -15,12 +16,17 @@ export default function DisplayMode() {
 
   const [showGuide, setShowGuide] = useState(false);
 
-  // Listen for display updates via BroadcastChannel
-  useEffect(() => {
-    const channel = new BroadcastChannel("tv:display");
+  // Read params from URL (?display&hostId=xxx&hostName=yyy&viewer=1)
+  const params = new URLSearchParams(window.location.search);
+  const urlHostId = params.get("hostId");
+  const urlHostName = decodeURIComponent(params.get("hostName") || "");
+  const isViewer = params.get("viewer") === "1";
 
-    channel.onmessage = (event) => {
-      const { type, content } = event.data || {};
+  // Listen for display updates via Supabase Realtime broadcast
+  useEffect(() => {
+    if (!supabase || !urlHostId) return;
+
+    const handleMessage = ({ type, content }) => {
       console.log("[DisplayMode] Received update:", type, content);
 
       if (type === "fontSize") {
@@ -37,15 +43,36 @@ export default function DisplayMode() {
         setInlineImageIndex(content.currentIndex || 0);
       } else {
         setDisplayState({ type, content });
-        // Reset inline image index when new content is displayed
         if (type === "question" && content?.currentInlineImageIndex != null) {
           setInlineImageIndex(content.currentInlineImageIndex);
         }
       }
     };
 
-    return () => channel.close();
-  }, []);
+    // Subscribe to broadcast channel for display commands
+    const broadcastCh = supabase
+      .channel(`tv:display:${urlHostId}`)
+      .on("broadcast", { event: "display_update" }, (msg) => {
+        handleMessage(msg.payload || {});
+      })
+      .subscribe();
+
+    // Join shared presence channel — viewers are invisible (no track)
+    let presenceCh = null;
+    if (!isViewer) {
+      presenceCh = supabase.channel("tv:displays");
+      presenceCh.subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await presenceCh.track({ hostId: urlHostId, hostName: urlHostName });
+        }
+      });
+    }
+
+    return () => {
+      supabase.removeChannel(broadcastCh);
+      if (presenceCh) supabase.removeChannel(presenceCh);
+    };
+  }, [urlHostId, urlHostName]);
 
   return (
     <div
