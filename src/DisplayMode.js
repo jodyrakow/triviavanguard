@@ -223,9 +223,8 @@ function CategoryDisplay({ content, fontSize = 100 }) {
             letterSpacing: "0.02em",
             marginBottom: "2vh",
           }}
-        >
-          {categoryName}
-        </div>
+          dangerouslySetInnerHTML={{ __html: marked.parseInline(categoryName || "") }}
+        />
       )}
 
       {/* Category description */}
@@ -357,9 +356,8 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
               letterSpacing: "0.05rem",
               maxWidth: "calc(100% - 200px)",
             }}
-          >
-            {categoryName}
-          </div>
+            dangerouslySetInnerHTML={{ __html: marked.parseInline(categoryName || "") }}
+          />
         </div>
       )}
 
