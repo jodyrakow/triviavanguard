@@ -184,6 +184,8 @@ export default function Sidebar({
           visualQuestionCount += catQuestions.length;
         } else if (catQuestionType.includes("audio")) {
           audioQuestionCount += catQuestions.length;
+        } else if (catQuestions.length === 0) {
+          // skip empty/tiebreaker-only categories
         } else {
           // Spoken category
           spokenCategoryCount += 1;
