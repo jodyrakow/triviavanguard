@@ -15,7 +15,6 @@ marked.setOptions({ breaks: true });
 export default function QuestionsMode({
   showBundle = { rounds: [], teams: [] },
   selectedRoundId,
-  groupedQuestions: groupedQuestionsProp,
   showDetails,
   setshowDetails,
   questionRefs,
@@ -44,7 +43,8 @@ export default function QuestionsMode({
   setHostInfo: setHostInfoProp,
   editQuestionField,
   addTiebreaker,
-  sendToDisplay,
+  sendToDisplay,        // for non-question sends (category, carousel, etc.)
+  pushDisplayQuestion,  // for question sends — single unified path
   displayControlsOpen = false,
   refreshBundle,
   carouselActive = false,
@@ -52,9 +52,8 @@ export default function QuestionsMode({
 }) {
   // Unified question editor modal state
   const [editingQuestion, setEditingQuestion] = React.useState(null);
-  // { showQuestionId, questionText, notes, pronunciationGuide, answer }
 
-  // Track which question ID has inline visual images active on display
+  // Track which showQuestionId has inline visual images active on display
   const [inlineVisualQuestionId, setInlineVisualQuestionId] =
     React.useState(null);
 
@@ -63,13 +62,11 @@ export default function QuestionsMode({
   const [tbQuestion, setTbQuestion] = React.useState("");
   const [tbAnswer, setTbAnswer] = React.useState("");
 
-  // under other React.useState(...) lines near the top:
   const [hostModalOpen, setHostModalOpen] = React.useState(false);
   // Use hostInfo from props (synced to Supabase), with local state for immediate UI updates
   const [hostInfo, setHostInfo] = React.useState(hostInfoProp);
 
   // Track progressive reveal state: which question is active and what stage it's at
-  // Separate tracking for with/without images buttons
   const [progressiveRevealState, setProgressiveRevealState] = React.useState({
     activeQuestionId: null,
     stage: 0,
@@ -89,23 +86,16 @@ export default function QuestionsMode({
   // Detects "YYYY-MM-DD Game N @ Venue" vs "YYYY-MM-DD @ Venue"
   const multiGameMeta = useMemo(() => {
     const s = (showName || "").trim();
-
-    // 2025-09-23 Game 1 @ Venue
     const multiRe = /^\s*\d{4}-\d{2}-\d{2}\s+Game\s+(\d+)\s*@\s*(.+)\s*$/i;
-
-    // 2025-09-23 @ Venue
     const singleRe = /^\s*\d{4}-\d{2}-\d{2}\s*@\s*(.+)\s*$/;
-
     let gameIndex = null;
     let venue = "";
-
     const m1 = s.match(multiRe);
     if (m1) {
       gameIndex = parseInt(m1[1], 10);
       venue = m1[2].trim();
       return { isMultiNight: true, gameIndex, venue };
     }
-
     const m2 = s.match(singleRe);
     if (m2) {
       venue = m2[1].trim();
@@ -123,7 +113,7 @@ export default function QuestionsMode({
     if (inferredLocation && !hostInfo.location) {
       const next = { ...hostInfo, location: inferredLocation };
       setHostInfo(next);
-      setHostInfoProp?.(next); // Save to Supabase
+      setHostInfoProp?.(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inferredLocation]);
@@ -168,8 +158,8 @@ export default function QuestionsMode({
   }, [showBundle?.config?.announcements]);
 
   const saveHostInfo = (next) => {
-    setHostInfo(next); // Update local state immediately for UI responsiveness
-    setHostInfoProp?.(next); // Save to Supabase (synced across hosts)
+    setHostInfo(next);
+    setHostInfoProp?.(next);
   };
 
   // ✅ make allRounds stable
@@ -185,93 +175,24 @@ export default function QuestionsMode({
     return allRounds.filter((r) => Number(r.round) === sel);
   }, [allRounds, selectedRoundId]);
 
-  // --- Adapter: build groupedQuestions shape from bundle rounds ---
-  const groupedQuestionsFromRounds = React.useMemo(() => {
-    const grouped = {};
-    for (const r of displayRounds || []) {
-      const rNum = r?.round ?? 0;
-      const categories = r?.categories || [];
-
-      for (const cat of categories) {
-        const catName = (cat?.categoryName || "").trim();
-        const catDesc = (cat?.categoryDescription || "").trim();
-        const catNotes = (cat?.categoryNotes || "").trim();
-        const catOrder = cat?.categoryOrder ?? 999;
-        const key = `${rNum}::${catOrder}::${catName || "Uncategorized"}`;
-
-        if (!grouped[key]) {
-          grouped[key] = {
-            categoryInfo: {
-              "Category name": catName,
-              "Category description": catDesc,
-              "Category notes": catNotes,
-              "Category order": catOrder,
-              "Super secret": !!cat?.superSecret,
-              questionType: cat?.questionType || null, // ✅ Add questionType from category
-              "Category image": Array.isArray(cat?.categoryImages)
-                ? cat.categoryImages
-                : [],
-              // hold category-level audio
-              "Category audio": Array.isArray(cat?.categoryAudio)
-                ? cat.categoryAudio
-                : [],
-              // hold image carousel
-              "Image carousel": Array.isArray(cat?.imageCarousel)
-                ? cat.imageCarousel
-                : [],
-            },
-            questions: {},
-          };
-        }
-
-        const questions = cat?.questions || [];
-        for (const q of questions) {
-          grouped[key].questions[q.showQuestionId || q.id] = {
-            "Show Question ID": q.showQuestionId || q.id,
-            "Question ID": q?.questionId || q?.id,
-            "Question order": q?.questionOrder,
-            "Question text": q?.questionText || "",
-            "Question notes": q?.questionNotes || "",
-            "Question pronunciation guide": q?.questionPronunciationGuide || "",
-            Answer: q?.answer || "",
-            "Question type": q?.questionType || "",
-            "Show image by default": !!q?.showImageByDefault,
-            "Auto-reveal answer image": !!q?.autoRevealAnswerImage,
-            Images: Array.isArray(q?.questionImages) ? q.questionImages : [],
-            Audio: Array.isArray(q?.questionAudio) ? q.questionAudio : [],
-            _edited: q._edited || false, // flag if question has been edited
-          };
-        }
-      }
-    }
-    return grouped;
-  }, [displayRounds]);
-
+  // Is a question a tiebreaker? Uses bundle field names directly.
   const isTB = (q) => {
-    const questionType = String(
-      q?.questionType || q?.["Question type"] || "",
-    ).toLowerCase();
-    const questionOrder = String(
-      q?.questionOrder || q?.["Question order"] || "",
-    ).toUpperCase();
+    const questionType = String(q?.questionType || "").toLowerCase();
+    const questionOrder = String(q?.questionOrder || "").toUpperCase();
     return questionType === "tiebreaker" || questionOrder === "TB";
   };
 
-  // Prefer upstream if provided
-  const groupedQuestions =
-    groupedQuestionsProp && Object.keys(groupedQuestionsProp).length
-      ? groupedQuestionsProp
-      : groupedQuestionsFromRounds;
-
   // Check if current round has a tiebreaker
   const hasTiebreaker = React.useMemo(() => {
-    const entries = Object.entries(groupedQuestions);
-    for (const [, catData] of entries) {
-      const hasT = Object.values(catData?.questions || {}).some((q) => isTB(q));
-      if (hasT) return true;
+    for (const round of displayRounds) {
+      for (const cat of round.categories || []) {
+        for (const q of cat.questions || []) {
+          if (isTB(q)) return true;
+        }
+      }
     }
     return false;
-  }, [groupedQuestions]);
+  }, [displayRounds]);
 
   // Check if current round is the final round
   const isFinalRound = React.useMemo(() => {
@@ -303,22 +224,15 @@ export default function QuestionsMode({
   const calculatePointsPerTeam = React.useCallback(
     (correctCount, activeTeamCount) => {
       if (!correctCount || correctCount === 0) return null;
-
-      // For pooled modes, use the utility to calculate points
       if (scoringMode === "pooled" || scoringMode === "pooled-adaptive") {
-        // Create a mock correct cell to get the base points
         const mockCell = { isCorrect: true };
-
-        // For adaptive mode, override teamCount with activeTeamCount
         const config =
           scoringMode === "pooled-adaptive"
             ? { ...scoringConfig, teamCount: activeTeamCount }
             : scoringConfig;
-
         return computeAutoEarned(mockCell, config, correctCount);
       }
-
-      return null; // Pub mode doesn't show points per team
+      return null;
     },
     [scoringMode, scoringConfig],
   );
@@ -336,17 +250,15 @@ export default function QuestionsMode({
 
     const result = {}; // { [roundId]: { [showQuestionId]: stats } }
 
-    // Process each round
     const rounds = showBundle?.rounds || [];
     for (const round of rounds) {
       const roundId = String(round.round);
 
-      // Flatten questions from categories
       const roundQuestions = [];
       for (const cat of round?.categories || []) {
         for (const q of cat?.questions || []) {
           roundQuestions.push({
-            showQuestionId: q.showQuestionId || q.id,
+            showQuestionId: q.showQuestionId,
             questionId: q.questionId,
             order: q.questionOrder,
             bonusAvailable: !!q.bonusAvailable,
@@ -356,7 +268,6 @@ export default function QuestionsMode({
         }
       }
 
-      // Adapt grid format for utility
       const adaptedGrid = {};
       for (const teamId in grid) {
         adaptedGrid[teamId] = {};
@@ -370,14 +281,12 @@ export default function QuestionsMode({
         }
       }
 
-      // Use utility to get correct counts
       const correctCountMap = buildCorrectCountMap(
         teams,
         roundQuestions,
         adaptedGrid,
       );
 
-      // For adaptive pooled mode: count only teams active in THIS round
       let activeTeamCount = teams.length;
       if (scoringMode === "pooled-adaptive") {
         const activeTeams = new Set();
@@ -400,7 +309,6 @@ export default function QuestionsMode({
         const correctCount = correctCountMap[showQuestionId] || 0;
         const correctTeams = [];
 
-        // Build list of correct team names
         for (const t of teams) {
           const cell = grid[t.showTeamId]?.[showQuestionId];
           if (cell?.isCorrect) {
@@ -409,7 +317,6 @@ export default function QuestionsMode({
           }
         }
 
-        // Compute bonus breakdown if this question has bonuses
         let bonusBreakdown = [];
         if (q.bonusAvailable && q.bonusValue) {
           const questionBonus = { bonusValue: q.bonusValue, maxBonuses: q.maxBonuses };
@@ -433,61 +340,45 @@ export default function QuestionsMode({
     return result;
   }, [cachedState, showBundle, scoringMode, scoringConfig]);
 
-  const sortedGroupedEntries = React.useMemo(() => {
-    const entries = Object.entries(groupedQuestions);
-    const hasVisual = (cat) =>
-      Object.values(cat?.questions || {}).some((q) =>
-        (q?.["Question type"] || "").includes("Visual"),
-      );
-
-    return entries.sort(([, a], [, b]) => {
-      const av = hasVisual(a) ? 1 : 0;
-      const bv = hasVisual(b) ? 1 : 0;
-      if (av !== bv) return bv - av; // visuals first
-      const ao = a?.categoryInfo?.["Category order"] ?? 999;
-      const bo = b?.categoryInfo?.["Category order"] ?? 999;
-      return ao - bo;
-    });
-  }, [groupedQuestions]);
-
-  const categoryNumberByKey = React.useMemo(() => {
-    const perRound = new Map(); // round -> running count
-    const out = {};
-    for (const [key, cat] of sortedGroupedEntries) {
-      const m = /^(\d+)/.exec(String(key));
-      const roundNum = m ? Number(m[1]) : 0;
-
-      // Check the category's Question type field (stored at category level, not question level)
-      const catQuestionType = String(
-        cat?.categoryInfo?.questionType ||
-          cat?.categoryInfo?.["Question type"] ||
-          "",
-      ).toLowerCase();
-
-      // Visual categories don't get a number
-      if (catQuestionType.includes("visual")) {
-        out[key] = null;
-        continue;
+  // Flat sorted list of { round, cat } — visuals first within each round, then by categoryOrder
+  const sortedCategories = React.useMemo(() => {
+    const result = [];
+    for (const round of displayRounds) {
+      const sortedCats = [...(round.categories || [])].sort((a, b) => {
+        const av = (a.questionType || "").toLowerCase().includes("visual") ? 0 : 1;
+        const bv = (b.questionType || "").toLowerCase().includes("visual") ? 0 : 1;
+        if (av !== bv) return av - bv; // visuals first
+        return (a.categoryOrder ?? 999) - (b.categoryOrder ?? 999);
+      });
+      for (const cat of sortedCats) {
+        result.push({ round, cat });
       }
-
-      // Tiebreaker categories don't get a number
-      if (catQuestionType.includes("tiebreaker")) {
-        out[key] = null;
-        continue;
-      }
-
-      // All other question types get numbered
-      const next = (perRound.get(roundNum) || 0) + 1;
-      perRound.set(roundNum, next);
-      out[key] = next;
     }
-    return out;
-  }, [sortedGroupedEntries]);
+    return result;
+  }, [displayRounds]);
+
+  // Sequential category number per round (null for visual/tiebreaker categories)
+  const categoryNumbers = React.useMemo(() => {
+    const perRound = new Map();
+    const result = new Map();
+    for (const { round, cat } of sortedCategories) {
+      const qType = (cat.questionType || "").toLowerCase();
+      if (qType.includes("visual") || qType.includes("tiebreaker")) {
+        result.set(cat, null);
+        continue;
+      }
+      const rNum = round.round;
+      const next = (perRound.get(rNum) || 0) + 1;
+      perRound.set(rNum, next);
+      result.set(cat, next);
+    }
+    return result;
+  }, [sortedCategories]);
 
   return (
     <>
       {/* Add Tiebreaker button (if applicable) */}
-      {Object.keys(groupedQuestions).length > 0 &&
+      {sortedCategories.length > 0 &&
         !hasTiebreaker &&
         isFinalRound &&
         addTiebreaker && (
@@ -509,40 +400,25 @@ export default function QuestionsMode({
           </div>
         )}
 
-      {sortedGroupedEntries.map(([categoryId, catData], index) => {
-        const { categoryInfo, questions } = catData;
-        const categoryName =
-          categoryInfo?.["Category name"]?.trim() || "Uncategorized";
-        const categoryDescription =
-          categoryInfo?.["Category description"]?.trim() || "";
-        const categoryNotes = categoryInfo?.["Category notes"]?.trim() || "";
-        const isSuperSecret = !!categoryInfo?.["Super secret"];
+      {sortedCategories.map(({ round, cat }, index) => {
+        const categoryName = (cat.categoryName || "").trim() || "Uncategorized";
+        const categoryDescription = (cat.categoryDescription || "").trim();
+        const categoryNotes = (cat.categoryNotes || "").trim();
+        const isSuperSecret = !!cat.superSecret;
 
         // Category images
         const groupKey = `${categoryName}|||${categoryDescription}`;
-        const catImages = categoryInfo?.["Category image"];
-        const catImagesArr = Array.isArray(catImages)
-          ? catImages
-          : catImages
-            ? [catImages]
-            : [];
+        const catImagesArr = Array.isArray(cat.categoryImages) ? cat.categoryImages : [];
 
         // Category audio
-        const catAudio = categoryInfo?.["Category audio"];
-        const catAudioArr = Array.isArray(catAudio)
-          ? catAudio
-          : catAudio
-            ? [catAudio]
-            : [];
+        const catAudioArr = Array.isArray(cat.categoryAudio) ? cat.categoryAudio : [];
 
-        // Get category question type for carousel button
-        const categoryQuestionType = String(
-          categoryInfo?.questionType || categoryInfo?.["Question type"] || "",
-        ).toLowerCase();
+        // Category question type
+        const categoryQuestionType = (cat.questionType || "").toLowerCase();
         const isVisualCategory = categoryQuestionType.includes("visual");
 
-        // Get all questions in this category for the question carousel
-        const categoryQuestions = Object.values(questions || {});
+        // All questions in this category (for carousel)
+        const categoryQuestions = cat.questions || [];
 
         const CategoryHeader = ({ secret, number }) => (
           <div style={{ backgroundColor: theme.dark, padding: 0 }}>
@@ -689,20 +565,18 @@ export default function QuestionsMode({
                         sendToDisplay("closeQuestionCarousel", null);
                         setCarouselActive(false);
                       } else {
-                        // Prepare questions for carousel - just question + images, no answers/stats
                         const questionsForCarousel = categoryQuestions.map(
                           (q) => ({
-                            questionNumber: q["Question order"],
-                            questionText: q["Question text"] || "",
+                            questionNumber: q.questionOrder,
+                            questionText: q.questionText || "",
                             categoryName: categoryName,
                             inlineImages:
-                              Array.isArray(q.Images) && q.Images.length > 0
-                                ? q.Images.map((img) => ({ url: img.url }))
+                              Array.isArray(q.questionImages) && q.questionImages.length > 0
+                                ? q.questionImages.map((img) => ({ url: img.url }))
                                 : [],
                             currentInlineImageIndex: 0,
                           }),
                         );
-
                         sendToDisplay("questionCarousel", {
                           questions: questionsForCarousel,
                           currentIndex: 0,
@@ -733,22 +607,21 @@ export default function QuestionsMode({
               displayControlsOpen &&
               inlineVisualQuestionId &&
               (() => {
-                // Find the question with inline images currently displayed
-                const currentQuestion = sortedGroupedEntries
-                  .flatMap(([, catData]) => catData.questions)
-                  .find((q) => q["Question ID"] === inlineVisualQuestionId);
+                const currentQuestion = sortedCategories
+                  .flatMap(({ cat: c }) => c.questions || [])
+                  .find((q) => q.showQuestionId === inlineVisualQuestionId);
 
                 if (
                   !currentQuestion ||
-                  !Array.isArray(currentQuestion.Images) ||
-                  currentQuestion.Images.length <= 1
+                  !Array.isArray(currentQuestion.questionImages) ||
+                  currentQuestion.questionImages.length <= 1
                 ) {
                   return null;
                 }
 
                 const currentIdx =
                   currentImageIndex[inlineVisualQuestionId] || 0;
-                const totalImages = currentQuestion.Images.length;
+                const totalImages = currentQuestion.questionImages.length;
 
                 return (
                   <div
@@ -766,20 +639,17 @@ export default function QuestionsMode({
                         fontWeight: 600,
                       }}
                     >
-                      Inline Image Navigation ({currentIdx + 1} of {totalImages}
-                      )
+                      Inline Image Navigation ({currentIdx + 1} of {totalImages})
                     </div>
                     <div style={{ display: "flex", gap: "0.5rem" }}>
                       <Button
                         onClick={() => {
                           const newIdx =
                             (currentIdx - 1 + totalImages) % totalImages;
-                          // Update local state
                           setCurrentImageIndex((prev) => ({
                             ...prev,
                             [inlineVisualQuestionId]: newIdx,
                           }));
-                          // Update display
                           sendToDisplay("updateInlineImageIndex", {
                             currentIndex: newIdx,
                           });
@@ -795,12 +665,10 @@ export default function QuestionsMode({
                       <Button
                         onClick={() => {
                           const newIdx = (currentIdx + 1) % totalImages;
-                          // Update local state
                           setCurrentImageIndex((prev) => ({
                             ...prev,
                             [inlineVisualQuestionId]: newIdx,
                           }));
-                          // Update display
                           sendToDisplay("updateInlineImageIndex", {
                             currentIndex: newIdx,
                           });
@@ -883,9 +751,15 @@ export default function QuestionsMode({
           </div>
         );
 
+        const sortedQuestions = [...(cat.questions || [])].sort((a, b) => {
+          if (isTB(a) && !isTB(b)) return 1;
+          if (!isTB(a) && isTB(b)) return -1;
+          return (a.sortOrder ?? 999) - (b.sortOrder ?? 999);
+        });
+
         return (
           <div
-            key={categoryId}
+            key={`${round.round}-${cat.categoryOrder}`}
             style={{ marginTop: index === 0 ? "1rem" : "4rem" }}
           >
             {isSuperSecret ? (
@@ -901,9 +775,8 @@ export default function QuestionsMode({
               >
                 <CategoryHeader
                   secret
-                  number={categoryNumberByKey[categoryId]}
+                  number={categoryNumbers.get(cat)}
                 />
-                {/* Secret category explainer box */}
                 <div
                   style={{
                     margin: "0.5rem 1rem",
@@ -934,720 +807,615 @@ export default function QuestionsMode({
                 </div>
               </div>
             ) : (
-              <CategoryHeader number={categoryNumberByKey[categoryId]} />
+              <CategoryHeader number={categoryNumbers.get(cat)} />
             )}
 
-            {Object.values(questions)
-              .sort((a, b) => {
-                // Always put the tiebreaker last
-                if (isTB(a) && !isTB(b)) return 1;
-                if (!isTB(a) && isTB(b)) return -1;
+            {sortedQuestions.map((q, qIndex) => {
+              const qKey = q.showQuestionId;
+              if (!questionRefs.current[qKey]) {
+                questionRefs.current[qKey] = React.createRef();
+              }
 
-                const convert = (val) => {
-                  if (typeof val === "string" && /^[A-Z]$/i.test(val)) {
-                    return val.toUpperCase().charCodeAt(0) - 64; // A=1, B=2...
-                  }
-                  const num = parseInt(val, 10);
-                  return isNaN(num) ? 999 : num;
-                };
-                return (
-                  convert(a["Question order"]) - convert(b["Question order"])
-                );
-              })
-              .map((q, qIndex) => {
-                const questionKey =
-                  q["Question ID"] || `${categoryName}-${q["Question order"]}`;
-                if (!questionRefs.current[questionKey]) {
-                  questionRefs.current[questionKey] = React.createRef();
-                }
+              const hasImages =
+                Array.isArray(q.questionImages) && q.questionImages.length > 0;
 
-                return (
-                  <React.Fragment key={q["Question ID"] || q["Question order"]}>
-                    <div ref={questionRefs.current[questionKey]}>
-                      {/* QUESTION TEXT */}
+              return (
+                <React.Fragment key={qKey}>
+                  <div ref={questionRefs.current[qKey]}>
+                    {/* QUESTION TEXT */}
+                    <div
+                      style={{
+                        fontFamily: tokens.font.body,
+                        fontSize: "1.125rem",
+                        marginTop: "1.75rem",
+                        marginBottom: 0,
+                      }}
+                    >
+                      <strong>
+                        {isTB(q) ? (
+                          <>
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                display: "inline-block",
+                                transform: "translateY(-2px)",
+                              }}
+                            >
+                              🎯
+                            </span>{" "}
+                            Question:
+                          </>
+                        ) : (
+                          <>Question {q.questionOrder}:</>
+                        )}
+                      </strong>
+                      {pushDisplayQuestion &&
+                        displayControlsOpen &&
+                        (() => {
+                          if (q.showImageByDefault) {
+                            // Single "Push to display" button — images always included
+                            return (
+                              <Button
+                                onClick={() => {
+                                  pushDisplayQuestion(q.showQuestionId, 0, hasImages);
+                                  setInlineVisualQuestionId(
+                                    hasImages ? q.showQuestionId : null,
+                                  );
+                                }}
+                                style={{
+                                  marginLeft: ".5rem",
+                                  fontSize: ".75rem",
+                                  padding: ".25rem .5rem",
+                                  verticalAlign: "middle",
+                                }}
+                                title="Push this question to the display"
+                              >
+                                Push to display
+                              </Button>
+                            );
+                          }
+
+                          // For other questions — show both buttons if images exist
+                          return (
+                            <>
+                              <Button
+                                onClick={() => {
+                                  pushDisplayQuestion(q.showQuestionId, 0, false);
+                                  setInlineVisualQuestionId(null);
+                                }}
+                                style={{
+                                  marginLeft: ".5rem",
+                                  fontSize: ".75rem",
+                                  padding: ".25rem .5rem",
+                                  verticalAlign: "middle",
+                                }}
+                                title="Push this question to the display (without images)"
+                              >
+                                Push to display
+                              </Button>
+                              {hasImages && (
+                                <Button
+                                  onClick={() => {
+                                    pushDisplayQuestion(q.showQuestionId, 0, true);
+                                    setInlineVisualQuestionId(q.showQuestionId);
+                                  }}
+                                  style={{
+                                    marginLeft: ".5rem",
+                                    fontSize: ".75rem",
+                                    padding: ".25rem .5rem",
+                                    verticalAlign: "middle",
+                                  }}
+                                  title="Push this question to the display with inline images"
+                                >
+                                  Push with images
+                                </Button>
+                              )}
+                            </>
+                          );
+                        })()}
+                      <br />
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          paddingLeft: editQuestionField ? "0" : "1.5rem",
+                          paddingTop: "0.25rem",
+                        }}
+                      >
+                        {editQuestionField && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingQuestion({
+                                showQuestionId: q.showQuestionId,
+                                questionText: q.questionText || "",
+                                questionNotes: q.questionNotes || "",
+                                questionPronunciationGuide:
+                                  q.questionPronunciationGuide || "",
+                                answer: q.answer || "",
+                              });
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              padding: "0",
+                              marginRight: "0.35rem",
+                              fontSize: "0.9rem",
+                              color: q._edited ? theme.accent : "#8B9DC3",
+                              opacity: q._edited ? 1 : 0.4,
+                              transition: "opacity 0.2s, color 0.2s",
+                              flexShrink: 0,
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.opacity = "1";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.opacity = q._edited
+                                ? "1"
+                                : "0.7";
+                            }}
+                            title={
+                              q._edited
+                                ? "Edit this question (edited)"
+                                : "Edit this question"
+                            }
+                          >
+                            ✏️
+                          </button>
+                        )}
+                        <span
+                          dangerouslySetInnerHTML={{
+                            __html: marked.parseInline(q.questionText || ""),
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* NOTES */}
+                    {q.questionNotes?.trim() && showDetails && (
                       <div
                         style={{
                           fontFamily: tokens.font.body,
-                          fontSize: "1.125rem",
-                          marginTop: "1.75rem",
+                          fontSize: "1rem",
+                          display: "flex",
+                          alignItems: "baseline",
+                          paddingLeft: "1.5rem",
+                          paddingTop: "0.25rem",
+                          marginTop: 0,
                           marginBottom: 0,
                         }}
                       >
-                        <strong>
-                          {isTB(q) ? (
-                            <>
-                              <span
-                                aria-hidden="true"
-                                style={{
-                                  display: "inline-block",
-                                  transform: "translateY(-2px)",
-                                }}
-                              >
-                                🎯
-                              </span>{" "}
-                              Question:
-                            </>
-                          ) : (
-                            <>Question {q["Question order"]}:</>
-                          )}
-                        </strong>
+                        <span
+                          style={{
+                            marginRight: "0.35rem",
+                            flexShrink: 0,
+                            fontSize: "0.9rem",
+                          }}
+                        >
+                          💭
+                        </span>
+                        <span
+                          dangerouslySetInnerHTML={{
+                            __html: marked.parseInline(q.questionNotes),
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* PRONUNCIATION GUIDE */}
+                    {q.questionPronunciationGuide?.trim() && showDetails && (
+                      <div
+                        style={{
+                          fontFamily: tokens.font.body,
+                          fontSize: "1rem",
+                          display: "flex",
+                          alignItems: "baseline",
+                          paddingLeft: "1.5rem",
+                          paddingTop: "0.25rem",
+                          marginTop: 0,
+                          marginBottom: 0,
+                        }}
+                      >
+                        <span
+                          style={{
+                            marginRight: "0.35rem",
+                            flexShrink: 0,
+                            fontSize: "0.9rem",
+                          }}
+                        >
+                          🗣️
+                        </span>
+                        <span
+                          dangerouslySetInnerHTML={{
+                            __html: marked.parseInline(
+                              q.questionPronunciationGuide,
+                            ),
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* IMAGE POPUP TOGGLE */}
+                    {hasImages && (
+                      <div style={{ marginTop: "0.25rem" }}>
+                        <Button
+                          onClick={() => {
+                            setVisibleImages((prev) => ({
+                              ...prev,
+                              [q.showQuestionId]: true,
+                            }));
+                            setCurrentImageIndex((prev) => ({
+                              ...prev,
+                              [q.showQuestionId]: 0,
+                            }));
+                          }}
+                          style={{
+                            marginBottom: "0.25rem",
+                            marginLeft: "1.5rem",
+                          }}
+                        >
+                          Show image
+                        </Button>
+                        {/* Arrow buttons for inline images on display */}
                         {sendToDisplay &&
                           displayControlsOpen &&
-                          (() => {
-                            const showImageByDefault =
-                              !!q["Show image by default"];
-                            const hasImages =
-                              Array.isArray(q.Images) && q.Images.length > 0;
-
-                            // If "Show image by default" is checked, always show inline images
-                            if (showImageByDefault) {
-                              return (
-                                <Button
-                                  onClick={() => {
-                                    if (hasImages) {
-                                      sendToDisplay("question", {
-                                        questionNumber: q["Question order"],
-                                        questionText: q["Question text"] || "",
-                                        categoryName: categoryName,
-                                        inlineImages: q.Images.map((img) => ({
-                                          url: img.url,
-                                        })),
-                                        currentInlineImageIndex:
-                                          currentImageIndex[q["Question ID"]] ||
-                                          0,
-                                      });
-                                      setInlineVisualQuestionId(
-                                        q["Question ID"],
-                                      );
-                                    } else {
-                                      sendToDisplay("question", {
-                                        questionNumber: q["Question order"],
-                                        questionText: q["Question text"] || "",
-                                        categoryName: categoryName,
-                                        images: [],
-                                      });
-                                      setInlineVisualQuestionId(null);
-                                    }
-                                  }}
-                                  style={{
-                                    marginLeft: ".5rem",
-                                    fontSize: ".75rem",
-                                    padding: ".25rem .5rem",
-                                    verticalAlign: "middle",
-                                  }}
-                                  title="Push this question to the display"
-                                >
-                                  Push to display
-                                </Button>
-                              );
-                            }
-
-                            // For numbered questions - show both buttons if images exist
-                            return (
-                              <>
-                                <Button
-                                  onClick={() => {
-                                    sendToDisplay("question", {
-                                      questionNumber: q["Question order"],
-                                      questionText: q["Question text"] || "",
-                                      categoryName: categoryName,
-                                      images: [],
-                                    });
-                                    setInlineVisualQuestionId(null);
-                                  }}
-                                  style={{
-                                    marginLeft: ".5rem",
-                                    fontSize: ".75rem",
-                                    padding: ".25rem .5rem",
-                                    verticalAlign: "middle",
-                                  }}
-                                  title="Push this question to the display (without images)"
-                                >
-                                  Push to display
-                                </Button>
-                                {hasImages && (
-                                  <Button
-                                    onClick={() => {
-                                      sendToDisplay("question", {
-                                        questionNumber: q["Question order"],
-                                        questionText: q["Question text"] || "",
-                                        categoryName: categoryName,
-                                        inlineImages: q.Images.map((img) => ({
-                                          url: img.url,
-                                        })),
-                                        currentInlineImageIndex:
-                                          currentImageIndex[q["Question ID"]] ||
-                                          0,
-                                      });
-                                      setInlineVisualQuestionId(
-                                        q["Question ID"],
-                                      );
-                                    }}
-                                    style={{
-                                      marginLeft: ".5rem",
-                                      fontSize: ".75rem",
-                                      padding: ".25rem .5rem",
-                                      verticalAlign: "middle",
-                                    }}
-                                    title="Push this question to the display with inline images"
-                                  >
-                                    Push with images
-                                  </Button>
-                                )}
-                              </>
-                            );
-                          })()}
-                        <br />
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "baseline",
-                            paddingLeft: editQuestionField ? "0" : "1.5rem",
-                            paddingTop: "0.25rem",
-                          }}
-                        >
-                          {editQuestionField && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingQuestion({
-                                  showQuestionId: q["Show Question ID"],
-                                  questionText: q["Question text"] || "",
-                                  questionNotes: q["Question notes"] || "",
-                                  questionPronunciationGuide:
-                                    q["Question pronunciation guide"] || "",
-                                  answer: q["Answer"] || "",
-                                });
-                              }}
+                          inlineVisualQuestionId === q.showQuestionId &&
+                          q.questionImages.length > 1 && (
+                            <div
                               style={{
-                                background: "none",
-                                border: "none",
-                                cursor: "pointer",
-                                padding: "0",
-                                marginRight: "0.35rem",
-                                fontSize: "0.9rem",
-                                color: q._edited ? theme.accent : "#8B9DC3",
-                                opacity: q._edited ? 1 : 0.4,
-                                transition: "opacity 0.2s, color 0.2s",
-                                flexShrink: 0,
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.opacity = "1";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.opacity = q._edited
-                                  ? "1"
-                                  : "0.7";
-                              }}
-                              title={
-                                q._edited
-                                  ? "Edit this question (edited)"
-                                  : "Edit this question"
-                              }
-                            >
-                              ✏️
-                            </button>
-                          )}
-                          <span
-                            dangerouslySetInnerHTML={{
-                              __html: marked.parseInline(
-                                q["Question text"] || "",
-                              ),
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* NOTES */}
-                      {q["Question notes"]?.trim() && showDetails && (
-                        <div
-                          style={{
-                            fontFamily: tokens.font.body,
-                            fontSize: "1rem",
-                            display: "flex",
-                            alignItems: "baseline",
-                            paddingLeft: "1.5rem",
-                            paddingTop: "0.25rem",
-                            marginTop: 0,
-                            marginBottom: 0,
-                          }}
-                        >
-                          <span
-                            style={{
-                              marginRight: "0.35rem",
-                              flexShrink: 0,
-                              fontSize: "0.9rem",
-                            }}
-                          >
-                            💭
-                          </span>
-                          <span
-                            dangerouslySetInnerHTML={{
-                              __html: marked.parseInline(q["Question notes"]),
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {/* PRONUNCIATION GUIDE */}
-                      {q["Question pronunciation guide"]?.trim() &&
-                        showDetails && (
-                          <div
-                            style={{
-                              fontFamily: tokens.font.body,
-                              fontSize: "1rem",
-                              display: "flex",
-                              alignItems: "baseline",
-                              paddingLeft: "1.5rem",
-                              paddingTop: "0.25rem",
-                              marginTop: 0,
-                              marginBottom: 0,
-                            }}
-                          >
-                            <span
-                              style={{
-                                marginRight: "0.35rem",
-                                flexShrink: 0,
-                                fontSize: "0.9rem",
+                                display: "inline-block",
+                                marginLeft: "0.5rem",
                               }}
                             >
-                              🗣️
-                            </span>
-                            <span
-                              dangerouslySetInnerHTML={{
-                                __html: marked.parseInline(
-                                  q["Question pronunciation guide"],
-                                ),
-                              }}
-                            />
-                          </div>
-                        )}
-
-                      {/* IMAGE POPUP TOGGLE */}
-                      {Array.isArray(q.Images) && q.Images.length > 0 && (
-                        <div style={{ marginTop: "0.25rem" }}>
-                          <Button
-                            onClick={() => {
-                              setVisibleImages((prev) => ({
-                                ...prev,
-                                [q["Question ID"]]: true,
-                              }));
-                              setCurrentImageIndex((prev) => ({
-                                ...prev,
-                                [q["Question ID"]]: 0,
-                              }));
-                            }}
-                            style={{
-                              marginBottom: "0.25rem",
-                              marginLeft: "1.5rem",
-                            }}
-                          >
-                            Show image
-                          </Button>
-                          {/* Arrow buttons for inline images on display */}
-                          {sendToDisplay &&
-                            displayControlsOpen &&
-                            inlineVisualQuestionId === q["Question ID"] &&
-                            q.Images.length > 1 && (
-                              <div
+                              <button
+                                onClick={() => {
+                                  const currentIdx =
+                                    currentImageIndex[q.showQuestionId] || 0;
+                                  const newIdx =
+                                    (currentIdx - 1 + q.questionImages.length) %
+                                    q.questionImages.length;
+                                  setCurrentImageIndex({
+                                    ...currentImageIndex,
+                                    [q.showQuestionId]: newIdx,
+                                  });
+                                  sendToDisplay("updateInlineImageIndex", {
+                                    currentIndex: newIdx,
+                                  });
+                                }}
                                 style={{
-                                  display: "inline-block",
-                                  marginLeft: "0.5rem",
+                                  fontSize: "1rem",
+                                  padding: "0.25rem 0.5rem",
+                                  cursor: "pointer",
+                                  border: `1px solid ${theme.accent}`,
+                                  background: theme.white,
+                                  borderRadius: "0.25rem 0 0 0.25rem",
                                 }}
                               >
-                                <button
-                                  onClick={() => {
-                                    const currentIdx =
-                                      currentImageIndex[q["Question ID"]] || 0;
-                                    const newIdx =
-                                      (currentIdx - 1 + q.Images.length) %
-                                      q.Images.length;
-                                    setCurrentImageIndex({
-                                      ...currentImageIndex,
-                                      [q["Question ID"]]: newIdx,
-                                    });
-                                    sendToDisplay("updateInlineImageIndex", {
-                                      currentIndex: newIdx,
-                                    });
-                                  }}
-                                  style={{
-                                    fontSize: "1rem",
-                                    padding: "0.25rem 0.5rem",
-                                    cursor: "pointer",
-                                    border: `1px solid ${theme.accent}`,
-                                    background: theme.white,
-                                    borderRadius: "0.25rem 0 0 0.25rem",
-                                  }}
-                                >
-                                  ←
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    const currentIdx =
-                                      currentImageIndex[q["Question ID"]] || 0;
-                                    const newIdx =
-                                      (currentIdx + 1) % q.Images.length;
-                                    setCurrentImageIndex({
-                                      ...currentImageIndex,
-                                      [q["Question ID"]]: newIdx,
-                                    });
-                                    sendToDisplay("updateInlineImageIndex", {
-                                      currentIndex: newIdx,
-                                    });
-                                  }}
-                                  style={{
-                                    fontSize: "1rem",
-                                    padding: "0.25rem 0.5rem",
-                                    cursor: "pointer",
-                                    border: `1px solid ${theme.accent}`,
-                                    background: theme.white,
-                                    borderRadius: "0 0.25rem 0.25rem 0",
-                                    marginLeft: "-1px",
-                                  }}
-                                >
-                                  →
-                                </button>
-                              </div>
-                            )}
-
-                          {visibleImages[q["Question ID"]] && (
-                            <div
-                              onClick={() =>
-                                setVisibleImages((prev) => ({
-                                  ...prev,
-                                  [q["Question ID"]]: false,
-                                }))
-                              }
-                              style={overlayStyle}
-                            >
-                              <img
-                                src={
-                                  q.Images[
-                                    currentImageIndex[q["Question ID"]] || 0
-                                  ]?.url
-                                }
-                                alt={
-                                  q.Images[
-                                    currentImageIndex[q["Question ID"]] || 0
-                                  ]?.Name || "Attached image"
-                                }
-                                style={overlayImg}
-                              />
-
-                              {q.Images.length > 1 && (
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: "1rem",
-                                    justifyContent: "center",
-                                    alignItems: "center",
-                                    fontFamily: tokens.font.body,
-                                  }}
-                                >
-                                  <Button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setCurrentImageIndex((prev) => {
-                                        const curr =
-                                          prev[q["Question ID"]] || 0;
-                                        return {
-                                          ...prev,
-                                          [q["Question ID"]]:
-                                            (curr - 1 + q.Images.length) %
-                                            q.Images.length,
-                                        };
-                                      });
-                                    }}
-                                  >
-                                    Previous
-                                  </Button>
-
-                                  <Button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setCurrentImageIndex((prev) => {
-                                        const curr =
-                                          prev[q["Question ID"]] || 0;
-                                        return {
-                                          ...prev,
-                                          [q["Question ID"]]:
-                                            (curr + 1) % q.Images.length,
-                                        };
-                                      });
-                                    }}
-                                  >
-                                    Next
-                                  </Button>
-                                </div>
-                              )}
+                                ←
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const currentIdx =
+                                    currentImageIndex[q.showQuestionId] || 0;
+                                  const newIdx =
+                                    (currentIdx + 1) % q.questionImages.length;
+                                  setCurrentImageIndex({
+                                    ...currentImageIndex,
+                                    [q.showQuestionId]: newIdx,
+                                  });
+                                  sendToDisplay("updateInlineImageIndex", {
+                                    currentIndex: newIdx,
+                                  });
+                                }}
+                                style={{
+                                  fontSize: "1rem",
+                                  padding: "0.25rem 0.5rem",
+                                  cursor: "pointer",
+                                  border: `1px solid ${theme.accent}`,
+                                  background: theme.white,
+                                  borderRadius: "0 0.25rem 0.25rem 0",
+                                  marginLeft: "-1px",
+                                }}
+                              >
+                                →
+                              </button>
                             </div>
                           )}
-                        </div>
-                      )}
 
-                      {/* QUESTION-LEVEL AUDIO */}
-                      {Array.isArray(q.Audio) && q.Audio.length > 0 && (
-                        <div
-                          style={{
-                            marginTop: "0.5rem",
-                            marginLeft: "1.5rem",
-                            marginRight: "1.5rem",
-                          }}
-                        >
-                          {q.Audio.map(
-                            (audioObj, index) =>
-                              audioObj.url && (
-                                <div
-                                  key={index}
-                                  className="audio-player-wrapper"
-                                  style={{
-                                    marginTop: "0.5rem",
-                                    maxWidth: "600px",
-                                    border: "1px solid #ccc",
-                                    borderRadius: "1.5rem",
-                                    overflow: "hidden",
-                                    backgroundColor: theme.bg,
-                                    boxShadow: "0 0 10px rgba(0, 0, 0, 0.15)",
+                        {visibleImages[q.showQuestionId] && (
+                          <div
+                            onClick={() =>
+                              setVisibleImages((prev) => ({
+                                ...prev,
+                                [q.showQuestionId]: false,
+                              }))
+                            }
+                            style={overlayStyle}
+                          >
+                            <img
+                              src={
+                                q.questionImages[
+                                  currentImageIndex[q.showQuestionId] || 0
+                                ]?.url
+                              }
+                              alt={
+                                q.questionImages[
+                                  currentImageIndex[q.showQuestionId] || 0
+                                ]?.Name || "Attached image"
+                              }
+                              style={overlayImg}
+                            />
+
+                            {q.questionImages.length > 1 && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: "1rem",
+                                  justifyContent: "center",
+                                  alignItems: "center",
+                                  fontFamily: tokens.font.body,
+                                }}
+                              >
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCurrentImageIndex((prev) => {
+                                      const curr =
+                                        prev[q.showQuestionId] || 0;
+                                      return {
+                                        ...prev,
+                                        [q.showQuestionId]:
+                                          (curr - 1 + q.questionImages.length) %
+                                          q.questionImages.length,
+                                      };
+                                    });
                                   }}
                                 >
-                                  <AudioPlayer
-                                    src={audioObj.url}
-                                    showJumpControls={false}
-                                    layout="horizontal"
-                                    style={{
-                                      borderRadius: "1.5rem 1.5rem 0 0",
-                                      width: "100%",
-                                    }}
-                                  />
-                                  {showDetails && (
-                                    <div
-                                      style={{
-                                        textAlign: "center",
-                                        fontSize: ".9rem",
-                                        fontFamily: tokens.font.body,
-                                        padding: "0.4rem 0.6rem",
-                                        backgroundColor: theme.bg,
-                                        borderTop: "1px solid #ccc",
-                                      }}
-                                    >
-                                      🎵{" "}
-                                      {(audioObj.filename || "").replace(
-                                        /\.[^/.]+$/,
-                                        "",
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              ),
-                          )}
-                        </div>
-                      )}
+                                  Previous
+                                </Button>
 
-                      {/* ANSWER */}
-                      {showDetails && (
-                        <p
-                          style={{
-                            fontFamily: tokens.font.body,
-                            fontSize: "1.125rem",
-                            marginTop: "0.5rem",
-                            marginBottom: "1rem",
-                            marginLeft: "1.5rem",
-                            marginRight: "1.5rem",
-                          }}
-                        >
-                          <span
-                            dangerouslySetInnerHTML={{
-                              __html: marked.parseInline(
-                                `<span style="font-size:0.7em; position: relative; top: -1px;">🟢</span> **Answer:** ${q["Answer"]}`,
-                              ),
-                            }}
-                          />
-                          {sendToDisplay &&
-                            displayControlsOpen &&
-                            (() => {
-                              // Calculate stats for this question (same logic as STATS PILL below)
-                              const m = /^(\d+)/.exec(String(categoryId));
-                              const roundNum = m ? Number(m[1]) : 0;
-                              const qStats =
-                                statsByRoundAndQuestion[roundNum]?.[
-                                  q["Show Question ID"]
-                                ];
-
-                              // Calculate points for pooled scoring modes
-                              const qPointsPerTeam = qStats
-                                ? calculatePointsPerTeam(
-                                    qStats.correctCount,
-                                    qStats.activeTeamCount,
-                                  )
-                                : null;
-
-                              const showImageByDefault =
-                                !!q["Show image by default"];
-                              const hasImages =
-                                Array.isArray(q.Images) && q.Images.length > 0;
-
-                              // If "Show image by default" is checked, always include inline images with progressive reveal
-                              if (showImageByDefault) {
-                                const questionId = q["Question ID"];
-                                const isActiveQuestion =
-                                  progressiveRevealState.activeQuestionId ===
-                                  questionId;
-                                const currentStage = isActiveQuestion
-                                  ? progressiveRevealState.stage
-                                  : 0;
-
-                                return (
-                                  <Button
-                                    onClick={() => {
-                                      // If different question, start at stage 0; if same question, advance
-                                      const nextStage = isActiveQuestion
-                                        ? (currentStage + 1) % 3
-                                        : 0;
-
-                                      const payload = {
-                                        questionNumber: q["Question order"],
-                                        questionText: q["Question text"] || "",
-                                        categoryName: categoryName,
-                                        images: [],
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCurrentImageIndex((prev) => {
+                                      const curr =
+                                        prev[q.showQuestionId] || 0;
+                                      return {
+                                        ...prev,
+                                        [q.showQuestionId]:
+                                          (curr + 1) % q.questionImages.length,
                                       };
+                                    });
+                                  }}
+                                >
+                                  Next
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                                      // Stage 0: Question only
-                                      // Stage 1: Question + Answer
-                                      if (nextStage >= 1) {
-                                        payload.answer = q["Answer"] || "";
-                                      }
-
-                                      // Stage 2: Question + Answer + Stats
-                                      if (nextStage >= 2) {
-                                        payload.pointsPerTeam = qPointsPerTeam;
-                                        payload.correctCount =
-                                          qStats?.correctCount ?? null;
-                                        payload.totalTeams =
-                                          qStats?.totalTeams ?? null;
-                                        payload.bonusBreakdown =
-                                          qStats?.bonusBreakdown ?? [];
-                                      }
-
-                                      // Include inline images when "Show image by default" is checked
-                                      if (hasImages) {
-                                        payload.inlineImages = q.Images.map(
-                                          (img) => ({ url: img.url }),
-                                        );
-                                        // If "Auto-reveal answer image" is checked, use image #1 for question, image #2 for answer/stats
-                                        const autoRevealAnswerImage =
-                                          !!q["Auto-reveal answer image"];
-                                        console.log("DEBUG auto-reveal:", {
-                                          autoRevealAnswerImage,
-                                          imageCount: q.Images.length,
-                                          nextStage,
-                                          questionData: q,
-                                        });
-                                        if (
-                                          autoRevealAnswerImage &&
-                                          q.Images.length >= 2
-                                        ) {
-                                          payload.currentInlineImageIndex =
-                                            nextStage >= 1 ? 1 : 0;
-                                        } else {
-                                          payload.currentInlineImageIndex =
-                                            currentImageIndex[
-                                              q["Question ID"]
-                                            ] || 0;
-                                        }
-                                        setInlineVisualQuestionId(
-                                          q["Question ID"],
-                                        );
-                                      } else {
-                                        setInlineVisualQuestionId(null);
-                                      }
-
-                                      sendToDisplay("question", payload);
-                                      setProgressiveRevealState({
-                                        activeQuestionId: questionId,
-                                        stage: nextStage,
-                                      });
-                                    }}
+                    {/* QUESTION-LEVEL AUDIO */}
+                    {Array.isArray(q.questionAudio) && q.questionAudio.length > 0 && (
+                      <div
+                        style={{
+                          marginTop: "0.5rem",
+                          marginLeft: "1.5rem",
+                          marginRight: "1.5rem",
+                        }}
+                      >
+                        {q.questionAudio.map(
+                          (audioObj, audioIdx) =>
+                            audioObj.url && (
+                              <div
+                                key={audioIdx}
+                                className="audio-player-wrapper"
+                                style={{
+                                  marginTop: "0.5rem",
+                                  maxWidth: "600px",
+                                  border: "1px solid #ccc",
+                                  borderRadius: "1.5rem",
+                                  overflow: "hidden",
+                                  backgroundColor: theme.bg,
+                                  boxShadow: "0 0 10px rgba(0, 0, 0, 0.15)",
+                                }}
+                              >
+                                <AudioPlayer
+                                  src={audioObj.url}
+                                  showJumpControls={false}
+                                  layout="horizontal"
+                                  style={{
+                                    borderRadius: "1.5rem 1.5rem 0 0",
+                                    width: "100%",
+                                  }}
+                                />
+                                {showDetails && (
+                                  <div
                                     style={{
-                                      marginLeft: ".5rem",
-                                      fontSize: ".75rem",
-                                      padding: ".25rem .5rem",
-                                      verticalAlign: "middle",
+                                      textAlign: "center",
+                                      fontSize: ".9rem",
+                                      fontFamily: tokens.font.body,
+                                      padding: "0.4rem 0.6rem",
+                                      backgroundColor: theme.bg,
+                                      borderTop: "1px solid #ccc",
                                     }}
-                                    title={
-                                      !isActiveQuestion || currentStage === 2
-                                        ? "Click to reveal question"
-                                        : currentStage === 0
-                                          ? "Click to reveal answer"
-                                          : "Click to reveal statistics"
-                                    }
                                   >
-                                    {!isActiveQuestion || currentStage === 2
-                                      ? "📺 Reveal Q"
-                                      : currentStage === 0
-                                        ? "📺 Reveal A"
-                                        : "📺 Reveal Stats"}
-                                  </Button>
-                                );
-                              }
+                                    🎵{" "}
+                                    {(audioObj.filename || "").replace(
+                                      /\.[^/.]+$/,
+                                      "",
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ),
+                        )}
+                      </div>
+                    )}
 
-                              // For numbered questions - show progressive reveal button(s)
-                              const questionId = q["Question ID"];
+                    {/* ANSWER */}
+                    {showDetails && (
+                      <p
+                        style={{
+                          fontFamily: tokens.font.body,
+                          fontSize: "1.125rem",
+                          marginTop: "0.5rem",
+                          marginBottom: "1rem",
+                          marginLeft: "1.5rem",
+                          marginRight: "1.5rem",
+                        }}
+                      >
+                        <span
+                          dangerouslySetInnerHTML={{
+                            __html: marked.parseInline(
+                              `<span style="font-size:0.7em; position: relative; top: -1px;">🟢</span> **Answer:** ${q.answer}`,
+                            ),
+                          }}
+                        />
+                        {pushDisplayQuestion &&
+                          displayControlsOpen &&
+                          (() => {
+                            const qStats =
+                              statsByRoundAndQuestion[String(round.round)]?.[
+                                q.showQuestionId
+                              ];
+                            const qPointsPerTeam = qStats
+                              ? calculatePointsPerTeam(
+                                  qStats.correctCount,
+                                  qStats.activeTeamCount,
+                                )
+                              : null;
+
+                            if (q.showImageByDefault) {
+                              // Single cycling button: Q → A → Stats, always with images
+                              const questionId = q.showQuestionId;
                               const isActiveQuestion =
                                 progressiveRevealState.activeQuestionId ===
                                 questionId;
                               const currentStage = isActiveQuestion
                                 ? progressiveRevealState.stage
                                 : 0;
-                              const isActiveQuestionWithImgs =
-                                progressiveRevealState.activeQuestionIdWithImgs ===
-                                questionId;
-                              const currentStageWithImgs =
-                                isActiveQuestionWithImgs
-                                  ? progressiveRevealState.stageWithImgs
-                                  : 0;
 
                               return (
-                                <>
-                                  {/* Progressive reveal WITHOUT images */}
+                                <Button
+                                  onClick={() => {
+                                    const nextStage = isActiveQuestion
+                                      ? (currentStage + 1) % 3
+                                      : 0;
+                                    pushDisplayQuestion(
+                                      q.showQuestionId,
+                                      nextStage,
+                                      hasImages,
+                                    );
+                                    setInlineVisualQuestionId(
+                                      hasImages ? q.showQuestionId : null,
+                                    );
+                                    setProgressiveRevealState({
+                                      activeQuestionId: questionId,
+                                      stage: nextStage,
+                                    });
+                                  }}
+                                  style={{
+                                    marginLeft: ".5rem",
+                                    fontSize: ".75rem",
+                                    padding: ".25rem .5rem",
+                                    verticalAlign: "middle",
+                                  }}
+                                  title={
+                                    !isActiveQuestion || currentStage === 2
+                                      ? "Click to reveal question"
+                                      : currentStage === 0
+                                        ? "Click to reveal answer"
+                                        : "Click to reveal statistics"
+                                  }
+                                >
+                                  {!isActiveQuestion || currentStage === 2
+                                    ? "📺 Reveal Q"
+                                    : currentStage === 0
+                                      ? "📺 Reveal A"
+                                      : "📺 Reveal Stats"}
+                                </Button>
+                              );
+                            }
+
+                            // For numbered questions — two buttons (without/with images)
+                            const questionId = q.showQuestionId;
+                            const isActiveQuestion =
+                              progressiveRevealState.activeQuestionId ===
+                              questionId;
+                            const currentStage = isActiveQuestion
+                              ? progressiveRevealState.stage
+                              : 0;
+                            const isActiveQuestionWithImgs =
+                              progressiveRevealState.activeQuestionIdWithImgs ===
+                              questionId;
+                            const currentStageWithImgs =
+                              isActiveQuestionWithImgs
+                                ? progressiveRevealState.stageWithImgs
+                                : 0;
+
+                            return (
+                              <>
+                                {/* Progressive reveal WITHOUT images */}
+                                <Button
+                                  onClick={() => {
+                                    const nextStage = isActiveQuestion
+                                      ? (currentStage + 1) % 3
+                                      : 0;
+                                    pushDisplayQuestion(
+                                      q.showQuestionId,
+                                      nextStage,
+                                      false,
+                                    );
+                                    setInlineVisualQuestionId(null);
+                                    setProgressiveRevealState((prev) => ({
+                                      ...prev,
+                                      activeQuestionId: questionId,
+                                      stage: nextStage,
+                                    }));
+                                  }}
+                                  style={{
+                                    marginLeft: ".5rem",
+                                    fontSize: ".75rem",
+                                    padding: ".25rem .5rem",
+                                    verticalAlign: "middle",
+                                  }}
+                                  title={
+                                    !isActiveQuestion || currentStage === 2
+                                      ? "Click to reveal question"
+                                      : currentStage === 0
+                                        ? "Click to reveal answer"
+                                        : "Click to reveal statistics"
+                                  }
+                                >
+                                  {!isActiveQuestion || currentStage === 2
+                                    ? "📺 Reveal Q"
+                                    : currentStage === 0
+                                      ? "📺 Reveal A"
+                                      : "📺 Reveal Stats"}
+                                </Button>
+
+                                {/* Progressive reveal WITH images (only if images exist) */}
+                                {hasImages && (
                                   <Button
                                     onClick={() => {
-                                      // If different question, start at stage 0; if same question, advance
-                                      const nextStage = isActiveQuestion
-                                        ? (currentStage + 1) % 3
-                                        : 0;
-
-                                      const payload = {
-                                        questionNumber: q["Question order"],
-                                        questionText: q["Question text"] || "",
-                                        categoryName: categoryName,
-                                        images: [],
-                                      };
-
-                                      // Stage 0: Question only
-                                      // Stage 1: Question + Answer
-                                      if (nextStage >= 1) {
-                                        payload.answer = q["Answer"] || "";
-                                      }
-
-                                      // Stage 2: Question + Answer + Stats
-                                      if (nextStage >= 2) {
-                                        payload.pointsPerTeam = qPointsPerTeam;
-                                        payload.correctCount =
-                                          qStats?.correctCount ?? null;
-                                        payload.totalTeams =
-                                          qStats?.totalTeams ?? null;
-                                        payload.bonusBreakdown =
-                                          qStats?.bonusBreakdown ?? [];
-                                      }
-
-                                      // Never add images for this button
-                                      setInlineVisualQuestionId(null);
-
-                                      sendToDisplay("question", payload);
+                                      const nextStage =
+                                        isActiveQuestionWithImgs
+                                          ? (currentStageWithImgs + 1) % 3
+                                          : 0;
+                                      pushDisplayQuestion(
+                                        q.showQuestionId,
+                                        nextStage,
+                                        true,
+                                      );
+                                      setInlineVisualQuestionId(q.showQuestionId);
                                       setProgressiveRevealState((prev) => ({
                                         ...prev,
-                                        activeQuestionId: questionId,
-                                        stage: nextStage,
+                                        activeQuestionIdWithImgs: questionId,
+                                        stageWithImgs: nextStage,
                                       }));
                                     }}
                                     style={{
@@ -1657,210 +1425,126 @@ export default function QuestionsMode({
                                       verticalAlign: "middle",
                                     }}
                                     title={
-                                      !isActiveQuestion || currentStage === 2
-                                        ? "Click to reveal question"
-                                        : currentStage === 0
-                                          ? "Click to reveal answer"
-                                          : "Click to reveal statistics"
+                                      !isActiveQuestionWithImgs ||
+                                      currentStageWithImgs === 2
+                                        ? "Click to reveal question with images"
+                                        : currentStageWithImgs === 0
+                                          ? "Click to reveal answer with images"
+                                          : "Click to reveal statistics with images"
                                     }
                                   >
-                                    {!isActiveQuestion || currentStage === 2
-                                      ? "📺 Reveal Q"
-                                      : currentStage === 0
-                                        ? "📺 Reveal A"
-                                        : "📺 Reveal Stats"}
+                                    {!isActiveQuestionWithImgs ||
+                                    currentStageWithImgs === 2
+                                      ? "📺🖼️ Reveal Q"
+                                      : currentStageWithImgs === 0
+                                        ? "📺🖼️ Reveal A"
+                                        : "📺🖼️ Reveal Stats"}
                                   </Button>
+                                )}
+                              </>
+                            );
+                          })()}
+                      </p>
+                    )}
 
-                                  {/* Progressive reveal WITH images (only if images exist) */}
-                                  {hasImages && (
-                                    <Button
-                                      onClick={() => {
-                                        // If different question, start at stage 0; if same question, advance
-                                        const nextStage =
-                                          isActiveQuestionWithImgs
-                                            ? (currentStageWithImgs + 1) % 3
-                                            : 0;
+                    {/* STATS PILL (teams correct, points) */}
+                    {(() => {
+                      const qStats =
+                        statsByRoundAndQuestion[String(round.round)]?.[
+                          q.showQuestionId
+                        ];
+                      const qPointsPerTeam = qStats
+                        ? calculatePointsPerTeam(
+                            qStats.correctCount,
+                            qStats.activeTeamCount,
+                          )
+                        : null;
 
-                                        const payload = {
-                                          questionNumber: q["Question order"],
-                                          questionText:
-                                            q["Question text"] || "",
-                                          categoryName: categoryName,
-                                          images: [],
-                                        };
+                      if (!qStats || isTB(q)) return null;
 
-                                        // Stage 0: Question only
-                                        // Stage 1: Question + Answer
-                                        if (nextStage >= 1) {
-                                          payload.answer = q["Answer"] || "";
-                                        }
-
-                                        // Stage 2: Question + Answer + Stats
-                                        if (nextStage >= 2) {
-                                          payload.pointsPerTeam =
-                                            qPointsPerTeam;
-                                          payload.correctCount =
-                                            qStats?.correctCount ?? null;
-                                          payload.totalTeams =
-                                            qStats?.totalTeams ?? null;
-                                          payload.bonusBreakdown =
-                                            qStats?.bonusBreakdown ?? [];
-                                        }
-
-                                        // Always add images for this button
-                                        payload.inlineImages = q.Images.map(
-                                          (img) => ({ url: img.url }),
-                                        );
-                                        payload.currentInlineImageIndex =
-                                          currentImageIndex[q["Question ID"]] ||
-                                          0;
-                                        setInlineVisualQuestionId(
-                                          q["Question ID"],
-                                        );
-
-                                        sendToDisplay("question", payload);
-                                        setProgressiveRevealState((prev) => ({
-                                          ...prev,
-                                          activeQuestionIdWithImgs: questionId,
-                                          stageWithImgs: nextStage,
-                                        }));
-                                      }}
-                                      style={{
-                                        marginLeft: ".5rem",
-                                        fontSize: ".75rem",
-                                        padding: ".25rem .5rem",
-                                        verticalAlign: "middle",
-                                      }}
-                                      title={
-                                        !isActiveQuestionWithImgs ||
-                                        currentStageWithImgs === 2
-                                          ? "Click to reveal question with images"
-                                          : currentStageWithImgs === 0
-                                            ? "Click to reveal answer with images"
-                                            : "Click to reveal statistics with images"
-                                      }
-                                    >
-                                      {!isActiveQuestionWithImgs ||
-                                      currentStageWithImgs === 2
-                                        ? "📺🖼️ Reveal Q"
-                                        : currentStageWithImgs === 0
-                                          ? "📺🖼️ Reveal A"
-                                          : "📺🖼️ Reveal Stats"}
-                                    </Button>
-                                  )}
-                                </>
-                              );
-                            })()}
-                        </p>
-                      )}
-
-                      {/* STATS PILL (teams correct, points) */}
-                      {(() => {
-                        // Extract round number from categoryId
-                        const m = /^(\d+)/.exec(String(categoryId));
-                        const roundNum = m ? Number(m[1]) : 0;
-                        const qStats =
-                          statsByRoundAndQuestion[roundNum]?.[
-                            q["Show Question ID"]
-                          ];
-
-                        // Calculate points for pooled scoring modes (not pub)
-                        const qPointsPerTeam = qStats
-                          ? calculatePointsPerTeam(
-                              qStats.correctCount,
-                              qStats.activeTeamCount,
-                            )
-                          : null;
-
-                        const isTiebreaker =
-                          (q["Question type"] || "") === "Tiebreaker";
-
-                        if (!qStats || isTiebreaker) return null;
-
-                        return (
-                          <div
+                      return (
+                        <div
+                          style={{
+                            marginLeft: tokens.spacing.lg,
+                            marginBottom: ".75rem",
+                          }}
+                        >
+                          <span
                             style={{
-                              marginLeft: tokens.spacing.lg,
-                              marginBottom: ".75rem",
+                              display: "inline-block",
+                              padding: "0.2rem 0.75rem",
+                              borderRadius: tokens.radius.pill,
+                              background: theme.white,
+                              fontSize: "1.05rem",
+                              border: `${tokens.borders.medium} ${theme.accent}`,
+                              fontFamily: tokens.font.body,
                             }}
                           >
+                            {qStats.correctCount} / {qStats.totalTeams} teams
+                            correct
+                          </span>
+
+                          {qStats.bonusBreakdown && qStats.bonusBreakdown.length > 1 ? (
+                            <span style={{ marginLeft: ".6rem", fontSize: "1rem" }}>
+                              {qStats.bonusBreakdown.map((level, i) => (
+                                <span key={level.bonusLevel}>
+                                  {i > 0 && " · "}
+                                  <span style={{ color: theme.accent, fontWeight: 700 }}>
+                                    {level.pointsPerTeam}
+                                  </span>
+                                  {" pts"}
+                                  {level.bonusLevel > 0 && (
+                                    <span style={{ fontSize: ".9rem", opacity: 0.8 }}>
+                                      {" "}({level.bonusLevel} {"bonus" + (level.bonusLevel > 1 ? "es" : "")})
+                                    </span>
+                                  )}
+                                </span>
+                              ))}
+                            </span>
+                          ) : qPointsPerTeam !== null ? (
                             <span
                               style={{
-                                display: "inline-block",
-                                padding: "0.2rem 0.75rem",
-                                borderRadius: tokens.radius.pill,
-                                background: theme.white,
-                                fontSize: "1.05rem",
-                                border: `${tokens.borders.medium} ${theme.accent}`,
-                                fontFamily: tokens.font.body,
+                                marginLeft: ".6rem",
+                                fontSize: "1rem",
                               }}
                             >
-                              {qStats.correctCount} / {qStats.totalTeams} teams
-                              correct
-                            </span>
-
-                            {/* Bonus breakdown or simple points per team */}
-                            {qStats.bonusBreakdown && qStats.bonusBreakdown.length > 1 ? (
-                              <span style={{ marginLeft: ".6rem", fontSize: "1rem" }}>
-                                {qStats.bonusBreakdown.map((level, i) => (
-                                  <span key={level.bonusLevel}>
-                                    {i > 0 && " · "}
-                                    <span style={{ color: theme.accent, fontWeight: 700 }}>
-                                      {level.pointsPerTeam}
-                                    </span>
-                                    {" pts"}
-                                    {level.bonusLevel > 0 && (
-                                      <span style={{ fontSize: ".9rem", opacity: 0.8 }}>
-                                        {" "}({level.bonusLevel} {"bonus" + (level.bonusLevel > 1 ? "es" : "")})
-                                      </span>
-                                    )}
-                                  </span>
-                                ))}
-                              </span>
-                            ) : qPointsPerTeam !== null ? (
                               <span
                                 style={{
-                                  marginLeft: ".6rem",
-                                  fontSize: "1rem",
+                                  color: theme.accent,
+                                  fontWeight: 700,
                                 }}
                               >
+                                {qPointsPerTeam}
+                              </span>{" "}
+                              points per team
+                            </span>
+                          ) : null}
+
+                          {qStats.correctCount === 1 &&
+                            qStats.correctTeams[0] && (
+                              <span style={{ marginLeft: ".6rem" }}>
                                 <span
                                   style={{
                                     color: theme.accent,
                                     fontWeight: 700,
                                   }}
                                 >
-                                  {qPointsPerTeam}
+                                  SOLO:
                                 </span>{" "}
-                                points per team
+                                <strong>{qStats.correctTeams[0]}</strong>
                               </span>
-                            ) : null}
+                            )}
+                        </div>
+                      );
+                    })()}
+                  </div>
 
-                            {qStats.correctCount === 1 &&
-                              qStats.correctTeams[0] && (
-                                <span style={{ marginLeft: ".6rem" }}>
-                                  <span
-                                    style={{
-                                      color: theme.accent,
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    SOLO:
-                                  </span>{" "}
-                                  <strong>{qStats.correctTeams[0]}</strong>
-                                </span>
-                              )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {qIndex < Object.values(questions).length - 1 && (
-                      <hr className="question-divider" />
-                    )}
-                  </React.Fragment>
-                );
-              })}
+                  {qIndex < sortedQuestions.length - 1 && (
+                    <hr className="question-divider" />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
         );
       })}
@@ -2057,7 +1741,7 @@ export default function QuestionsMode({
                   }}
                 >
                   (Optional – for your reference; prize lines below control
-                  what’s shown)
+                  what's shown)
                 </div>
               </label>
 
@@ -2094,8 +1778,6 @@ export default function QuestionsMode({
               <button
                 type="button"
                 onClick={() => {
-                  // Normalize: newline-separated string → array or string, your shared state stores string
-                  // We’ll store as string (joined by newlines).
                   const normalized = (prizesText || "")
                     .split(/\r?\n/)
                     .map((s) => s.trim())
@@ -2308,7 +1990,6 @@ export default function QuestionsMode({
                 onClick={() => {
                   if (editQuestionField) {
                     const safeTrim = (v) => String(v ?? "").trim();
-
                     editQuestionField(
                       editingQuestion.showQuestionId,
                       "question",

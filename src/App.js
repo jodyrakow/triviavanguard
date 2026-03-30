@@ -46,21 +46,15 @@ const DEFAULT_SHOW_STATE = {
 };
 
 // 🔐 PASSWORD PROTECTION
-const allowedPassword = "tv2025";
-const passwordKey = "showPasswordAuthorized";
-const isAuthorized = sessionStorage.getItem(passwordKey);
-if (!isAuthorized) {
-  const enteredPassword = prompt("Enter show password:");
-  if (enteredPassword?.toLowerCase() === allowedPassword.toLowerCase()) {
-    sessionStorage.setItem(passwordKey, "true");
-  } else {
-    document.body.innerHTML =
-      "<h2 style='font-family:sans-serif;'>Access denied.</h2>";
-    throw new Error("Unauthorized access");
-  }
-}
+const ALLOWED_PASSWORD = "tv2025";
+const PASSWORD_KEY = "showPasswordAuthorized";
 
 export default function App() {
+  // Password protection state
+  const [passwordAuthorized, setPasswordAuthorized] = useState(() => !!sessionStorage.getItem(PASSWORD_KEY));
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+
   // Core app state
   const [shows, setShows] = useState([]);
   const [selectedShowId, setSelectedShowId] = useState("");
@@ -371,6 +365,16 @@ export default function App() {
       setHostSetupError("Network error — please try again.");
     }
   };
+
+  const submitPassword = useCallback(() => {
+    if (passwordInput.toLowerCase() === ALLOWED_PASSWORD.toLowerCase()) {
+      sessionStorage.setItem(PASSWORD_KEY, "true");
+      setPasswordAuthorized(true);
+    } else {
+      setPasswordError("Incorrect password. Please try again.");
+      setPasswordInput("");
+    }
+  }, [passwordInput]);
 
   // Keep display broadcast channel in sync with displayTargetHostId
   useEffect(() => {
@@ -1590,6 +1594,67 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composedCachedState, scoringMode, pubPoints, poolPerQuestion, poolContribution]);
 
+  // Unified question-send function for QuestionsMode buttons — builds full payload and syncs nav cursor
+  const pushDisplayQuestion = useCallback((showQuestionId, stage, withImages) => {
+    const item = navFlatList.find(i => i.type === "question" && i.showQuestionId === showQuestionId);
+    if (!item) return;
+
+    const payload = {
+      questionNumber: item.questionNumber,
+      questionText: item.questionText,
+      categoryName: item.categoryName,
+    };
+
+    if (withImages && item.inlineImages?.length > 0) {
+      payload.inlineImages = item.inlineImages;
+      if (item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
+        payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
+      } else {
+        payload.currentInlineImageIndex = 0;
+      }
+    }
+
+    if (stage >= 1) {
+      payload.answer = item.answer;
+    }
+
+    if (stage >= 2) {
+      const grid = composedCachedState?.grid || {};
+      const teams = composedCachedState?.teams || [];
+      let correctCount = 0;
+      for (const team of teams) {
+        if (grid[team.showTeamId]?.[showQuestionId]?.isCorrect === true) correctCount++;
+      }
+      const scoringObj = {
+        mode: scoringMode,
+        pubPoints,
+        poolPerQuestion,
+        poolContribution,
+        teamCount: teams.length,
+      };
+      const questionBonus = item.bonusAvailable
+        ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
+        : null;
+      payload.correctCount = correctCount;
+      payload.totalTeams = teams.length;
+      payload.pointsPerTeam = computeAutoEarned({ isCorrect: true }, scoringObj, correctCount);
+      payload.bonusBreakdown = computeBonusBreakdown(
+        teams, grid, showQuestionId, scoringObj, correctCount, questionBonus
+      );
+    }
+
+    sendToDisplay("question", payload);
+
+    // Sync nav cursor
+    const list = navIsAnswerMode ? navQuestionList : navFlatList;
+    const idx = list.findIndex(i => i.type === "question" && i.showQuestionId === showQuestionId);
+    if (idx >= 0) {
+      setNavIndex(idx);
+      setNavAnswerStage(stage);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navFlatList, navQuestionList, navIsAnswerMode, composedCachedState, scoringMode, pubPoints, poolPerQuestion, poolContribution]);
+
   // Wrapper around sendToDisplay that also syncs the nav cursor position
   const sendToDisplayWithNavSync = useCallback((type, data) => {
     sendToDisplay(type, data);
@@ -2500,11 +2565,6 @@ export default function App() {
                   return;
                 }
 
-                const ok = window.confirm(
-                  "Switch shows? This will delete all scores and data you've entered for the current show.",
-                );
-                if (!ok) return;
-
                 // Clear cache for the OLD show to prevent data leakage
                 const oldShowId = selectedShowId;
                 setScoringCache((prev) => {
@@ -2629,6 +2689,7 @@ export default function App() {
             displayControlsOpen={displayControlsOpen}
             addTiebreaker={addTiebreaker}
             sendToDisplay={sendToDisplayWithNavSync}
+            pushDisplayQuestion={pushDisplayQuestion}
             refreshBundle={refreshBundle}
             carouselActive={carouselActive}
             setCarouselActive={setCarouselActive}
@@ -2777,13 +2838,6 @@ export default function App() {
                 <div
                   key={s.id}
                   onClick={() => {
-                    const ok = selectedShowId
-                      ? window.confirm(
-                          "Switch to this show? This will delete all scores and data you've entered for the current show.",
-                        )
-                      : true;
-                    if (!ok) return;
-
                     // Clear cache for the OLD show to prevent data leakage
                     if (selectedShowId) {
                       const oldShowId = selectedShowId;
@@ -3152,6 +3206,58 @@ export default function App() {
             >
               Only .json archive files are supported
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Password Modal ── */}
+      {!passwordAuthorized && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 10,
+              padding: "2rem",
+              width: 360,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+            }}
+          >
+            <h2 style={{ marginBottom: "1rem", fontSize: "1.1rem" }}>
+              Enter show password
+            </h2>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && submitPassword()}
+                placeholder="Password"
+                autoFocus
+                style={{
+                  flex: 1,
+                  padding: "0.4rem 0.6rem",
+                  border: "1px solid #ccc",
+                  borderRadius: 6,
+                  fontSize: "0.95rem",
+                }}
+              />
+              <Button onClick={submitPassword}>Go</Button>
+            </div>
+            {passwordError && (
+              <p style={{ color: "red", fontSize: "0.82rem", marginTop: "0.5rem" }}>
+                {passwordError}
+              </p>
+            )}
           </div>
         </div>
       )}

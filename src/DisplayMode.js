@@ -1,5 +1,5 @@
 // src/DisplayMode.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { colors as theme, tokens } from "./styles";
 import triviaVanguardLogo from "./trivia-vanguard-logo-white.svg";
 import { marked } from "marked";
@@ -311,6 +311,20 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
 
   const scale = fontSize / 100;
 
+  // Auto-shrink category name to fit one line in the gray bar
+  const catNameRef = useRef(null);
+  useLayoutEffect(() => {
+    const el = catNameRef.current;
+    if (!el || !categoryName) return;
+    const maxSize = 2.5 * scale;
+    el.style.fontSize = `${maxSize}rem`;
+    let size = maxSize;
+    while (el.scrollWidth > el.offsetWidth && size > 0.6) {
+      size = Math.max(0.6, size - 0.05);
+      el.style.fontSize = `${size}rem`;
+    }
+  }, [categoryName, scale]);
+
   // 16:9 grid (based on 900px tall mock)
   const H_CAT = "14vh"; // 125px
   const H_QNUM = "10vh"; // 75px
@@ -347,6 +361,7 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
           }}
         >
           <div
+            ref={catNameRef}
             style={{
               fontSize: `${2.5 * scale}rem`,
               fontWeight: 600,
@@ -355,6 +370,8 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
               paddingTop: "2rem",
               letterSpacing: "0.05rem",
               maxWidth: "calc(100% - 200px)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
             }}
             dangerouslySetInnerHTML={{ __html: marked.parseInline(categoryName || "") }}
           />
