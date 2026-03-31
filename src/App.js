@@ -1474,7 +1474,6 @@ export default function App() {
         return (a.categoryOrder ?? 999) - (b.categoryOrder ?? 999);
       });
       for (const cat of sorted) {
-        if ((cat.questionType || "").toLowerCase() === "tiebreaker") continue;
         items.push({
           type: "category",
           categoryName: (cat.categoryName || "").trim(),
@@ -1484,10 +1483,6 @@ export default function App() {
           (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
         );
         for (const q of questions) {
-          if (
-            (q.questionType || "").toLowerCase() === "tiebreaker" ||
-            String(q.questionOrder || "").toUpperCase() === "TB"
-          ) continue;
           items.push({
             type: "question",
             showQuestionId: q.showQuestionId,
