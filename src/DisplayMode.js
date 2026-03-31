@@ -223,7 +223,9 @@ function CategoryDisplay({ content, fontSize = 100 }) {
             letterSpacing: "0.02em",
             marginBottom: "2vh",
           }}
-          dangerouslySetInnerHTML={{ __html: marked.parseInline(categoryName || "") }}
+          dangerouslySetInnerHTML={{
+            __html: marked.parseInline(categoryName || ""),
+          }}
         />
       )}
 
@@ -373,7 +375,9 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
               whiteSpace: "nowrap",
               overflow: "hidden",
             }}
-            dangerouslySetInnerHTML={{ __html: marked.parseInline(categoryName || "") }}
+            dangerouslySetInnerHTML={{
+              __html: marked.parseInline(categoryName || ""),
+            }}
           />
         </div>
       )}
@@ -485,7 +489,7 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
               <AutoFitText
                 html={marked.parseInline(questionText || "")}
                 maxRem={2.8 * scale}
-                minRem={1.8 * scale}
+                minRem={1.0 * scale}
                 style={{
                   color: theme.dark,
                   fontWeight: 500,
@@ -556,59 +560,63 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
         )}
 
       {/* Stats wrapper #2 (points per team / bonus breakdown) */}
-      {answer && (pointsPerTeam != null || (bonusBreakdown && bonusBreakdown.length > 0)) && (
-        <div
-          style={{
-            position: "absolute",
-            top: TOP_STATS2,
-            left: 0,
-            right: 0,
-            height: H_LINE,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 100,
-            textAlign: "center",
-          }}
-        >
+      {answer &&
+        (pointsPerTeam != null ||
+          (bonusBreakdown && bonusBreakdown.length > 0)) && (
           <div
             style={{
-              fontSize: `${(bonusBreakdown && bonusBreakdown.length > 1 ? 1.8 : 2.25) * scale}rem`,
-              color: theme.dark,
-              fontFamily: tokens.font.body,
+              position: "absolute",
+              top: TOP_STATS2,
+              left: 0,
+              right: 0,
+              height: H_LINE,
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 100,
+              textAlign: "center",
             }}
           >
-            {bonusBreakdown && bonusBreakdown.length > 1 ? (
-              bonusBreakdown.map((level, i) => (
-                <span key={level.bonusLevel}>
-                  {i > 0 && " · "}
-                  <span style={{ color: theme.accent, fontWeight: 700 }}>
-                    {level.pointsPerTeam}
-                  </span>
-                  {" pts"}
-                  {level.bonusLevel > 0 && (
-                    <span style={{ opacity: 0.7 }}>
-                      {" "}({level.bonusLevel} {"bonus" + (level.bonusLevel > 1 ? "es" : "")})
+            <div
+              style={{
+                fontSize: `${(bonusBreakdown && bonusBreakdown.length > 1 ? 1.8 : 2.25) * scale}rem`,
+                color: theme.dark,
+                fontFamily: tokens.font.body,
+              }}
+            >
+              {bonusBreakdown && bonusBreakdown.length > 1 ? (
+                bonusBreakdown.map((level, i) => (
+                  <span key={level.bonusLevel}>
+                    {i > 0 && " · "}
+                    <span style={{ color: theme.accent, fontWeight: 700 }}>
+                      {level.pointsPerTeam}
                     </span>
-                  )}
-                </span>
-              ))
-            ) : (
-              <>
-                <span
-                  style={{
-                    color: theme.accent,
-                    fontWeight: 700,
-                  }}
-                >
-                  {pointsPerTeam}
-                </span>{" "}
-                points per team
-              </>
-            )}
+                    {" pts"}
+                    {level.bonusLevel > 0 && (
+                      <span style={{ opacity: 0.7 }}>
+                        {" "}
+                        ({level.bonusLevel}{" "}
+                        {"bonus" + (level.bonusLevel > 1 ? "es" : "")})
+                      </span>
+                    )}
+                  </span>
+                ))
+              ) : (
+                <>
+                  <span
+                    style={{
+                      color: theme.accent,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {pointsPerTeam}
+                  </span>{" "}
+                  points per team
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </>
   );
 }
