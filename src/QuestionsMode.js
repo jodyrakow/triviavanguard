@@ -602,90 +602,6 @@ export default function QuestionsMode({
                 </div>
               )}
 
-            {/* Inline image navigation controls */}
-            {sendToDisplay &&
-              displayControlsOpen &&
-              inlineVisualQuestionId &&
-              (() => {
-                const currentQuestion = sortedCategories
-                  .flatMap(({ cat: c }) => c.questions || [])
-                  .find((q) => q.showQuestionId === inlineVisualQuestionId);
-
-                if (
-                  !currentQuestion ||
-                  !Array.isArray(currentQuestion.questionImages) ||
-                  currentQuestion.questionImages.length <= 1
-                ) {
-                  return null;
-                }
-
-                const currentIdx =
-                  currentImageIndex[inlineVisualQuestionId] || 0;
-                const totalImages = currentQuestion.questionImages.length;
-
-                return (
-                  <div
-                    style={{
-                      marginTop: "0.5rem",
-                      marginLeft: "1rem",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "0.85rem",
-                        marginBottom: "0.25rem",
-                        color: theme.accent,
-                        fontWeight: 600,
-                      }}
-                    >
-                      Inline Image Navigation ({currentIdx + 1} of {totalImages})
-                    </div>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <Button
-                        onClick={() => {
-                          const newIdx =
-                            (currentIdx - 1 + totalImages) % totalImages;
-                          setCurrentImageIndex((prev) => ({
-                            ...prev,
-                            [inlineVisualQuestionId]: newIdx,
-                          }));
-                          sendToDisplay("updateInlineImageIndex", {
-                            currentIndex: newIdx,
-                          });
-                        }}
-                        style={{
-                          fontSize: tokens.font.size,
-                          fontFamily: tokens.font.body,
-                        }}
-                        title="Show previous inline image"
-                      >
-                        ◀ Previous
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          const newIdx = (currentIdx + 1) % totalImages;
-                          setCurrentImageIndex((prev) => ({
-                            ...prev,
-                            [inlineVisualQuestionId]: newIdx,
-                          }));
-                          sendToDisplay("updateInlineImageIndex", {
-                            currentIndex: newIdx,
-                          });
-                        }}
-                        style={{
-                          fontSize: tokens.font.size,
-                          fontFamily: tokens.font.body,
-                        }}
-                        title="Show next inline image"
-                      >
-                        Next ▶
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })()}
-
             {/* Category audio (optional) */}
             {catAudioArr.length > 0 && (
               <div
@@ -1538,6 +1454,43 @@ export default function QuestionsMode({
                       );
                     })()}
                   </div>
+
+                  {/* Inline image nav for display — only shown when this question is active on display and has multiple images */}
+                  {sendToDisplay &&
+                    displayControlsOpen &&
+                    inlineVisualQuestionId === q.showQuestionId &&
+                    Array.isArray(q.questionImages) &&
+                    q.questionImages.length > 1 && (() => {
+                      const currentIdx = currentImageIndex[q.showQuestionId] || 0;
+                      const totalImages = q.questionImages.length;
+                      return (
+                        <div style={{ marginTop: "0.5rem", marginLeft: "1rem", marginBottom: "0.25rem" }}>
+                          <div style={{ fontSize: "0.85rem", marginBottom: "0.25rem", color: theme.accent, fontWeight: 600 }}>
+                            Inline Image Navigation ({currentIdx + 1} of {totalImages})
+                          </div>
+                          <div style={{ display: "flex", gap: "0.5rem" }}>
+                            <Button
+                              onClick={() => {
+                                const newIdx = (currentIdx - 1 + totalImages) % totalImages;
+                                setCurrentImageIndex((prev) => ({ ...prev, [q.showQuestionId]: newIdx }));
+                                sendToDisplay("updateInlineImageIndex", { currentIndex: newIdx });
+                              }}
+                              style={{ fontSize: tokens.font.size, fontFamily: tokens.font.body }}
+                              title="Show previous inline image"
+                            >◀ Previous</Button>
+                            <Button
+                              onClick={() => {
+                                const newIdx = (currentIdx + 1) % totalImages;
+                                setCurrentImageIndex((prev) => ({ ...prev, [q.showQuestionId]: newIdx }));
+                                sendToDisplay("updateInlineImageIndex", { currentIndex: newIdx });
+                              }}
+                              style={{ fontSize: tokens.font.size, fontFamily: tokens.font.body }}
+                              title="Show next inline image"
+                            >Next ▶</Button>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                   {qIndex < sortedQuestions.length - 1 && (
                     <hr className="question-divider" />
