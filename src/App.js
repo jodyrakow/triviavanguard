@@ -73,6 +73,8 @@ export default function App() {
   const timerRef = useRef(null);
   const displayControlsRef = useRef(null);
   const quickPanelRef = useRef(null);
+  const previewPanelRef = useRef(null);
+
   const [rtStatus, setRtStatus] = useState("INIT"); // ✅ moved inside
 
   // Bundle (rounds+questions+teams)
@@ -265,6 +267,7 @@ export default function App() {
     x: 0,
     y: 0,
   });
+  const [previewPanelPosition, setPreviewPanelPosition] = useState({ x: 20, y: 20 });
 
   const [displayFontSize, setDisplayFontSize] = useState(() => {
     const saved = Number(localStorage.getItem("tv_displayFontSize"));
@@ -279,6 +282,10 @@ export default function App() {
   const [navIndex, setNavIndex] = useState(0);
   const [navAnswerStage, setNavAnswerStage] = useState(0); // 0=question, 1=answer, 2=stats
   const [navStarted, setNavStarted] = useState(false); // true once first item has been sent via nav
+  const [panelSize, setPanelSize] = useState("S"); // S=300px, M=450px, L=620px panel width
+
+  // Preview width: panel content width + panel padding (.7rem * 2 ≈ 22px at 16px base)
+  const previewW = { S: 322, M: 472, L: 642, XL: 862 }[panelSize];
 
   // Answer Key state
   const [showAnswerKey, setShowAnswerKey] = useState(false);
@@ -833,6 +840,12 @@ export default function App() {
     if (savedPosition) {
       try {
         setDisplayControlsPosition(JSON.parse(savedPosition));
+      } catch {}
+    }
+    const savedPreviewPos = localStorage.getItem("previewPanelPosition");
+    if (savedPreviewPos) {
+      try {
+        setPreviewPanelPosition(JSON.parse(savedPreviewPos));
       } catch {}
     }
   }, []);
@@ -2270,24 +2283,6 @@ export default function App() {
 
                 <Button
                   onClick={() => {
-                    if (!hostId) return;
-                    const url = `${window.location.origin}?display&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1&preview=1`;
-                    window.open(url, "_blank", "width=480,height=295");
-                  }}
-                  title="Open scaled-down preview window"
-                  style={{
-                    fontSize: "1rem",
-                    padding: ".45rem .55rem",
-                    minWidth: "2.25rem",
-                    height: "2.25rem",
-                    borderRadius: ".5rem",
-                  }}
-                >
-                  🔍
-                </Button>
-
-                <Button
-                  onClick={() => {
                     sendToDisplay("closeQuestionCarousel", null);
                     sendToDisplay("standby", null);
                     setCarouselActive(false);
@@ -2343,6 +2338,98 @@ export default function App() {
                 >
                   A+
                 </Button>
+              </div>
+
+              {/* Custom message row */}
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: ".4rem" }}
+              >
+                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    placeholder="Type a message for the TV…"
+                    className="display-controls-input"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (customMessage.trim() || customMessageImage.trim())) {
+                        sendToDisplay("message", {
+                          text: customMessage.trim(),
+                          imageUrl: customMessageImage.trim() || null,
+                        });
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      fontSize: ".9rem",
+                      padding: ".5rem .6rem",
+                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
+                      borderRadius: ".6rem",
+                      minWidth: "200px",
+                      backgroundColor: "#fff",
+                      color: colors.dark || "#2B394A",
+                    }}
+                  />
+
+                  <ButtonPrimary
+                    onClick={() => {
+                      if (customMessage.trim() || customMessageImage.trim()) {
+                        sendToDisplay("message", {
+                          text: customMessage.trim(),
+                          imageUrl: customMessageImage.trim() || null,
+                        });
+                      }
+                    }}
+                    disabled={!customMessage.trim() && !customMessageImage.trim()}
+                    title="Push this message to display"
+                    style={{
+                      fontSize: "1rem",
+                      padding: ".45rem .55rem",
+                      minWidth: "2.25rem",
+                      height: "2.25rem",
+                      borderRadius: ".5rem",
+                      opacity: (customMessage.trim() || customMessageImage.trim()) ? 1 : 0.5,
+                    }}
+                  >
+                    📣
+                  </ButtonPrimary>
+                </div>
+
+                {/* Image URL row */}
+                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={customMessageImage}
+                    onChange={(e) => setCustomMessageImage(e.target.value)}
+                    placeholder="Paste image URL here…"
+                    className="display-controls-input"
+                    style={{
+                      flex: 1,
+                      fontSize: ".85rem",
+                      padding: ".4rem .6rem",
+                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
+                      borderRadius: ".6rem",
+                      minWidth: "200px",
+                      backgroundColor: "#fff",
+                      color: colors.dark || "#2B394A",
+                    }}
+                  />
+                  {customMessageImage.trim() && (
+                    <Button
+                      onClick={() => setCustomMessageImage("")}
+                      title="Clear image"
+                      style={{
+                        fontSize: ".85rem",
+                        padding: ".3rem .5rem",
+                        minWidth: "2rem",
+                        height: "2rem",
+                        borderRadius: ".5rem",
+                      }}
+                    >
+                      ✕
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Display nav row */}
@@ -2449,99 +2536,149 @@ export default function App() {
                 )}
               </div>
 
-              {/* Custom message row */}
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: ".4rem" }}
-              >
-                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
-                  <input
-                    type="text"
-                    value={customMessage}
-                    onChange={(e) => setCustomMessage(e.target.value)}
-                    placeholder="Type a message for the TV…"
-                    className="display-controls-input"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (customMessage.trim() || customMessageImage.trim())) {
-                        sendToDisplay("message", {
-                          text: customMessage.trim(),
-                          imageUrl: customMessageImage.trim() || null,
-                        });
-                      }
-                    }}
-                    style={{
-                      flex: 1,
-                      fontSize: ".9rem",
-                      padding: ".5rem .6rem",
-                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
-                      borderRadius: ".6rem",
-                      minWidth: "200px",
-                      backgroundColor: "#fff",
-                      color: colors.dark || "#2B394A",
-                    }}
-                  />
-
-                  <ButtonPrimary
-                    onClick={() => {
-                      if (customMessage.trim() || customMessageImage.trim()) {
-                        sendToDisplay("message", {
-                          text: customMessage.trim(),
-                          imageUrl: customMessageImage.trim() || null,
-                        });
-                      }
-                    }}
-                    disabled={!customMessage.trim() && !customMessageImage.trim()}
-                    title="Push this message to display"
-                    style={{
-                      fontSize: "1rem",
-                      padding: ".45rem .55rem",
-                      minWidth: "2.25rem",
-                      height: "2.25rem",
-                      borderRadius: ".5rem",
-                      opacity: (customMessage.trim() || customMessageImage.trim()) ? 1 : 0.5,
-                    }}
-                  >
-                    📣
-                  </ButtonPrimary>
-                </div>
-
-                {/* Image URL row */}
-                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
-                  <input
-                    type="text"
-                    value={customMessageImage}
-                    onChange={(e) => setCustomMessageImage(e.target.value)}
-                    placeholder="Paste image URL here…"
-                    className="display-controls-input"
-                    style={{
-                      flex: 1,
-                      fontSize: ".85rem",
-                      padding: ".4rem .6rem",
-                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
-                      borderRadius: ".6rem",
-                      minWidth: "200px",
-                      backgroundColor: "#fff",
-                      color: colors.dark || "#2B394A",
-                    }}
-                  />
-                  {customMessageImage.trim() && (
-                    <Button
-                      onClick={() => setCustomMessageImage("")}
-                      title="Clear image"
-                      style={{
-                        fontSize: ".85rem",
-                        padding: ".3rem .5rem",
-                        minWidth: "2rem",
-                        height: "2rem",
-                        borderRadius: ".5rem",
-                      }}
-                    >
-                      ✕
-                    </Button>
-                  )}
-                </div>
-              </div>
             </div>
           </Draggable>
+
+          {/* Preview panel — separate floating panel */}
+          {hostId && (
+            <Draggable
+              nodeRef={previewPanelRef}
+              position={previewPanelPosition}
+              onStop={(e, data) => {
+                const newPos = { x: data.x, y: data.y };
+                setPreviewPanelPosition(newPos);
+                localStorage.setItem("previewPanelPosition", JSON.stringify(newPos));
+              }}
+            >
+              <div
+                ref={previewPanelRef}
+                style={{
+                  position: "absolute",
+                  pointerEvents: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  backgroundColor: "#fff",
+                  borderRadius: "12px",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                  border: `2px solid ${colors.accent}`,
+                  overflow: "hidden",
+                  width: previewW,
+                }}
+              >
+                {/* Preview drag / title row */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: ".4rem",
+                    padding: ".3rem .5rem",
+                    cursor: "grab",
+                    userSelect: "none",
+                  }}
+                >
+                  <span style={{ opacity: 0.6 }}>⋮⋮</span>
+                  <span style={{ fontWeight: 500, color: colors.dark, fontFamily: tokens.font.body }}>
+                    Preview
+                  </span>
+                  <div style={{ marginLeft: "auto", display: "flex", gap: ".2rem", cursor: "default" }}>
+                    {["S", "M", "L", "XL"].map(s => (
+                      <button
+                        key={s}
+                        onClick={() => setPanelSize(s)}
+                        style={{
+                          fontSize: ".7rem",
+                          fontFamily: tokens.font.body,
+                          fontWeight: panelSize === s ? 700 : 400,
+                          padding: ".1rem .35rem",
+                          borderRadius: ".3rem",
+                          border: `1px solid ${colors.accent}`,
+                          background: panelSize === s ? colors.accent : "transparent",
+                          color: panelSize === s ? "#fff" : colors.accent,
+                          cursor: "pointer",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Timer bar */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    gap: ".4rem",
+                    padding: ".35rem .6rem",
+                    background: colors.dark,
+                  }}
+                >
+                  {[
+                    { label: "Reset", onClick: handleReset },
+                    { label: null /* time display */ },
+                    { label: timerRunning ? "Pause" : "Start", onClick: handleStartPause, primary: true },
+                    {
+                      label: navStarted ? "→" : "▶",
+                      onClick: navForward,
+                      disabled: navActiveList.length === 0 || (navStarted && navIsAnswerMode ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2 : navStarted && navIndex >= navQuestionsMode.length - 1),
+                      title: navStarted ? "Next" : "Start display",
+                    },
+                  ].map(({ label, onClick, disabled, title, primary }) => label === null ? (
+                    <span
+                      key="time"
+                      style={{
+                        fontSize: "1.1rem",
+                        fontWeight: "bold",
+                        fontFamily: tokens.font.body,
+                        minWidth: "2.8rem",
+                        textAlign: "center",
+                        color: timerRunning ? colors.accent : "#fff",
+                      }}
+                    >
+                      {timeLeft !== null ? `${timeLeft}s` : "--"}
+                    </span>
+                  ) : (
+                    <button
+                      key={label}
+                      onClick={onClick}
+                      disabled={disabled}
+                      title={title}
+                      style={{
+                        padding: ".25rem .55rem",
+                        fontSize: ".82rem",
+                        fontFamily: tokens.font.body,
+                        borderRadius: ".35rem",
+                        border: `1px solid ${primary ? colors.accent : "#888"}`,
+                        background: primary ? colors.accent : "transparent",
+                        color: "#fff",
+                        cursor: disabled ? "default" : "pointer",
+                        opacity: disabled ? 0.4 : 1,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {/* Preview iframe */}
+                <div style={{ width: previewW, height: Math.round(previewW * 1080 / 1920), overflow: "hidden", background: "#000" }}>
+                  <iframe
+                    src={`${window.location.origin}?display&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1&preview=1`}
+                    title="Display preview"
+                    style={{
+                      width: 1920,
+                      height: 1080,
+                      border: "none",
+                      transformOrigin: "top left",
+                      transform: `scale(${previewW / 1920})`,
+                      display: "block",
+                      pointerEvents: "none",
+                    }}
+                  />
+                </div>
+              </div>
+            </Draggable>
+          )}
         </div>
       )}
 
