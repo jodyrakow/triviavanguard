@@ -72,7 +72,6 @@ export default function App() {
   const [carouselActive, setCarouselActive] = useState(false);
   const timerRef = useRef(null);
   const displayControlsRef = useRef(null);
-  const quickPanelRef = useRef(null);
   const previewPanelRef = useRef(null);
 
   const [rtStatus, setRtStatus] = useState("INIT"); // ✅ moved inside
@@ -240,13 +239,6 @@ export default function App() {
     }
   }, []);
 
-  // Quick panel state
-  const [quickPanelPosition, setQuickPanelPosition] = useState(() => {
-    try {
-      const saved = localStorage.getItem("quickPanelPosition");
-      return saved ? JSON.parse(saved) : { x: 0, y: 0 };
-    } catch { return { x: 0, y: 0 }; }
-  });
 
   // Timer state
   const [timerPosition, setTimerPosition] = useState({ x: 0, y: 0 });
@@ -3275,83 +3267,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Quick Panel: timer start/stop + nav forward ── */}
-        {displayControlsOpen && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              pointerEvents: "none",
-              zIndex: 1200,
-            }}
-          >
-            <Draggable
-              nodeRef={quickPanelRef}
-              position={quickPanelPosition}
-              onStop={(_, data) => {
-                const pos = { x: data.x, y: data.y };
-                setQuickPanelPosition(pos);
-                localStorage.setItem("quickPanelPosition", JSON.stringify(pos));
-              }}
-            >
-              <div
-                ref={quickPanelRef}
-                style={{
-                  position: "absolute",
-                  backgroundColor: colors.dark,
-                  color: "#fff",
-                  borderRadius: "0.5rem",
-                  border: `1px solid ${colors.accent}`,
-                  boxShadow: "0 0 10px rgba(0,0,0,0.35)",
-                  fontFamily: tokens.font.body,
-                  pointerEvents: "auto",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  padding: "0.4rem 0.6rem",
-                  cursor: "grab",
-                  userSelect: "none",
-                }}
-              >
-                {/* Timer readout */}
-                <span
-                  style={{
-                    fontSize: "1.1rem",
-                    fontWeight: "bold",
-                    minWidth: "2.8rem",
-                    textAlign: "center",
-                    color: timerRunning ? colors.accent : "#fff",
-                  }}
-                >
-                  {timeLeft !== null ? `${timeLeft}s` : "--"}
-                </span>
-
-                {/* Start / Stop */}
-                <ButtonPrimary
-                  onClick={handleStartPause}
-                  style={{ padding: "0.3rem 0.65rem", fontSize: "0.85rem" }}
-                >
-                  {timerRunning ? "Stop" : "Start"}
-                </ButtonPrimary>
-
-                {/* Nav forward */}
-                <Button
-                  onClick={navForward}
-                  disabled={
-                    navActiveList.length === 0 ||
-                    (navStarted && navIsAnswerMode
-                      ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2
-                      : navStarted && navIndex >= navQuestionsMode.length - 1)
-                  }
-                  style={{ padding: "0.3rem 0.65rem", fontSize: "0.85rem" }}
-                  title={navStarted ? "Next" : "Start"}
-                >
-                  {navStarted ? "→" : "▶"}
-                </Button>
-              </div>
-            </Draggable>
-          </div>
-        )}
       </div>
 
       {/* Hidden file input for importing archived shows */}
