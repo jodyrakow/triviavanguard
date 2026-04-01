@@ -278,6 +278,7 @@ export default function App() {
   const [navIsAnswerMode, setNavIsAnswerMode] = useState(false);
   const [navIndex, setNavIndex] = useState(0);
   const [navAnswerStage, setNavAnswerStage] = useState(0); // 0=question, 1=answer, 2=stats
+  const [navStarted, setNavStarted] = useState(false); // true once first item has been sent via nav
 
   // Answer Key state
   const [showAnswerKey, setShowAnswerKey] = useState(false);
@@ -1471,69 +1472,138 @@ export default function App() {
     return updatedBundle;
   }, [showBundle, questionEdits, selectedShowId, scoringCache]);
 
-  // Build a flat ordered list of display nav items (categories + questions) from the bundle
+  // Build a flat ordered list of display nav items for the selected round
   const navFlatList = useMemo(() => {
     if (!showBundleWithEdits?.rounds) return [];
-    const items = [];
-    for (const round of showBundleWithEdits.rounds) {
-      const sorted = [...(round.categories || [])].sort((a, b) => {
-        const av = (a.questionType || "").toLowerCase().includes("visual") ? 1 : 0;
-        const bv = (b.questionType || "").toLowerCase().includes("visual") ? 1 : 0;
-        if (av !== bv) return bv - av; // visuals first
-        return (a.categoryOrder ?? 999) - (b.categoryOrder ?? 999);
-      });
-      for (const cat of sorted) {
-        items.push({
-          type: "category",
-          categoryName: (cat.categoryName || "").trim(),
-          categoryDescription: cat.categoryDescription || "",
-        });
-        const questions = [...(cat.questions || [])].sort(
-          (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
-        );
-        for (const q of questions) {
-          items.push({
-            type: "question",
-            showQuestionId: q.showQuestionId,
+    const round = showBundleWithEdits.rounds.find(
+      (r) => String(r.round) === String(selectedRoundId)
+    );
+    if (!round) return [];
+
+    const sorted = [...(round.categories || [])].sort((a, b) => {
+      const av = (a.questionType || "").toLowerCase().includes("visual") ? 1 : 0;
+      const bv = (b.questionType || "").toLowerCase().includes("visual") ? 1 : 0;
+      if (av !== bv) return bv - av; // visuals first
+      return (a.categoryOrder ?? 999) - (b.categoryOrder ?? 999);
+    });
+
+    // Collect visual questions for carousel item
+    const visualQuestions = [];
+    for (const cat of sorted) {
+      if ((cat.questionType || "").toLowerCase().includes("visual")) {
+        const qs = [...(cat.questions || [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        for (const q of qs) {
+          visualQuestions.push({
             questionNumber: q.questionOrder,
             questionText: q.questionText || "",
-            answer: q.answer || "",
             categoryName: (cat.categoryName || "").trim(),
-            bonusAvailable: !!q.bonusAvailable,
-            bonusValue: q.bonusValue || null,
-            maxBonuses: q.maxBonuses || null,
-            showImageByDefault: !!q.showImageByDefault,
-            autoRevealAnswerImage: !!q.autoRevealAnswerImage,
-            inlineImages: Array.isArray(q.questionImages)
-              ? q.questionImages.map((img) => ({ url: img.url }))
-              : [],
+            inlineImages: Array.isArray(q.questionImages) ? q.questionImages.map((img) => ({ url: img.url })) : [],
+            currentInlineImageIndex: 0,
           });
         }
       }
     }
-    return items;
-  }, [showBundleWithEdits]);
 
+    const items = [];
+
+    // In Questions mode: carousel first (if visual questions exist), then spoken categories/questions
+    // In Answers mode: all questions in order (visual included), no carousel item, no category items
+    // navFlatList serves Questions mode; navQuestionList (derived below) serves Answers mode.
+    // We always build the full list here; navQuestionList filters it.
+
+    if (visualQuestions.length > 0) {
+      items.push({
+        type: "carousel",
+        label: "Visual question carousel",
+        visualQuestions,
+      });
+    }
+
+    for (const cat of sorted) {
+      const isVisual = (cat.questionType || "").toLowerCase().includes("visual");
+      const isTiebreaker = (cat.questionType || "").toLowerCase() === "tiebreaker";
+
+      // In Questions mode, skip visual categories (they're in the carousel)
+      // Tiebreaker categories are always included
+      if (!isVisual) {
+        items.push({
+          type: "category",
+          categoryName: (cat.categoryName || "").trim(),
+          categoryDescription: cat.categoryDescription || "",
+          isTiebreaker,
+        });
+      }
+
+      const questions = [...(cat.questions || [])].sort(
+        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+      );
+      for (const q of questions) {
+        items.push({
+          type: "question",
+          isVisual,
+          showQuestionId: q.showQuestionId,
+          questionNumber: q.questionOrder,
+          questionText: q.questionText || "",
+          answer: q.answer || "",
+          categoryName: (cat.categoryName || "").trim(),
+          bonusAvailable: !!q.bonusAvailable,
+          bonusValue: q.bonusValue || null,
+          maxBonuses: q.maxBonuses || null,
+          showImageByDefault: !!q.showImageByDefault,
+          autoRevealAnswerImage: !!q.autoRevealAnswerImage,
+          inlineImages: Array.isArray(q.questionImages)
+            ? q.questionImages.map((img) => ({ url: img.url }))
+            : [],
+        });
+      }
+    }
+
+    return items;
+  }, [showBundleWithEdits, selectedRoundId]);
+
+  // Questions mode nav: carousel + non-visual categories + all questions (minus visual)
+  // Visual questions are handled by the carousel item, not individually
+  const navQuestionsMode = useMemo(
+    () => navFlatList.filter((item) => item.type === "carousel" || item.type === "category" || (item.type === "question" && !item.isVisual)),
+    [navFlatList]
+  );
+
+  // Answers mode nav: all questions in order (visual included, no category/carousel items)
   const navQuestionList = useMemo(
     () => navFlatList.filter((item) => item.type === "question"),
     [navFlatList]
   );
 
-  // Reset nav position when show changes
+  // Reset nav position when show or round changes
   useEffect(() => {
     setNavIndex(0);
     setNavAnswerStage(0);
-  }, [showBundle]);
+    setNavStarted(false);
+  }, [showBundle, selectedRoundId]);
 
   // Push a questions-mode item to the display
   const pushNavItem = useCallback((item) => {
     if (!item) return;
+    if (item.type === "carousel") {
+      sendToDisplay("questionCarousel", {
+        questions: item.visualQuestions,
+        currentIndex: 0,
+        autoCycle: true,
+      });
+      setCarouselActive(true);
+    } else {
+      // Close carousel if it was open
+      if (carouselActive) {
+        sendToDisplay("closeQuestionCarousel", null);
+        setCarouselActive(false);
+      }
+    }
     if (item.type === "category") {
       sendToDisplay("category", {
         categoryName: item.categoryName,
         categoryDescription: item.categoryDescription,
       });
-    } else {
+    } else if (item.type === "question") {
       const payload = {
         questionNumber: item.questionNumber,
         questionText: item.questionText,
@@ -1546,7 +1616,7 @@ export default function App() {
       sendToDisplay("question", payload);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [carouselActive]);
 
   // Push an answers-mode question at a given stage (0=question, 1=answer, 2=stats)
   const pushNavQuestion = useCallback((item, stage) => {
@@ -1689,7 +1759,19 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navIsAnswerMode, navFlatList, navQuestionList]);
 
+  const navActiveList = navIsAnswerMode ? navQuestionList : navQuestionsMode;
+
   const navForward = useCallback(() => {
+    if (!navStarted) {
+      // First press: send the current item without advancing
+      setNavStarted(true);
+      if (navIsAnswerMode) {
+        pushNavQuestion(navQuestionList[navIndex], 0);
+      } else {
+        pushNavItem(navQuestionsMode[navIndex]);
+      }
+      return;
+    }
     if (navIsAnswerMode) {
       const currentQ = navQuestionList[navIndex];
       if (!currentQ) return;
@@ -1704,13 +1786,13 @@ export default function App() {
         pushNavQuestion(navQuestionList[nextIdx], 0);
       }
     } else {
-      if (navIndex < navFlatList.length - 1) {
+      if (navIndex < navQuestionsMode.length - 1) {
         const nextIdx = navIndex + 1;
         setNavIndex(nextIdx);
-        pushNavItem(navFlatList[nextIdx]);
+        pushNavItem(navQuestionsMode[nextIdx]);
       }
     }
-  }, [navIsAnswerMode, navIndex, navAnswerStage, navFlatList, navQuestionList, pushNavItem, pushNavQuestion]);
+  }, [navStarted, navIsAnswerMode, navIndex, navAnswerStage, navQuestionsMode, navQuestionList, pushNavItem, pushNavQuestion]);
 
   const navBackward = useCallback(() => {
     if (navIsAnswerMode) {
@@ -1730,17 +1812,17 @@ export default function App() {
       if (navIndex > 0) {
         const prevIdx = navIndex - 1;
         setNavIndex(prevIdx);
-        pushNavItem(navFlatList[prevIdx]);
+        pushNavItem(navQuestionsMode[prevIdx]);
       }
     }
-  }, [navIsAnswerMode, navIndex, navAnswerStage, navFlatList, navQuestionList, pushNavItem, pushNavQuestion]);
+  }, [navIsAnswerMode, navIndex, navAnswerStage, navQuestionsMode, navQuestionList, pushNavItem, pushNavQuestion]);
 
   const toggleNavMode = useCallback(() => {
     const nextMode = !navIsAnswerMode;
     setNavIsAnswerMode(nextMode);
     if (nextMode) {
       // Switching to answers mode: find current question in navQuestionList
-      const currentItem = navFlatList[navIndex];
+      const currentItem = navQuestionsMode[navIndex];
       if (currentItem?.type === "question") {
         const idx = navQuestionList.findIndex(
           (q) => q.showQuestionId === currentItem.showQuestionId
@@ -1750,32 +1832,50 @@ export default function App() {
         setNavIndex(0);
       }
     } else {
-      // Switching to questions mode: find current question in navFlatList
+      // Switching to questions mode: find current question in navQuestionsMode
       const currentQ = navQuestionList[navIndex];
       if (currentQ) {
-        const idx = navFlatList.findIndex(
+        const idx = navQuestionsMode.findIndex(
           (item) => item.type === "question" && item.showQuestionId === currentQ.showQuestionId
         );
         setNavIndex(idx >= 0 ? idx : 0);
       }
     }
     setNavAnswerStage(0);
-  }, [navIsAnswerMode, navFlatList, navQuestionList, navIndex]);
+    setNavStarted(false);
+  }, [navIsAnswerMode, navQuestionsMode, navQuestionList, navIndex]);
+
+  const getNavLabel = useCallback((list, idx, stage) => {
+    if (list.length === 0) return "No show";
+    const item = list[idx];
+    if (!item) return "—";
+    if (item.type === "carousel") return "Visual carousel";
+    if (item.type === "category") return item.categoryName || "Category";
+    const stageLabel = navIsAnswerMode ? ` · ${["question", "answer", "stats"][stage] ?? ""}` : "";
+    return `Q${item.questionNumber}${stageLabel}`;
+  }, [navIsAnswerMode]);
 
   const navCurrentLabel = useMemo(() => {
-    if (navFlatList.length === 0) return "No show";
+    if (navActiveList.length === 0) return "No show";
+    return getNavLabel(navActiveList, navIndex, navAnswerStage);
+  }, [navActiveList, navIndex, navAnswerStage, getNavLabel]);
+
+  const navNextLabel = useMemo(() => {
     if (navIsAnswerMode) {
-      const q = navQuestionList[navIndex];
-      if (!q) return "—";
-      const stageLabel = ["question", "answer", "stats"][navAnswerStage] || "";
-      return `Q${q.questionNumber} · ${stageLabel}`;
+      if (navAnswerStage < 2) {
+        return getNavLabel(navQuestionList, navIndex, navAnswerStage + 1);
+      }
+      if (navIndex < navQuestionList.length - 1) {
+        return getNavLabel(navQuestionList, navIndex + 1, 0);
+      }
+      return null;
+    } else {
+      if (navIndex < navQuestionsMode.length - 1) {
+        return getNavLabel(navQuestionsMode, navIndex + 1, 0);
+      }
+      return null;
     }
-    const item = navFlatList[navIndex];
-    if (!item) return "—";
-    return item.type === "category"
-      ? (item.categoryName || "Category")
-      : `Q${item.questionNumber}`;
-  }, [navIsAnswerMode, navFlatList, navQuestionList, navIndex, navAnswerStage]);
+  }, [navIsAnswerMode, navQuestionsMode, navQuestionList, navIndex, navAnswerStage, getNavLabel]);
 
   // Helper function to edit a question field
   const editQuestionField = (showQuestionId, field, value) => {
@@ -2170,7 +2270,24 @@ export default function App() {
 
                 <Button
                   onClick={() => {
-                    sendToDisplay("closeImageOverlay", null);
+                    if (!hostId) return;
+                    const url = `${window.location.origin}?display&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1&preview=1`;
+                    window.open(url, "_blank", "width=480,height=295");
+                  }}
+                  title="Open scaled-down preview window"
+                  style={{
+                    fontSize: "1rem",
+                    padding: ".45rem .55rem",
+                    minWidth: "2.25rem",
+                    height: "2.25rem",
+                    borderRadius: ".5rem",
+                  }}
+                >
+                  🔍
+                </Button>
+
+                <Button
+                  onClick={() => {
                     sendToDisplay("closeQuestionCarousel", null);
                     sendToDisplay("standby", null);
                     setCarouselActive(false);
@@ -2185,20 +2302,6 @@ export default function App() {
                   }}
                 >
                   🧹
-                </Button>
-
-                <Button
-                  onClick={() => sendToDisplay("closeImageOverlay", null)}
-                  title="Close any image overlay on the display"
-                  style={{
-                    fontSize: "1rem",
-                    padding: ".45rem .55rem",
-                    minWidth: "2.25rem",
-                    height: "2.25rem",
-                    borderRadius: ".5rem",
-                  }}
-                >
-                  🖼️
                 </Button>
 
                 <Button
@@ -2246,77 +2349,104 @@ export default function App() {
               <div
                 style={{
                   display: "flex",
-                  alignItems: "center",
-                  gap: ".4rem",
+                  flexDirection: "column",
+                  gap: ".3rem",
                   paddingTop: ".4rem",
                   borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}`,
                 }}
               >
-                <Button
-                  onClick={toggleNavMode}
-                  disabled={navFlatList.length === 0}
-                  title={`Switch to ${navIsAnswerMode ? "Questions" : "Answers"} mode`}
-                  style={{
-                    fontSize: ".72rem",
-                    padding: ".25rem .45rem",
-                    borderRadius: ".4rem",
-                    flexShrink: 0,
-                    opacity: navFlatList.length === 0 ? 0.4 : 1,
-                  }}
-                >
-                  {navIsAnswerMode ? "Answers" : "Questions"}
-                </Button>
-                <Button
-                  onClick={navBackward}
-                  disabled={
-                    navFlatList.length === 0 ||
-                    (navIsAnswerMode
-                      ? navIndex === 0 && navAnswerStage === 0
-                      : navIndex === 0)
-                  }
-                  title="Previous"
-                  style={{
-                    fontSize: ".9rem",
-                    padding: ".25rem .45rem",
-                    borderRadius: ".4rem",
-                    flexShrink: 0,
-                  }}
-                >
-                  ←
-                </Button>
-                <span
-                  style={{
-                    flex: 1,
-                    textAlign: "center",
-                    fontSize: ".78rem",
-                    color: colors.dark,
-                    fontFamily: tokens.font.body,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    opacity: navFlatList.length === 0 ? 0.4 : 1,
-                  }}
-                >
-                  {navCurrentLabel}
-                </span>
-                <Button
-                  onClick={navForward}
-                  disabled={
-                    navFlatList.length === 0 ||
-                    (navIsAnswerMode
-                      ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2
-                      : navIndex >= navFlatList.length - 1)
-                  }
-                  title="Next"
-                  style={{
-                    fontSize: ".9rem",
-                    padding: ".25rem .45rem",
-                    borderRadius: ".4rem",
-                    flexShrink: 0,
-                  }}
-                >
-                  →
-                </Button>
+                {/* Mode toggle */}
+                <div style={{ display: "flex", gap: ".3rem" }}>
+                  {["Questions", "Answers"].map((mode) => {
+                    const isActive = (mode === "Answers") === navIsAnswerMode;
+                    return (
+                      <button
+                        key={mode}
+                        onClick={toggleNavMode}
+                        disabled={navActiveList.length === 0}
+                        style={{
+                          flex: 1,
+                          fontSize: ".78rem",
+                          padding: ".3rem .4rem",
+                          borderRadius: ".4rem",
+                          border: `2px solid ${colors.accent}`,
+                          background: isActive ? colors.accent : "transparent",
+                          color: isActive ? "#fff" : colors.accent,
+                          fontWeight: isActive ? 700 : 400,
+                          cursor: "pointer",
+                          fontFamily: tokens.font.body,
+                          opacity: navActiveList.length === 0 ? 0.4 : 1,
+                        }}
+                      >
+                        {mode}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* ← current → row */}
+                <div style={{ display: "flex", alignItems: "center", gap: ".4rem" }}>
+                  <Button
+                    onClick={navBackward}
+                    disabled={
+                      navActiveList.length === 0 ||
+                      (navIsAnswerMode
+                        ? navIndex === 0 && navAnswerStage === 0
+                        : navIndex === 0)
+                    }
+                    title="Previous"
+                    style={{ fontSize: ".9rem", padding: ".25rem .45rem", borderRadius: ".4rem", flexShrink: 0 }}
+                  >
+                    ←
+                  </Button>
+                  <span
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      fontSize: ".78rem",
+                      fontWeight: 600,
+                      color: colors.dark,
+                      fontFamily: tokens.font.body,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      opacity: navActiveList.length === 0 ? 0.4 : 1,
+                    }}
+                  >
+                    {navCurrentLabel}
+                  </span>
+                  <Button
+                    onClick={navForward}
+                    disabled={
+                      navActiveList.length === 0 ||
+                      (navStarted && navIsAnswerMode
+                        ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2
+                        : navStarted && navIndex >= navQuestionsMode.length - 1)
+                    }
+                    title={navStarted ? "Next" : "Start — send first item to display"}
+                    style={{ fontSize: ".9rem", padding: ".25rem .45rem", borderRadius: ".4rem", flexShrink: 0 }}
+                  >
+                    {navStarted ? "→" : "▶"}
+                  </Button>
+                </div>
+
+                {/* Up next / ready to send label */}
+                {(navNextLabel || !navStarted) && (
+                  <div
+                    style={{
+                      fontSize: ".72rem",
+                      color: navStarted ? (colors.gray?.text || "#888") : colors.accent,
+                      fontFamily: tokens.font.body,
+                      textAlign: "center",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      fontWeight: navStarted ? 400 : 600,
+                    }}
+                  >
+                    {navStarted ? `next: ${navNextLabel}` : `▶ ${navCurrentLabel}`}
+                  </div>
+                )}
               </div>
 
               {/* Custom message row */}
@@ -3071,15 +3201,15 @@ export default function App() {
                 <Button
                   onClick={navForward}
                   disabled={
-                    navFlatList.length === 0 ||
-                    (navIsAnswerMode
+                    navActiveList.length === 0 ||
+                    (navStarted && navIsAnswerMode
                       ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2
-                      : navIndex >= navFlatList.length - 1)
+                      : navStarted && navIndex >= navQuestionsMode.length - 1)
                   }
                   style={{ padding: "0.3rem 0.65rem", fontSize: "0.85rem" }}
-                  title="Next"
+                  title={navStarted ? "Next" : "Start"}
                 >
-                  →
+                  {navStarted ? "→" : "▶"}
                 </Button>
               </div>
             </Draggable>

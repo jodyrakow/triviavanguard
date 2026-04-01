@@ -79,7 +79,7 @@ export default function DisplayMode() {
     };
   }, [urlHostId, urlHostName]);
 
-  return (
+  const displayContent = (
     <div
       style={{
         position: "relative",
@@ -142,6 +142,8 @@ export default function DisplayMode() {
         )}
     </div>
   );
+
+  return displayContent;
 }
 function DesignGuideOverlay() {
   return (
