@@ -70,6 +70,8 @@ export default function ResultsMode({
             bonusAvailable: !!q.bonusAvailable,
             bonusValue: q.bonusValue ?? 0,
             maxBonuses: q.maxBonuses ?? 0,
+            partialCreditAvailable: !!q.partialCreditAvailable,
+            numParts: typeof q.numParts === "number" ? q.numParts : 0,
           });
         }
       }

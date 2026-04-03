@@ -908,6 +908,7 @@ export default function ScoringMode({
       const adaptedCell = {
         isCorrect: cell.isCorrect,
         bonusCount: cell.bonusCount || 0,
+        partialCount: cell.partialCount || 0,
       };
 
       // Handle per-question pub points (if this question has its own value, use it)

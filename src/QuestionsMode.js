@@ -1,6 +1,6 @@
 // src/QuestionsMode.js
 import React, { useMemo } from "react";
-import AudioPlayer from "react-h5-audio-player";
+import SharedAudioPlayer from "./SharedAudioPlayer";
 import { marked } from "marked";
 import {
   Button,
@@ -49,6 +49,11 @@ export default function QuestionsMode({
   refreshBundle,
   carouselActive = false,
   setCarouselActive,
+  sharedAudioUrl = "",
+  sharedAudioPlaying = false,
+  sharedAudioRef,
+  onPlayAudio,
+  onToggleAudio,
 }) {
   // Unified question editor modal state
   const [editingQuestion, setEditingQuestion] = React.useState(null);
@@ -614,43 +619,16 @@ export default function QuestionsMode({
                 {catAudioArr.map(
                   (audioObj, i) =>
                     audioObj?.url && (
-                      <div
-                        key={i}
-                        className="audio-player-wrapper"
-                        style={{
-                          marginTop: "0.5rem",
-                          maxWidth: "600px",
-                          border: "1px solid #ccc",
-                          borderRadius: "1.5rem",
-                          overflow: "hidden",
-                          backgroundColor: theme.bg,
-                          boxShadow: "0 0 10px rgba(0, 0, 0, 0.15)",
-                        }}
-                      >
-                        <AudioPlayer
-                          src={audioObj.url}
-                          showJumpControls={false}
-                          layout="horizontal"
-                          style={{
-                            borderRadius: "1.5rem 1.5rem 0 0",
-                            width: "100%",
-                          }}
+                      <div key={i} style={{ marginTop: "0.5rem", maxWidth: "600px" }}>
+                        <SharedAudioPlayer
+                          url={audioObj.url}
+                          filename={audioObj.filename}
+                          sharedUrl={sharedAudioUrl}
+                          sharedPlaying={sharedAudioPlaying}
+                          audioRef={sharedAudioRef}
+                          onPlay={onPlayAudio}
+                          onToggle={onToggleAudio}
                         />
-                        {showDetails && (
-                          <div
-                            style={{
-                              textAlign: "center",
-                              fontSize: ".9rem",
-                              fontFamily: tokens.font.body,
-                              padding: "0.4rem 0.6rem",
-                              backgroundColor: theme.bg,
-                              borderTop: "1px solid #ccc",
-                            }}
-                          >
-                            🎵{" "}
-                            {(audioObj.filename || "").replace(/\.[^/.]+$/, "")}
-                          </div>
-                        )}
                       </div>
                     ),
                 )}
@@ -1126,46 +1104,16 @@ export default function QuestionsMode({
                         {q.questionAudio.map(
                           (audioObj, audioIdx) =>
                             audioObj.url && (
-                              <div
-                                key={audioIdx}
-                                className="audio-player-wrapper"
-                                style={{
-                                  marginTop: "0.5rem",
-                                  maxWidth: "600px",
-                                  border: "1px solid #ccc",
-                                  borderRadius: "1.5rem",
-                                  overflow: "hidden",
-                                  backgroundColor: theme.bg,
-                                  boxShadow: "0 0 10px rgba(0, 0, 0, 0.15)",
-                                }}
-                              >
-                                <AudioPlayer
-                                  src={audioObj.url}
-                                  showJumpControls={false}
-                                  layout="horizontal"
-                                  style={{
-                                    borderRadius: "1.5rem 1.5rem 0 0",
-                                    width: "100%",
-                                  }}
+                              <div key={audioIdx} style={{ marginTop: "0.5rem", maxWidth: "600px" }}>
+                                <SharedAudioPlayer
+                                  url={audioObj.url}
+                                  filename={audioObj.filename}
+                                  sharedUrl={sharedAudioUrl}
+                                  sharedPlaying={sharedAudioPlaying}
+                                  audioRef={sharedAudioRef}
+                                  onPlay={onPlayAudio}
+                                  onToggle={onToggleAudio}
                                 />
-                                {showDetails && (
-                                  <div
-                                    style={{
-                                      textAlign: "center",
-                                      fontSize: ".9rem",
-                                      fontFamily: tokens.font.body,
-                                      padding: "0.4rem 0.6rem",
-                                      backgroundColor: theme.bg,
-                                      borderTop: "1px solid #ccc",
-                                    }}
-                                  >
-                                    🎵{" "}
-                                    {(audioObj.filename || "").replace(
-                                      /\.[^/.]+$/,
-                                      "",
-                                    )}
-                                  </div>
-                                )}
                               </div>
                             ),
                         )}

@@ -5,6 +5,7 @@ import "./App.css";
 import "react-h5-audio-player/lib/styles.css";
 import Draggable from "react-draggable";
 import QuestionsMode from "./QuestionsMode";
+import SharedAudioPlayer from "./SharedAudioPlayer";
 import ScoringMode from "./ScoringMode";
 import ResultsMode from "./ResultsMode";
 import Sidebar from "./Sidebar";
@@ -274,7 +275,12 @@ export default function App() {
   const [navIndex, setNavIndex] = useState(0);
   const [navAnswerStage, setNavAnswerStage] = useState(0); // 0=question, 1=answer, 2=stats
   const [navStarted, setNavStarted] = useState(false); // true once first item has been sent via nav
+  const [navImageVisible, setNavImageVisible] = useState(false); // true when image toggled on for current nav item
+  const [navImageIndex, setNavImageIndex] = useState(0); // current image index when cycling
   const [panelSize, setPanelSize] = useState("S"); // S=300px, M=450px, L=620px panel width
+  const sharedAudioRef = useRef(null);
+  const [sharedAudioUrl, setSharedAudioUrl] = useState("");
+  const [sharedAudioPlaying, setSharedAudioPlaying] = useState(false);
 
   // Preview width: panel content width + panel padding (.7rem * 2 ≈ 22px at 16px base)
   const previewW = { S: 322, M: 472, L: 642, XL: 862 }[panelSize];
@@ -1536,6 +1542,7 @@ export default function App() {
           categoryName: (cat.categoryName || "").trim(),
           categoryDescription: cat.categoryDescription || "",
           isTiebreaker,
+          categoryAudio: Array.isArray(cat.categoryAudio) ? cat.categoryAudio.filter(a => a?.url) : [],
         });
       }
 
@@ -1559,6 +1566,7 @@ export default function App() {
           inlineImages: Array.isArray(q.questionImages)
             ? q.questionImages.map((img) => ({ url: img.url }))
             : [],
+          questionAudio: Array.isArray(q.questionAudio) ? q.questionAudio.filter(a => a?.url) : [],
         });
       }
     }
@@ -1724,12 +1732,13 @@ export default function App() {
 
     sendToDisplay("question", payload);
 
-    // Sync nav cursor
-    const list = navIsAnswerMode ? navQuestionList : navFlatList;
+    // Sync nav cursor — use navQuestionsMode (not navFlatList) so navIndex stays consistent with navForward/navBackward
+    const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
     const idx = list.findIndex(i => i.type === "question" && i.showQuestionId === showQuestionId);
     if (idx >= 0) {
       setNavIndex(idx);
       setNavAnswerStage(stage);
+      setNavStarted(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navFlatList, navQuestionList, navIsAnswerMode, composedCachedState, scoringMode, pubPoints, poolPerQuestion, poolContribution]);
@@ -1738,7 +1747,7 @@ export default function App() {
   const sendToDisplayWithNavSync = useCallback((type, data) => {
     sendToDisplay(type, data);
     if (type === "question" && data?.questionNumber !== undefined) {
-      const list = navIsAnswerMode ? navQuestionList : navFlatList;
+      const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
       const idx = list.findIndex(
         (item) =>
           item.type === "question" &&
@@ -1747,6 +1756,7 @@ export default function App() {
       );
       if (idx >= 0) {
         setNavIndex(idx);
+        setNavStarted(true);
         if (navIsAnswerMode) {
           const stage =
             data.correctCount !== undefined ? 2
@@ -1759,7 +1769,10 @@ export default function App() {
       const idx = navFlatList.findIndex(
         (item) => item.type === "category" && item.categoryName === data.categoryName
       );
-      if (idx >= 0) setNavIndex(idx);
+      if (idx >= 0) {
+        setNavIndex(idx);
+        setNavStarted(true);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navIsAnswerMode, navFlatList, navQuestionList]);
@@ -1864,6 +1877,62 @@ export default function App() {
     if (navActiveList.length === 0) return "No show";
     return getNavLabel(navActiveList, navIndex, navAnswerStage);
   }, [navActiveList, navIndex, navAnswerStage, getNavLabel]);
+
+  const currentNavAudio = useMemo(() => {
+    const item = navActiveList[navIndex];
+    if (!item) return [];
+    if (item.type === "question") return item.questionAudio || [];
+    if (item.type === "category") return item.categoryAudio || [];
+    return [];
+  }, [navActiveList, navIndex]);
+
+  const playAudio = useCallback((url) => {
+    if (sharedAudioRef.current) {
+      sharedAudioRef.current.pause();
+    }
+    const audio = new Audio(url);
+    audio.onplay  = () => setSharedAudioPlaying(true);
+    audio.onpause = () => setSharedAudioPlaying(false);
+    audio.onended = () => { setSharedAudioPlaying(false); };
+    sharedAudioRef.current = audio;
+    setSharedAudioUrl(url);
+    setSharedAudioPlaying(false);
+    audio.play();
+  }, []);
+
+  const toggleAudio = useCallback(() => {
+    const a = sharedAudioRef.current;
+    if (!a) return;
+    if (sharedAudioPlaying) { a.pause(); } else { a.play(); }
+  }, [sharedAudioPlaying]);
+
+  const toggleNavImage = useCallback(() => {
+    const item = navActiveList[navIndex];
+    if (!item || item.type !== "question" || !item.inlineImages?.length) return;
+    const newVisible = !navImageVisible;
+    setNavImageVisible(newVisible);
+    setNavImageIndex(0);
+    const stage = navIsAnswerMode ? navAnswerStage : 0;
+    pushDisplayQuestion(item.showQuestionId, stage, newVisible);
+  }, [navImageVisible, navActiveList, navIndex, navIsAnswerMode, navAnswerStage, pushDisplayQuestion]);
+
+  const cycleNavImage = useCallback((dir) => {
+    const item = navActiveList[navIndex];
+    if (!item || item.type !== "question" || !item.inlineImages?.length) return;
+    const newIdx = Math.max(0, Math.min(item.inlineImages.length - 1, navImageIndex + dir));
+    setNavImageIndex(newIdx);
+    sendToDisplay("updateInlineImageIndex", { currentIndex: newIdx });
+  }, [navActiveList, navIndex, navImageIndex]);
+
+  // Stop audio and reset image toggle when nav position changes
+  useEffect(() => {
+    if (sharedAudioRef.current) {
+      sharedAudioRef.current.pause();
+      setSharedAudioPlaying(false);
+    }
+    setNavImageVisible(false);
+    setNavImageIndex(0);
+  }, [navIndex, navIsAnswerMode]);
 
   const navNextLabel = useMemo(() => {
     if (navIsAnswerMode) {
@@ -2528,6 +2597,24 @@ export default function App() {
                 )}
               </div>
 
+              {/* Audio players for current nav item */}
+              {currentNavAudio.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: ".35rem", paddingTop: ".4rem", borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}` }}>
+                  {currentNavAudio.map((audioObj, i) => (
+                    <SharedAudioPlayer
+                      key={i}
+                      url={audioObj.url}
+                      filename={audioObj.filename}
+                      sharedUrl={sharedAudioUrl}
+                      sharedPlaying={sharedAudioPlaying}
+                      audioRef={sharedAudioRef}
+                      onPlay={playAudio}
+                      onToggle={toggleAudio}
+                    />
+                  ))}
+                </div>
+              )}
+
             </div>
           </Draggable>
 
@@ -2651,6 +2738,72 @@ export default function App() {
                       {label}
                     </button>
                   ))}
+                  {(() => {
+                    const hasAudio = currentNavAudio.length > 0;
+                    const isPlaying = hasAudio && sharedAudioUrl === currentNavAudio[0].url && sharedAudioPlaying;
+                    return (
+                      <button
+                        onClick={hasAudio ? () => sharedAudioUrl === currentNavAudio[0].url ? toggleAudio() : playAudio(currentNavAudio[0].url) : undefined}
+                        title={!hasAudio ? "No audio" : isPlaying ? "Stop audio" : "Play audio"}
+                        disabled={!hasAudio}
+                        style={{
+                          padding: ".25rem .45rem",
+                          fontSize: ".82rem",
+                          fontFamily: tokens.font.body,
+                          borderRadius: ".35rem",
+                          border: `1px solid ${isPlaying ? colors.accent : "#888"}`,
+                          background: isPlaying ? colors.accent : "transparent",
+                          color: hasAudio ? "#fff" : "#555",
+                          cursor: hasAudio ? "pointer" : "default",
+                          minWidth: "2rem",
+                          textAlign: "center",
+                          opacity: hasAudio ? 1 : 0.35,
+                        }}
+                      >
+                        {isPlaying ? "■" : "♪"}
+                      </button>
+                    );
+                  })()}
+                  {(() => {
+                    const item = navActiveList[navIndex];
+                    const hasImg = item?.type === "question" && item.inlineImages?.length > 0 && !item.showImageByDefault;
+                    const multiImg = hasImg && item.inlineImages.length > 1;
+                    const btnStyle = {
+                      padding: ".25rem .45rem",
+                      fontSize: ".82rem",
+                      fontFamily: tokens.font.body,
+                      borderRadius: ".35rem",
+                      cursor: "pointer",
+                      minWidth: "2rem",
+                      textAlign: "center",
+                    };
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", gap: ".2rem" }}>
+                        {navImageVisible && multiImg && (
+                          <button
+                            onClick={() => cycleNavImage(-1)}
+                            disabled={navImageIndex === 0}
+                            title="Previous image"
+                            style={{ ...btnStyle, border: "1px solid #888", background: "transparent", color: navImageIndex === 0 ? "#555" : "#fff", opacity: navImageIndex === 0 ? 0.35 : 1 }}
+                          >‹</button>
+                        )}
+                        <button
+                          onClick={hasImg ? toggleNavImage : undefined}
+                          disabled={!hasImg}
+                          title={!hasImg ? "No toggleable image" : navImageVisible ? "Hide image" : "Show image"}
+                          style={{ ...btnStyle, border: `1px solid ${navImageVisible ? colors.accent : "#888"}`, background: navImageVisible ? colors.accent : "transparent", color: hasImg ? "#fff" : "#555", opacity: hasImg ? 1 : 0.35, cursor: hasImg ? "pointer" : "default" }}
+                        >▣</button>
+                        {navImageVisible && multiImg && (
+                          <button
+                            onClick={() => cycleNavImage(1)}
+                            disabled={navImageIndex >= item.inlineImages.length - 1}
+                            title="Next image"
+                            style={{ ...btnStyle, border: "1px solid #888", background: "transparent", color: navImageIndex >= item.inlineImages.length - 1 ? "#555" : "#fff", opacity: navImageIndex >= item.inlineImages.length - 1 ? 0.35 : 1 }}
+                          >›</button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 {/* Preview iframe */}
                 <div style={{ width: previewW, height: Math.round(previewW * 1080 / 1920), overflow: "hidden", background: "#000" }}>
@@ -2956,6 +3109,11 @@ export default function App() {
             refreshBundle={refreshBundle}
             carouselActive={carouselActive}
             setCarouselActive={setCarouselActive}
+            sharedAudioUrl={sharedAudioUrl}
+            sharedAudioPlaying={sharedAudioPlaying}
+            sharedAudioRef={sharedAudioRef}
+            onPlayAudio={playAudio}
+            onToggleAudio={toggleAudio}
           />
         )}
 
