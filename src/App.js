@@ -1207,6 +1207,20 @@ export default function App() {
 
         console.log("showBundle.config", showBundle?.config);
 
+        console.log("[App] FULL SHOW BUNDLE:", bundle);
+console.log(
+  "[App] ROUNDS/CATEGORIES SUMMARY:",
+  (bundle?.rounds || []).map((r) => ({
+    round: r.round,
+    categories: (r.categories || []).map((c) => ({
+      categoryName: c.categoryName,
+      questionType: c.questionType,
+      questionCount: (c.questions || []).length,
+      questionOrders: (c.questions || []).map((q) => q.questionOrder),
+    })),
+  }))
+);
+
         setShowBundle(bundle);
 
         // Scoring/timer settings are now handled by the Supabase settings effect
