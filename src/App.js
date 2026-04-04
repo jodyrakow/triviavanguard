@@ -304,13 +304,13 @@ export default function App() {
   const [navImageIndex, setNavImageIndex] = useState(0); // current image index when cycling
   const [navAudioIndex, setNavAudioIndex] = useState(0); // current audio index when cycling
   const [navGoToInput, setNavGoToInput] = useState(""); // "go to" input value
-  const [panelSize, setPanelSize] = useState("S"); // S=300px, M=450px, L=620px panel width
+  const [panelSize, setPanelSize] = useState("S"); // S=460px, M=580px, L=720px, XL=940px panel width
   const sharedAudioRef = useRef(null);
   const [sharedAudioUrl, setSharedAudioUrl] = useState("");
   const [sharedAudioPlaying, setSharedAudioPlaying] = useState(false);
 
   // Preview width: panel content width + panel padding (.7rem * 2 ≈ 22px at 16px base)
-  const previewW = { S: 322, M: 472, L: 642, XL: 862 }[panelSize];
+  const previewW = { S: 460, M: 580, L: 720, XL: 940 }[panelSize];
 
   // Answer Key state
   const [showAnswerKey, setShowAnswerKey] = useState(false);
