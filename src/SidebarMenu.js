@@ -8,7 +8,7 @@ export default function SidebarMenu({
   hostInfo,
   setHostInfo,
   displayControlsOpen,
-  setDisplayControlsPosition,
+  setPreviewPanelPosition,
   scoringMode,
   setScoringMode,
   pubPoints,
@@ -586,8 +586,8 @@ export default function SidebarMenu({
       {displayControlsOpen && (
         <button
           onClick={() => {
-            setDisplayControlsPosition({ x: 0, y: 0 });
-            localStorage.removeItem("displayControlsPosition");
+            setPreviewPanelPosition({ x: 0, y: 0 });
+            localStorage.removeItem("previewPanelPosition");
           }}
           style={resetButtonStyle}
         >

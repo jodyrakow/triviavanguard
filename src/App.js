@@ -2519,7 +2519,7 @@ export default function App() {
           }
           setHostInfo={(val) => patchShared({ hostInfo: val })}
           displayControlsOpen={displayControlsOpen}
-
+          setPreviewPanelPosition={setPreviewPanelPosition}
           scoringMode={scoringMode}
           setScoringMode={setScoringMode}
           pubPoints={pubPoints}
