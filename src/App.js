@@ -449,7 +449,7 @@ export default function App() {
     if (previewIframeRef.current.src !== newSrc) {
       previewIframeRef.current.src = newSrc;
     }
-  }, [venueShowId, hostId, hostName]);
+  }, [venueShowId, hostId, hostName, displayControlsOpen, previewMinimized]);
 
   // Subscribe to presence channel to detect active display windows
   useEffect(() => {
