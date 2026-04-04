@@ -2769,7 +2769,7 @@ export default function App() {
                       {/* Center column: info box + go-to row */}
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".25rem", minWidth: 0 }}>
                         {/* Info box */}
-                        <div style={{ background: "#fff", borderRadius: ".5rem", padding: ".3rem .6rem", minWidth: 0 }}>
+                        <div style={{ background: "#fff", borderRadius: ".5rem", padding: ".3rem .6rem", minWidth: 0, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
                           <div style={{ fontWeight: 700, fontSize: ".85rem", color: colors.dark, fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {navStarted ? navCurrentLabel : `▶ ${navCurrentLabel}`}
                           </div>
@@ -2805,7 +2805,7 @@ export default function App() {
                       </div>
 
                       {/* Timer column */}
-                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: ".25rem" }}>
+                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-start", gap: ".25rem" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: ".25rem" }}>
                           <button onClick={handleReset} style={{ ...btnBase }}>Reset</button>
                           <span style={{ fontSize: "1rem", fontWeight: "bold", fontFamily: tokens.font.body, minWidth: "2.5rem", textAlign: "center", color: timerRunning ? colors.accent : "#fff" }}>
@@ -2819,7 +2819,7 @@ export default function App() {
 
                       {/* Audio column: < > arrows above ♪ button */}
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: ".25rem" }}>
-                        <div style={{ display: "flex", gap: ".15rem" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", width: "3rem" }}>
                           {arrowBtn("‹", () => cycleNavAudio(-1), !multiAudio || navAudioIndex === 0)}
                           {arrowBtn("›", () => cycleNavAudio(1), !multiAudio || navAudioIndex >= currentNavAudio.length - 1)}
                         </div>
@@ -2829,6 +2829,7 @@ export default function App() {
                           title={!hasAudio ? "No audio" : isPlaying ? "Stop audio" : "Play audio"}
                           style={{
                             ...btnBase,
+                            width: "3rem",
                             border: `1px solid ${isPlaying ? colors.accent : "#888"}`,
                             background: isPlaying ? colors.accent : "transparent",
                             color: hasAudio ? "#fff" : "#555",
@@ -2842,7 +2843,7 @@ export default function App() {
 
                       {/* Image column: < > arrows above ▣ button */}
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: ".25rem" }}>
-                        <div style={{ display: "flex", gap: ".15rem" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", width: "3rem" }}>
                           {arrowBtn("‹", () => cycleNavImage(-1), !multiImg || navImageIndex === 0)}
                           {arrowBtn("›", () => cycleNavImage(1), !multiImg || navImageIndex >= imgCount - 1)}
                         </div>
@@ -2852,6 +2853,7 @@ export default function App() {
                           title={!hasImg ? "No image" : navImageVisible ? "Hide image" : "Show image"}
                           style={{
                             ...btnBase,
+                            width: "3rem",
                             border: `1px solid ${navImageVisible ? colors.accent : "#888"}`,
                             background: navImageVisible ? colors.accent : "transparent",
                             color: hasImg ? "#fff" : "#555",
