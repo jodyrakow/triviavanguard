@@ -302,6 +302,8 @@ export default function App() {
   const [navStarted, setNavStarted] = useState(false); // true once first item has been sent via nav
   const [navImageVisible, setNavImageVisible] = useState(false); // true when image toggled on for current nav item
   const [navImageIndex, setNavImageIndex] = useState(0); // current image index when cycling
+  const [navAudioIndex, setNavAudioIndex] = useState(0); // current audio index when cycling
+  const [navGoToInput, setNavGoToInput] = useState(""); // "go to" input value
   const [panelSize, setPanelSize] = useState("S"); // S=300px, M=450px, L=620px panel width
   const sharedAudioRef = useRef(null);
   const [sharedAudioUrl, setSharedAudioUrl] = useState("");
@@ -2207,7 +2209,40 @@ export default function App() {
     [navActiveList, navIndex, navImageIndex],
   );
 
-  // Stop audio and reset image toggle when nav position changes
+  const cycleNavAudio = useCallback(
+    (dir) => {
+      if (!currentNavAudio.length) return;
+      const newIdx = Math.max(0, Math.min(currentNavAudio.length - 1, navAudioIndex + dir));
+      setNavAudioIndex(newIdx);
+      // If already playing this item's audio, switch to the new track
+      if (sharedAudioRef.current && (sharedAudioPlaying || sharedAudioUrl === currentNavAudio[navAudioIndex]?.url)) {
+        playAudio(currentNavAudio[newIdx].url);
+      }
+    },
+    [currentNavAudio, navAudioIndex, sharedAudioPlaying, sharedAudioUrl, playAudio],
+  );
+
+  const navGoTo = useCallback(() => {
+    const input = navGoToInput.trim().toUpperCase();
+    if (!input) return;
+    const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
+    const idx = list.findIndex(
+      (item) => item.type === "question" && String(item.questionNumber || "").toUpperCase() === input,
+    );
+    if (idx === -1) return;
+    setNavIndex(idx);
+    setNavAnswerStage(0);
+    setNavStarted(true);
+    navSyncReadyRef.current = true;
+    if (navIsAnswerMode) {
+      pushNavQuestion(list[idx], 0);
+    } else {
+      pushNavItem(list[idx]);
+    }
+    setNavGoToInput("");
+  }, [navGoToInput, navIsAnswerMode, navQuestionList, navQuestionsMode, pushNavQuestion, pushNavItem]);
+
+  // Stop audio and reset image/audio toggles when nav position changes
   useEffect(() => {
     if (sharedAudioRef.current) {
       sharedAudioRef.current.pause();
@@ -2215,6 +2250,7 @@ export default function App() {
     }
     setNavImageVisible(false);
     setNavImageIndex(0);
+    setNavAudioIndex(0);
   }, [navIndex, navIsAnswerMode]);
 
   const navNextLabel = useMemo(() => {
@@ -3045,172 +3081,165 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-                {/* Timer bar */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "flex-end",
-                    gap: ".4rem",
-                    padding: ".35rem .6rem",
-                    background: colors.dark,
-                  }}
-                >
-                  {[
-                    { label: "Reset", onClick: handleReset },
-                    { label: null /* time display */ },
-                    {
-                      label: timerRunning ? "Pause" : "Start",
-                      onClick: handleStartPause,
-                      primary: true,
-                    },
-                    {
-                      label: navStarted ? "→" : "▶",
-                      onClick: navForward,
-                      disabled:
-                        navActiveList.length === 0 ||
-                        (navStarted && navIsAnswerMode
-                          ? navIndex >= navQuestionList.length - 1 &&
-                            navAnswerStage >= 2
-                          : navStarted &&
-                            navIndex >= navQuestionsMode.length - 1),
-                      title: navStarted ? "Next" : "Start display",
-                    },
-                  ].map(({ label, onClick, disabled, title, primary }) =>
-                    label === null ? (
-                      <span
-                        key="time"
-                        style={{
-                          fontSize: "1.1rem",
-                          fontWeight: "bold",
-                          fontFamily: tokens.font.body,
-                          minWidth: "2.8rem",
-                          textAlign: "center",
-                          color: timerRunning ? colors.accent : "#fff",
-                        }}
-                      >
-                        {timeLeft !== null ? `${timeLeft}s` : "--"}
-                      </span>
-                    ) : (
-                      <button
-                        key={label}
-                        onClick={onClick}
-                        disabled={disabled}
-                        title={title}
-                        style={{
-                          padding: ".25rem .55rem",
-                          fontSize: ".82rem",
-                          fontFamily: tokens.font.body,
-                          borderRadius: ".35rem",
-                          border: `1px solid ${primary ? colors.accent : "#888"}`,
-                          background: primary ? colors.accent : "transparent",
-                          color: "#fff",
-                          cursor: disabled ? "default" : "pointer",
-                          opacity: disabled ? 0.4 : 1,
-                        }}
-                      >
-                        {label}
-                      </button>
-                    ),
-                  )}
-                  {(() => {
-                    const hasAudio = currentNavAudio.length > 0;
-                    const isPlaying =
-                      hasAudio &&
-                      sharedAudioUrl === currentNavAudio[0].url &&
-                      sharedAudioPlaying;
-                    return (
-                      <button
-                        onClick={
-                          hasAudio
-                            ? () =>
-                                sharedAudioUrl === currentNavAudio[0].url
-                                  ? toggleAudio()
-                                  : playAudio(currentNavAudio[0].url)
-                            : undefined
-                        }
-                        title={
-                          !hasAudio
-                            ? "No audio"
-                            : isPlaying
-                              ? "Stop audio"
-                              : "Play audio"
-                        }
-                        disabled={!hasAudio}
-                        style={{
-                          padding: ".25rem .45rem",
-                          fontSize: ".82rem",
-                          fontFamily: tokens.font.body,
-                          borderRadius: ".35rem",
-                          border: `1px solid ${isPlaying ? colors.accent : "#888"}`,
-                          background: isPlaying ? colors.accent : "transparent",
-                          color: hasAudio ? "#fff" : "#555",
-                          cursor: hasAudio ? "pointer" : "default",
-                          minWidth: "2rem",
-                          textAlign: "center",
-                          opacity: hasAudio ? 1 : 0.35,
-                        }}
-                      >
-                        {isPlaying ? "■" : "♪"}
-                      </button>
-                    );
-                  })()}
-                  {(() => {
-                    const item = navActiveList[navIndex];
-                    const hasImg =
-                      item?.type === "question" &&
-                      item.inlineImages?.length > 0 &&
-                      !item.showImageByDefault;
-                    const multiImg = hasImg && item.inlineImages.length > 1;
-                    const btnStyle = {
-                      padding: ".25rem .45rem",
-                      fontSize: ".82rem",
-                      fontFamily: tokens.font.body,
-                      borderRadius: ".35rem",
-                      cursor: "pointer",
-                      minWidth: "2rem",
-                      textAlign: "center",
-                    };
-                    return (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: ".2rem",
-                        }}
-                      >
-                        {navImageVisible && multiImg && (
-                          <button
-                            onClick={() => cycleNavImage(-1)}
-                            disabled={navImageIndex === 0}
-                            title="Previous image"
+                {/* Control bar — 2-row layout */}
+                {(() => {
+                  const item = navActiveList[navIndex];
+                  const hasAudio = currentNavAudio.length > 0;
+                  const multiAudio = currentNavAudio.length > 1;
+                  const currentAudio = currentNavAudio[navAudioIndex] || currentNavAudio[0];
+                  const isPlaying = hasAudio && sharedAudioUrl === currentAudio?.url && sharedAudioPlaying;
+                  const hasImg = item?.type === "question" && item.inlineImages?.length > 0 && !item.showImageByDefault;
+                  const multiImg = !!(hasImg && item.inlineImages.length > 1);
+                  const imgCount = hasImg ? item.inlineImages.length : 0;
+                  const btnBase = {
+                    padding: ".22rem .45rem",
+                    fontSize: ".8rem",
+                    fontFamily: tokens.font.body,
+                    borderRadius: ".35rem",
+                    border: "1px solid #888",
+                    background: "transparent",
+                    color: "#fff",
+                    cursor: "pointer",
+                    minWidth: "1.8rem",
+                    textAlign: "center",
+                  };
+                  const modeBtn = (label, isActive, onClick) => (
+                    <button
+                      key={label}
+                      onClick={isActive ? undefined : onClick}
+                      disabled={navActiveList.length === 0 || isActive}
+                      style={{
+                        ...btnBase,
+                        border: `1px solid ${colors.accent}`,
+                        background: isActive ? colors.accent : "transparent",
+                        color: "#fff",
+                        fontWeight: isActive ? 700 : 400,
+                        opacity: navActiveList.length === 0 ? 0.4 : 1,
+                        cursor: isActive ? "default" : "pointer",
+                        fontSize: ".75rem",
+                        padding: ".2rem .4rem",
+                        width: "5rem",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                  const arrowBtn = (label, onClick, disabled) => (
+                    <button
+                      onClick={disabled ? undefined : onClick}
+                      disabled={disabled}
+                      style={{
+                        ...btnBase,
+                        padding: ".15rem .3rem",
+                        fontSize: ".75rem",
+                        minWidth: "1.4rem",
+                        opacity: disabled ? 0.25 : 1,
+                        cursor: disabled ? "default" : "pointer",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                  const navAtStart = navIsAnswerMode ? navIndex === 0 && navAnswerStage === 0 : navIndex === 0;
+                  const navAtEnd = navStarted && (navIsAnswerMode
+                    ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2
+                    : navIndex >= navQuestionsMode.length - 1);
+                  return (
+                    <div style={{ background: colors.dark, display: "flex", gap: ".4rem", padding: ".35rem .5rem", alignItems: "stretch" }}>
+                      {/* Left column: mode toggles */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: ".25rem", justifyContent: "space-between" }}>
+                        {modeBtn("Questions", !navIsAnswerMode, toggleNavMode)}
+                        {modeBtn("Answers", navIsAnswerMode, toggleNavMode)}
+                      </div>
+
+                      {/* Center column: info box + go-to row */}
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".25rem", minWidth: 0 }}>
+                        {/* Info box */}
+                        <div style={{ background: "rgba(255,255,255,0.12)", borderRadius: ".35rem", padding: ".2rem .45rem", minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: ".82rem", color: "#fff", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {navStarted ? navCurrentLabel : `▶ ${navCurrentLabel}`}
+                          </div>
+                          {navStarted && navNextLabel && (
+                            <div style={{ fontSize: ".7rem", color: "#aaa", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              next: {navNextLabel}
+                            </div>
+                          )}
+                        </div>
+                        {/* Go-to + nav arrows */}
+                        <div style={{ display: "flex", alignItems: "center", gap: ".25rem" }}>
+                          <span style={{ fontSize: ".72rem", color: "#aaa", flexShrink: 0, fontFamily: tokens.font.body }}>go to</span>
+                          <input
+                            value={navGoToInput}
+                            onChange={(e) => setNavGoToInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") navGoTo(); }}
+                            placeholder="#"
                             style={{
-                              ...btnStyle,
-                              border: "1px solid #888",
-                              background: "transparent",
-                              color: navImageIndex === 0 ? "#555" : "#fff",
-                              opacity: navImageIndex === 0 ? 0.35 : 1,
+                              flex: 1,
+                              minWidth: 0,
+                              fontSize: ".8rem",
+                              padding: ".2rem .35rem",
+                              borderRadius: ".3rem",
+                              border: "1px solid #555",
+                              background: "rgba(255,255,255,0.1)",
+                              color: "#fff",
+                              fontFamily: tokens.font.body,
                             }}
-                          >
-                            ‹
+                          />
+                          {arrowBtn("←", navBackward, navActiveList.length === 0 || navAtStart)}
+                          {arrowBtn(navStarted ? "→" : "▶", navForward, navActiveList.length === 0 || navAtEnd)}
+                        </div>
+                      </div>
+
+                      {/* Timer column */}
+                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: ".25rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: ".25rem" }}>
+                          <button onClick={handleReset} style={{ ...btnBase }}>Reset</button>
+                          <span style={{ fontSize: "1rem", fontWeight: "bold", fontFamily: tokens.font.body, minWidth: "2.5rem", textAlign: "center", color: timerRunning ? colors.accent : "#fff" }}>
+                            {timeLeft !== null ? `${timeLeft}s` : "--"}
+                          </span>
+                          <button onClick={handleStartPause} style={{ ...btnBase, border: `1px solid ${colors.accent}`, background: colors.accent }}>
+                            {timerRunning ? "Pause" : "Start"}
                           </button>
-                        )}
+                        </div>
+                      </div>
+
+                      {/* Audio column: < > arrows above ♪ button */}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: ".25rem" }}>
+                        <div style={{ display: "flex", gap: ".15rem" }}>
+                          {arrowBtn("‹", () => cycleNavAudio(-1), !multiAudio || navAudioIndex === 0)}
+                          {arrowBtn("›", () => cycleNavAudio(1), !multiAudio || navAudioIndex >= currentNavAudio.length - 1)}
+                        </div>
+                        <button
+                          onClick={hasAudio ? () => sharedAudioUrl === currentAudio?.url ? toggleAudio() : playAudio(currentAudio.url) : undefined}
+                          disabled={!hasAudio}
+                          title={!hasAudio ? "No audio" : isPlaying ? "Stop audio" : "Play audio"}
+                          style={{
+                            ...btnBase,
+                            border: `1px solid ${isPlaying ? colors.accent : "#888"}`,
+                            background: isPlaying ? colors.accent : "transparent",
+                            color: hasAudio ? "#fff" : "#555",
+                            opacity: hasAudio ? 1 : 0.35,
+                            cursor: hasAudio ? "pointer" : "default",
+                          }}
+                        >
+                          {isPlaying ? "■" : "♪"}
+                        </button>
+                      </div>
+
+                      {/* Image column: < > arrows above ▣ button */}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: ".25rem" }}>
+                        <div style={{ display: "flex", gap: ".15rem" }}>
+                          {arrowBtn("‹", () => cycleNavImage(-1), !multiImg || navImageIndex === 0)}
+                          {arrowBtn("›", () => cycleNavImage(1), !multiImg || navImageIndex >= imgCount - 1)}
+                        </div>
                         <button
                           onClick={hasImg ? toggleNavImage : undefined}
                           disabled={!hasImg}
-                          title={
-                            !hasImg
-                              ? "No toggleable image"
-                              : navImageVisible
-                                ? "Hide image"
-                                : "Show image"
-                          }
+                          title={!hasImg ? "No image" : navImageVisible ? "Hide image" : "Show image"}
                           style={{
-                            ...btnStyle,
+                            ...btnBase,
                             border: `1px solid ${navImageVisible ? colors.accent : "#888"}`,
-                            background: navImageVisible
-                              ? colors.accent
-                              : "transparent",
+                            background: navImageVisible ? colors.accent : "transparent",
                             color: hasImg ? "#fff" : "#555",
                             opacity: hasImg ? 1 : 0.35,
                             cursor: hasImg ? "pointer" : "default",
@@ -3218,34 +3247,10 @@ export default function App() {
                         >
                           ▣
                         </button>
-                        {navImageVisible && multiImg && (
-                          <button
-                            onClick={() => cycleNavImage(1)}
-                            disabled={
-                              navImageIndex >= item.inlineImages.length - 1
-                            }
-                            title="Next image"
-                            style={{
-                              ...btnStyle,
-                              border: "1px solid #888",
-                              background: "transparent",
-                              color:
-                                navImageIndex >= item.inlineImages.length - 1
-                                  ? "#555"
-                                  : "#fff",
-                              opacity:
-                                navImageIndex >= item.inlineImages.length - 1
-                                  ? 0.35
-                                  : 1,
-                            }}
-                          >
-                            ›
-                          </button>
-                        )}
                       </div>
-                    );
-                  })()}
-                </div>
+                    </div>
+                  );
+                })()}
                 {/* Preview iframe */}
                 <div
                   style={{
