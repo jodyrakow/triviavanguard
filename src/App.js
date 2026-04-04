@@ -281,11 +281,6 @@ export default function App() {
     y: 20,
   });
 
-  const [displayFontSize, setDisplayFontSize] = useState(() => {
-    const saved = Number(localStorage.getItem("tv_displayFontSize"));
-    return Number.isFinite(saved) ? saved : 220; // pick your normal default
-  });
-
   const [customMessage, setCustomMessage] = useState("");
   const [customMessageImage, setCustomMessageImage] = useState("");
 
@@ -463,10 +458,6 @@ export default function App() {
     ch.subscribe();
     return () => supabase.removeChannel(ch);
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem("tv_displayFontSize", String(displayFontSize));
-  }, [displayFontSize]);
 
   // Send message to display window via Supabase Realtime broadcast
   const sendToDisplay = (type, data) => {
@@ -2667,11 +2658,11 @@ export default function App() {
                 </div>
               </div>
 
+              {!previewMinimized && (<>
               {/* Utility buttons row */}
               <div
                 style={{
                   display: "flex",
-                  flexWrap: "wrap",
                   gap: ".4rem",
                   alignItems: "center",
                   padding: ".3rem .5rem",
@@ -2685,6 +2676,11 @@ export default function App() {
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
                 >📺</Button>
                 <Button
+                  onClick={() => { sendToDisplay("closeQuestionCarousel", null); sendToDisplay("standby", null); setCarouselActive(false); }}
+                  title="Clear the display (standby screen)"
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >🧹</Button>
+                <Button
                   onClick={() => {
                     if (!venueShowId) return;
                     const url = `${window.location.origin}?display&venueShowId=${venueShowId}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1`;
@@ -2694,61 +2690,10 @@ export default function App() {
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
                 >🔗</Button>
                 <Button
-                  onClick={() => { sendToDisplay("closeQuestionCarousel", null); sendToDisplay("standby", null); setCarouselActive(false); }}
-                  title="Clear the display (standby screen)"
-                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
-                >🧹</Button>
-                <Button
                   onClick={() => sendToDisplay("toggleGuide")}
                   title="Toggle alignment guide"
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
                 >📐</Button>
-                <Button
-                  onClick={() => setDisplayFontSize((prev) => { const s = Math.max(50, prev - 10); sendToDisplay("fontSize", { size: s }); return s; })}
-                  title="Decrease display text size"
-                >A-</Button>
-                <Button
-                  onClick={() => setDisplayFontSize((prev) => { const s = Math.min(400, prev + 10); sendToDisplay("fontSize", { size: s }); return s; })}
-                  title="Increase display text size"
-                >A+</Button>
-              </div>
-
-              {/* Custom message row */}
-              <div style={{ display: "flex", flexDirection: "column", gap: ".3rem", padding: ".3rem .5rem .4rem", borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}` }}>
-                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
-                  <input
-                    type="text"
-                    value={customMessage}
-                    onChange={(e) => setCustomMessage(e.target.value)}
-                    placeholder="Type a message for the TV…"
-                    className="display-controls-input"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (customMessage.trim() || customMessageImage.trim())) {
-                        sendToDisplay("message", { text: customMessage.trim(), imageUrl: customMessageImage.trim() || null });
-                      }
-                    }}
-                    style={{ flex: 1, fontSize: ".85rem", padding: ".4rem .55rem", border: `1px solid ${colors.gray?.border || "#ccc"}`, borderRadius: ".5rem", backgroundColor: "#fff", color: colors.dark || "#2B394A" }}
-                  />
-                  <ButtonPrimary
-                    onClick={() => { if (customMessage.trim() || customMessageImage.trim()) sendToDisplay("message", { text: customMessage.trim(), imageUrl: customMessageImage.trim() || null }); }}
-                    disabled={!customMessage.trim() && !customMessageImage.trim()}
-                    title="Push this message to display"
-                    style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", opacity: customMessage.trim() || customMessageImage.trim() ? 1 : 0.5 }}
-                  >📣</ButtonPrimary>
-                </div>
-                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
-                  <input
-                    type="text"
-                    value={customMessageImage}
-                    onChange={(e) => setCustomMessageImage(e.target.value)}
-                    placeholder="Paste image URL here…"
-                    className="display-controls-input"
-                    style={{ flex: 1, fontSize: ".8rem", padding: ".35rem .55rem", border: `1px solid ${colors.gray?.border || "#ccc"}`, borderRadius: ".5rem", backgroundColor: "#fff", color: colors.dark || "#2B394A" }}
-                  />
-                  {customMessageImage.trim() && (
-                    <Button onClick={() => setCustomMessageImage("")} title="Clear image" style={{ fontSize: ".8rem", padding: ".25rem .4rem", minWidth: "1.8rem", height: "1.8rem", borderRadius: ".4rem" }}>✕</Button>
-                  )}
-                </div>
               </div>
                 {/* Control bar — 2-row layout */}
                 {(() => {
@@ -2824,12 +2769,12 @@ export default function App() {
                       {/* Center column: info box + go-to row */}
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".25rem", minWidth: 0 }}>
                         {/* Info box */}
-                        <div style={{ background: "rgba(255,255,255,0.12)", borderRadius: ".35rem", padding: ".2rem .45rem", minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: ".82rem", color: "#fff", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div style={{ background: "#fff", borderRadius: ".5rem", padding: ".3rem .6rem", minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: ".85rem", color: colors.dark, fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {navStarted ? navCurrentLabel : `▶ ${navCurrentLabel}`}
                           </div>
                           {navStarted && navNextLabel && (
-                            <div style={{ fontSize: ".7rem", color: "#aaa", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <div style={{ fontSize: ".72rem", color: "#888", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               next: {navNextLabel}
                             </div>
                           )}
@@ -2920,31 +2865,30 @@ export default function App() {
                     </div>
                   );
                 })()}
-                {/* Preview iframe — hidden when minimized */}
-                {!previewMinimized && (
-                  <div
+                {/* Preview iframe */}
+                <div
+                  style={{
+                    width: previewW,
+                    height: Math.round((previewW * 1080) / 1920),
+                    overflow: "hidden",
+                    background: "#000",
+                  }}
+                >
+                  <iframe
+                    ref={previewIframeRef}
+                    title="Display preview"
                     style={{
-                      width: previewW,
-                      height: Math.round((previewW * 1080) / 1920),
-                      overflow: "hidden",
-                      background: "#000",
+                      width: 1920,
+                      height: 1080,
+                      border: "none",
+                      transformOrigin: "top left",
+                      transform: `scale(${previewW / 1920})`,
+                      display: "block",
+                      pointerEvents: "none",
                     }}
-                  >
-                    <iframe
-                      ref={previewIframeRef}
-                      title="Display preview"
-                      style={{
-                        width: 1920,
-                        height: 1080,
-                        border: "none",
-                        transformOrigin: "top left",
-                        transform: `scale(${previewW / 1920})`,
-                        display: "block",
-                        pointerEvents: "none",
-                      }}
-                    />
-                  </div>
-                )}
+                  />
+                </div>
+              </>)}
               </div>
             </Draggable>
           </div>
