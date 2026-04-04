@@ -307,6 +307,7 @@ export default function App() {
 
   // Supabase channel for broadcasting to the display window
   const displayBroadcastRef = useRef(null);
+  const previewIframeRef = useRef(null);
 
   // On mount: check localStorage for saved host identity, verify against Supabase
   useEffect(() => {
@@ -413,6 +414,16 @@ export default function App() {
       displayBroadcastRef.current = null;
     };
   }, [displayTargetHostId]);
+
+  // Update preview iframe src imperatively when target host changes, to avoid reload on unrelated re-renders
+  useEffect(() => {
+    const targetId = displayTargetHostId || hostId;
+    if (!targetId || !previewIframeRef.current) return;
+    const newSrc = `${window.location.origin}?display&hostId=${targetId}&hostName=${encodeURIComponent(hostName)}&viewer=1&preview=1`;
+    if (previewIframeRef.current.src !== newSrc) {
+      previewIframeRef.current.src = newSrc;
+    }
+  }, [displayTargetHostId, hostId, hostName]);
 
   // Subscribe to presence channel to detect active displays
   useEffect(() => {
@@ -2801,7 +2812,7 @@ console.log(
                 {/* Preview iframe */}
                 <div style={{ width: previewW, height: Math.round(previewW * 1080 / 1920), overflow: "hidden", background: "#000" }}>
                   <iframe
-                    src={`${window.location.origin}?display&hostId=${displayTargetHostId || hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1&preview=1`}
+                    ref={previewIframeRef}
                     title="Display preview"
                     style={{
                       width: 1920,
