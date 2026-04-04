@@ -334,6 +334,7 @@ export default function App() {
   const [venuePickerOpen, setVenuePickerOpen] = useState(false);
   const [venuePickerOptions, setVenuePickerOptions] = useState([]);
   const [venuePickerLoading, setVenuePickerLoading] = useState(false);
+  const [venueManualInput, setVenueManualInput] = useState("");
 
   // Supabase channel for broadcasting to the display window
   const displayBroadcastRef = useRef(null);
@@ -4297,6 +4298,38 @@ export default function App() {
               <p style={{ color: "#888", fontFamily: tokens.font.body, fontSize: ".9rem" }}>
                 No shows found for today.
               </p>
+            )}
+
+            {!venuePickerLoading && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const name = venueManualInput.trim();
+                  if (!name) return;
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+                  selectVenue(`custom:${slug}:${todayStr}`, name);
+                  setVenueManualInput("");
+                }}
+                style={{ display: "flex", gap: ".5rem", marginBottom: "1rem" }}
+              >
+                <input
+                  value={venueManualInput}
+                  onChange={(e) => setVenueManualInput(e.target.value)}
+                  placeholder="Or type a venue name…"
+                  style={{
+                    flex: 1,
+                    fontSize: ".9rem",
+                    padding: ".4rem .6rem",
+                    border: `1px solid ${colors.gray?.border || "#ccc"}`,
+                    borderRadius: ".5rem",
+                    fontFamily: tokens.font.body,
+                  }}
+                />
+                <ButtonPrimary type="submit" disabled={!venueManualInput.trim()}>
+                  Go
+                </ButtonPrimary>
+              </form>
             )}
 
             {!venuePickerLoading && venuePickerOptions.map((v) => (
