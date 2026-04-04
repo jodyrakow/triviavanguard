@@ -2801,7 +2801,7 @@ console.log(
                 {/* Preview iframe */}
                 <div style={{ width: previewW, height: Math.round(previewW * 1080 / 1920), overflow: "hidden", background: "#000" }}>
                   <iframe
-                    src={`${window.location.origin}?display&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1&preview=1`}
+                    src={`${window.location.origin}?display&hostId=${displayTargetHostId || hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1&preview=1`}
                     title="Display preview"
                     style={{
                       width: 1920,
