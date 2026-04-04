@@ -2514,8 +2514,8 @@ console.log(
                     return (
                       <button
                         key={mode}
-                        onClick={toggleNavMode}
-                        disabled={navActiveList.length === 0}
+                        onClick={isActive ? undefined : toggleNavMode}
+                        disabled={navActiveList.length === 0 || isActive}
                         style={{
                           flex: 1,
                           fontSize: ".78rem",
