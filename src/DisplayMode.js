@@ -16,8 +16,9 @@ export default function DisplayMode() {
 
   const [showGuide, setShowGuide] = useState(false);
 
-  // Read params from URL (?display&hostId=xxx&hostName=yyy&viewer=1)
+  // Read params from URL (?display&venueShowId=xxx&hostId=yyy&hostName=zzz&viewer=1)
   const params = new URLSearchParams(window.location.search);
+  const urlVenueShowId = params.get("venueShowId");
   const urlHostId = params.get("hostId");
   const urlHostName = decodeURIComponent(params.get("hostName") || "");
   const isViewer = params.get("viewer") === "1";
@@ -29,7 +30,7 @@ export default function DisplayMode() {
 
   // Listen for display updates via Supabase Realtime broadcast
   useEffect(() => {
-    if (!supabase || !urlHostId) return;
+    if (!supabase || !urlVenueShowId) return;
 
     const handleMessage = ({ type, content }) => {
       console.log("[DisplayMode] Received update:", type, content);
@@ -56,7 +57,7 @@ export default function DisplayMode() {
 
     // Subscribe to broadcast channel for display commands
     const broadcastCh = supabase
-      .channel(`tv:display:${urlHostId}`)
+      .channel(`tv:display:${urlVenueShowId}`)
       .on("broadcast", { event: "display_update" }, (msg) => {
         handleMessage(msg.payload || {});
       })
@@ -68,7 +69,7 @@ export default function DisplayMode() {
       presenceCh = supabase.channel("tv:displays");
       presenceCh.subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await presenceCh.track({ hostId: urlHostId, hostName: urlHostName });
+          await presenceCh.track({ venueShowId: urlVenueShowId, hostId: urlHostId, hostName: urlHostName });
         }
       });
     }
@@ -77,7 +78,7 @@ export default function DisplayMode() {
       supabase.removeChannel(broadcastCh);
       if (presenceCh) supabase.removeChannel(presenceCh);
     };
-  }, [urlHostId, urlHostName]);
+  }, [urlVenueShowId, urlHostId, urlHostName]);
 
   const displayContent = (
     <div

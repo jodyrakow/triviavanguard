@@ -5,10 +5,21 @@ const AIRTABLE_BASE_ID = "appnwzfwa2Bl6V2jX";
 const AIRTABLE_API_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}`;
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
 
+// Sanitize Markdown: fix stray spaces adjacent to bold/italic delimiters
+// e.g. "** word**" or "word **" which most parsers treat as literal asterisks
+function sanitizeMd(text) {
+  if (!text || typeof text !== "string") return text;
+  return text
+    .replace(/\*\* /g, "**") // space after opening **
+    .replace(/ \*\*/g, "**") // space before closing **
+    .replace(/__ /g, "__") // space after opening __
+    .replace(/ __/g, "__"); // space before closing __
+}
+
 // Build Airtable URL
 function buildUrl(
   endpoint,
-  { filterByFormula, sort = [], pageSize = 100, offset, fields = [] } = {}
+  { filterByFormula, sort = [], pageSize = 100, offset, fields = [] } = {},
 ) {
   const url = new URL(`${AIRTABLE_API_URL}/${endpoint}`);
   if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
@@ -35,7 +46,7 @@ async function fetchAll(endpoint, opts) {
     const text = await res.text();
     if (!res.ok) {
       throw new Error(
-        `Airtable error ${res.status}: ${text}\nURL: ${url.toString()}`
+        `Airtable error ${res.status}: ${text}\nURL: ${url.toString()}`,
       );
     }
     const json = JSON.parse(text);
@@ -98,7 +109,7 @@ export async function handler(event) {
         // Debug: log all field names to see what Airtable is actually returning
         console.log(
           `[fetchShowBundle] All field names in Show record:`,
-          Object.keys(f)
+          Object.keys(f),
         );
 
         const showName = f["Show name"] || f["Name"] || null;
@@ -108,7 +119,7 @@ export async function handler(event) {
         const showTemplate = f["ShowTemplate"] || "";
 
         console.log(
-          `[fetchShowBundle] Show fields - Date: ${showDate}, Location name: "${locationName}", Host: "${f["Host name"]}", Cohost: "${f["Cohost name"]}", Start: "${f["Start time"]}", Template: "${showTemplate}"`
+          `[fetchShowBundle] Show fields - Date: ${showDate}, Location name: "${locationName}", Host: "${f["Host name"]}", Cohost: "${f["Cohost name"]}", Start: "${f["Start time"]}", Template: "${showTemplate}"`,
         );
 
         // Read total games and start times from static Airtable fields
@@ -125,7 +136,7 @@ export async function handler(event) {
           .filter(Boolean);
 
         console.log(
-          `[fetchShowBundle] Static fields - Total games: ${totalGamesThisNight}, Start times: [${allStartTimes.join(", ")}]`
+          `[fetchShowBundle] Static fields - Total games: ${totalGamesThisNight}, Start times: [${allStartTimes.join(", ")}]`,
         );
 
         // Parse prizes from comma-separated text field (e.g., "$25 gift certificate, $15 gift certificate")
@@ -137,7 +148,7 @@ export async function handler(event) {
         const prizesNewlineSeparated = prizesArray.join("\n");
 
         console.log(
-          `[fetchShowBundle] Prizes field - Raw: "${prizesText}", Parsed count: ${prizesArray.length}, Final: "${prizesNewlineSeparated}"`
+          `[fetchShowBundle] Prizes field - Raw: "${prizesText}", Parsed count: ${prizesArray.length}, Final: "${prizesNewlineSeparated}"`,
         );
 
         showConfig = {
@@ -170,14 +181,14 @@ export async function handler(event) {
         };
         console.log(
           `[fetchShowBundle] Successfully fetched Show config:`,
-          JSON.stringify(showConfig, null, 2)
+          JSON.stringify(showConfig, null, 2),
         );
       } else {
         // Log when Show record fetch fails
         const errorText = await showRes.text();
         console.error(
           `[fetchShowBundle] Failed to fetch Show record: ${showRes.status} ${showRes.statusText}`,
-          errorText
+          errorText,
         );
       }
     } catch (err) {
@@ -211,14 +222,13 @@ export async function handler(event) {
         showCategoryId: rec.id,
         showId: normalizedShowId,
         superSecret: !!f["Super secret"],
-        categoryName: f["Category name"] || "",
-        categoryDescription: f["Category description"] || "",
-        categoryNotes: f["Category notes"] || "",
+        categoryName: sanitizeMd(f["Category name"] || ""),
+        categoryDescription: sanitizeMd(f["Category description"] || ""),
+        categoryNotes: sanitizeMd(f["Category notes"] || ""),
         categoryPronunciationGuide: f["Category pronunciation guide"] || "",
         questionType: qTypeCell?.name || qTypeCell || null,
         categoryImages: toAttachmentArray(f["Category image attachments"]),
         categoryAudio: toAttachmentArray(f["Category audio attachments"]),
-        imageCarousel: toAttachmentArray(f["Image carousel"]),
         round: typeof f["Round"] === "number" ? f["Round"] : null,
         categoryOrder:
           typeof f["Category order"] === "number" ? f["Category order"] : null,
@@ -245,7 +255,7 @@ export async function handler(event) {
       if (sqRecords.indexOf(rec) === 0) {
         console.log(
           `[fetchShowBundle] ShowQuestion field names (first record):`,
-          Object.keys(f)
+          Object.keys(f),
         );
         console.log(`[fetchShowBundle] Answer field value:`, f["Answer"]);
       }
@@ -279,13 +289,17 @@ export async function handler(event) {
       const editedByHost = f["Edited by host"] || false;
       const hasEditedQuestion =
         f["Edited question"] !== undefined && f["Edited question"] !== null;
-      const hasEditedNotes =
-        f["Edited notes"] !== undefined && f["Edited notes"] !== null;
+      const hasEditedQuestionNotes =
+        f["Edited question notes"] !== undefined &&
+        f["Edited question notes"] !== null;
       const hasEditedPronunciation =
         f["Edited pronunciation guide"] !== undefined &&
         f["Edited pronunciation guide"] !== null;
       const hasEditedAnswer =
         f["Edited answer"] !== undefined && f["Edited answer"] !== null;
+      const hasEditedAnswerNotes =
+        f["Edited answer notes"] !== undefined &&
+        f["Edited answer notes"] !== null;
 
       const q = {
         showQuestionId: rec.id,
@@ -297,14 +311,25 @@ export async function handler(event) {
         showImageByDefault: !!f["Show image by default"],
         autoRevealAnswerImage: !!f["Auto-reveal answer image"],
         faction: f["Faction"] || null,
-        questionText: hasEditedQuestion
-          ? f["Edited question"]
-          : f["Question text"] || "",
-        questionNotes: hasEditedNotes ? f["Edited notes"] : f["Notes"] || "",
+        questionText: sanitizeMd(
+          hasEditedQuestion ? f["Edited question"] : f["Question text"] || "",
+        ),
+        questionNotes: sanitizeMd(
+          hasEditedQuestionNotes
+            ? f["Edited question notes"]
+            : f["Question notes"] || "",
+        ),
+        answerNotes: sanitizeMd(
+          hasEditedAnswerNotes
+            ? f["Edited answer notes"]
+            : f["Answer notes"] || "",
+        ),
         questionPronunciationGuide: hasEditedPronunciation
           ? f["Edited pronunciation guide"]
           : f["Pronunciation guide"] || "",
-        answer: hasEditedAnswer ? f["Edited answer"] : f["Answer"] || "",
+        answer: sanitizeMd(
+          hasEditedAnswer ? f["Edited answer"] : f["Answer"] || "",
+        ),
         tiebreakerNumber: f["Tiebreaker number"] || "",
         questionImages: toAttachmentArray(f["Question image attachments"]),
         questionAudio: toAttachmentArray(f["Question audio attachments"]),
@@ -343,7 +368,6 @@ export async function handler(event) {
             questionType: null,
             categoryImages: [],
             categoryAudio: [],
-            imageCarousel: [],
             round: null,
             categoryOrder: null,
           },
@@ -362,12 +386,12 @@ export async function handler(event) {
         const categories = Array.from(categoryMap.values())
           .sort(
             (a, b) =>
-              (a.category.categoryOrder ?? 0) - (b.category.categoryOrder ?? 0)
+              (a.category.categoryOrder ?? 0) - (b.category.categoryOrder ?? 0),
           )
           .map(({ category, questions }) => ({
             ...category,
             questions: questions.sort(
-              (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+              (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
             ),
           }));
 
@@ -425,7 +449,7 @@ export async function handler(event) {
 
     console.log(
       `[fetchShowBundle] Returning bundle with config:`,
-      JSON.stringify(bundle.config)
+      JSON.stringify(bundle.config),
     );
 
     return {

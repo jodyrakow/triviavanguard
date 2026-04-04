@@ -1,5 +1,11 @@
 // App.js
-import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import axios from "axios";
 import "./App.css";
 import "react-h5-audio-player/lib/styles.css";
@@ -52,7 +58,9 @@ const PASSWORD_KEY = "showPasswordAuthorized";
 
 export default function App() {
   // Password protection state
-  const [passwordAuthorized, setPasswordAuthorized] = useState(() => !!sessionStorage.getItem(PASSWORD_KEY));
+  const [passwordAuthorized, setPasswordAuthorized] = useState(
+    () => !!sessionStorage.getItem(PASSWORD_KEY),
+  );
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState("");
 
@@ -108,7 +116,10 @@ export default function App() {
   useEffect(() => {
     if (!supabase || !selectedShowId) return;
 
-    console.log("🟣 APP: Subscribing to global scoring realtime for show", selectedShowId);
+    console.log(
+      "🟣 APP: Subscribing to global scoring realtime for show",
+      selectedShowId,
+    );
 
     // Subscribe to scoring_cells changes
     const cellsChannel = supabase
@@ -125,7 +136,14 @@ export default function App() {
           const { new: newRow } = payload;
           if (!newRow) return;
 
-          const { show_team_id, show_question_id, is_correct, bonus_count, tiebreaker_guess, tiebreaker_guess_raw } = newRow;
+          const {
+            show_team_id,
+            show_question_id,
+            is_correct,
+            bonus_count,
+            tiebreaker_guess,
+            tiebreaker_guess_raw,
+          } = newRow;
 
           setScoringCache((prev) => {
             const showCache = prev[selectedShowId] || {};
@@ -151,7 +169,7 @@ export default function App() {
               },
             };
           });
-        }
+        },
       )
       .subscribe();
 
@@ -196,11 +214,16 @@ export default function App() {
               isLeague: newRow.is_league || false,
             };
 
-            const existingIdx = teams.findIndex((t) => t.showTeamId === showTeamId);
+            const existingIdx = teams.findIndex(
+              (t) => t.showTeamId === showTeamId,
+            );
             let newTeams;
             if (existingIdx >= 0) {
               newTeams = [...teams];
-              newTeams[existingIdx] = { ...newTeams[existingIdx], ...updatedTeam };
+              newTeams[existingIdx] = {
+                ...newTeams[existingIdx],
+                ...updatedTeam,
+              };
             } else {
               newTeams = [...teams, updatedTeam];
             }
@@ -213,7 +236,7 @@ export default function App() {
               },
             };
           });
-        }
+        },
       )
       .subscribe();
 
@@ -240,7 +263,6 @@ export default function App() {
     }
   }, []);
 
-
   // Timer state
   const [timerPosition, setTimerPosition] = useState({ x: 0, y: 0 });
   const [timerDuration, setTimerDuration] = useState(null); // No default - loaded from Airtable/Supabase
@@ -260,7 +282,10 @@ export default function App() {
     x: 0,
     y: 0,
   });
-  const [previewPanelPosition, setPreviewPanelPosition] = useState({ x: 20, y: 20 });
+  const [previewPanelPosition, setPreviewPanelPosition] = useState({
+    x: 20,
+    y: 20,
+  });
 
   const [displayFontSize, setDisplayFontSize] = useState(() => {
     const saved = Number(localStorage.getItem("tv_displayFontSize"));
@@ -296,19 +321,23 @@ export default function App() {
   const [hostSetupNewName, setHostSetupNewName] = useState("");
   const [hostSetupError, setHostSetupError] = useState("");
 
-  // displayTargetHostId: which host's display channel we're sending to
-  // (normally our own; may be set to a co-host's ID when joining their display)
-  const [displayTargetHostId, setDisplayTargetHostId] = useState(null);
+  // venueShowId: stable key for the venue's display channel — "{locationRecordId}:{date}"
+  // Persisted to localStorage so co-host sessions survive refresh
+  const [venueShowId, setVenueShowId] = useState(() => localStorage.getItem("tv_venueShowId") || null);
 
   // Active displays detected via Supabase Presence on "tv:displays"
   const [activeDisplays, setActiveDisplays] = useState([]);
-  // Picker shown when other displays are detected on "Open display" click
-  const [displayPickerOpen, setDisplayPickerOpen] = useState(false);
+
+  // Venue picker
+  const [venuePickerOpen, setVenuePickerOpen] = useState(false);
+  const [venuePickerOptions, setVenuePickerOptions] = useState([]);
+  const [venuePickerLoading, setVenuePickerLoading] = useState(false);
 
   // Supabase channel for broadcasting to the display window
   const displayBroadcastRef = useRef(null);
   const previewIframeRef = useRef(null);
   const navSyncFromRemoteRef = useRef(false); // true while applying a remote navSync, to prevent re-broadcast
+  const navSyncReadyRef = useRef(false); // true once this host has actively pushed content
 
   // On mount: check localStorage for saved host identity, verify against Supabase
   useEffect(() => {
@@ -325,7 +354,6 @@ export default function App() {
           if (data.host_id) {
             setHostId(data.host_id);
             setHostName(data.host_name);
-            setDisplayTargetHostId(data.host_id);
           } else {
             // Not found in Supabase — show setup
             setHostSetupOpen(true);
@@ -335,7 +363,6 @@ export default function App() {
           // Network error — trust localStorage and proceed
           setHostId(savedId);
           setHostName(savedName);
-          setDisplayTargetHostId(savedId);
         });
     } else {
       setHostSetupOpen(true);
@@ -393,9 +420,9 @@ export default function App() {
     }
   }, [passwordInput]);
 
-  // Keep display broadcast channel in sync with displayTargetHostId
+  // Keep display broadcast channel in sync with venueShowId
   useEffect(() => {
-    if (!supabase || !displayTargetHostId) return;
+    if (!supabase || !venueShowId) return;
 
     // Clean up previous channel
     if (displayBroadcastRef.current) {
@@ -403,7 +430,7 @@ export default function App() {
       displayBroadcastRef.current = null;
     }
 
-    const ch = supabase.channel(`tv:display:${displayTargetHostId}`);
+    const ch = supabase.channel(`tv:display:${venueShowId}`);
     ch.subscribe((status) => {
       if (status === "SUBSCRIBED") {
         displayBroadcastRef.current = ch;
@@ -414,19 +441,18 @@ export default function App() {
       supabase.removeChannel(ch);
       displayBroadcastRef.current = null;
     };
-  }, [displayTargetHostId]);
+  }, [venueShowId]);
 
-  // Update preview iframe src imperatively when target host changes, to avoid reload on unrelated re-renders
+  // Update preview iframe src imperatively when venue changes, to avoid reload on unrelated re-renders
   useEffect(() => {
-    const targetId = displayTargetHostId || hostId;
-    if (!targetId || !previewIframeRef.current) return;
-    const newSrc = `${window.location.origin}?display&hostId=${targetId}&hostName=${encodeURIComponent(hostName)}&viewer=1&preview=1`;
+    if (!venueShowId || !previewIframeRef.current) return;
+    const newSrc = `${window.location.origin}?display&venueShowId=${venueShowId}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1&preview=1`;
     if (previewIframeRef.current.src !== newSrc) {
       previewIframeRef.current.src = newSrc;
     }
-  }, [displayTargetHostId, hostId, hostName]);
+  }, [venueShowId, hostId, hostName]);
 
-  // Subscribe to presence channel to detect active displays
+  // Subscribe to presence channel to detect active display windows
   useEffect(() => {
     if (!supabase) return;
     const ch = supabase.channel("tv:displays");
@@ -454,30 +480,39 @@ export default function App() {
     });
   };
 
-  // Open the display window, with picker if another host's display is already active
-  const openDisplayWindow = useCallback(() => {
-    const others = activeDisplays.filter((d) => d.hostId !== hostId);
-    if (others.length > 0) {
-      setDisplayPickerOpen(true);
-    } else {
-      launchOwnDisplay();
-    }
-  }, [activeDisplays, hostId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const launchOwnDisplay = useCallback(() => {
-    setDisplayTargetHostId(hostId);
-    const url = `${window.location.origin}?display&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}`;
-    const win = window.open(url, "displayMode", "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no");
+  // Open a display window for the given venueShowId — skips if one is already open
+  const openDisplayWindow = useCallback((vid) => {
+    const alreadyOpen = activeDisplays.some((d) => d.venueShowId === vid);
+    if (alreadyOpen) return;
+    const url = `${window.location.origin}?display&venueShowId=${vid}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}`;
+    const win = window.open(url, `display:${vid}`, "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no");
     if (win) win.focus();
-    setDisplayPickerOpen(false);
-  }, [hostId, hostName]);
+  }, [activeDisplays, hostId, hostName]);
 
-  const joinDisplay = useCallback((targetHostId, targetHostName) => {
-    setDisplayTargetHostId(targetHostId);
-    const url = `${window.location.origin}?display&hostId=${targetHostId}&hostName=${encodeURIComponent(targetHostName)}`;
-    const win = window.open(url, "displayMode", "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no");
-    if (win) win.focus();
-    setDisplayPickerOpen(false);
+  // Select a venue — sets channel, persists, opens controls + display window
+  const selectVenue = useCallback((vid, venueName) => {
+    setVenueShowId(vid);
+    localStorage.setItem("tv_venueShowId", vid);
+    setVenuePickerOpen(false);
+    setDisplayControlsOpen(true);
+    openDisplayWindow(vid);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openDisplayWindow]);
+
+  // Open venue picker — fetch today's venues then show modal
+  const openVenuePicker = useCallback(() => {
+    setVenuePickerOpen(true);
+    setVenuePickerLoading(true);
+    fetch("/.netlify/functions/fetchVenuesToday")
+      .then((r) => r.json())
+      .then((data) => {
+        setVenuePickerOptions(data.venues || []);
+        setVenuePickerLoading(false);
+      })
+      .catch(() => {
+        setVenuePickerOptions([]);
+        setVenuePickerLoading(false);
+      });
   }, []);
 
   // Global scoring settings
@@ -515,9 +550,12 @@ export default function App() {
 
     const loadOrCreateSettings = async () => {
       try {
-        console.log("🔵 SUPABASE SETTINGS: Checking for existing settings...", selectedShowId);
+        console.log(
+          "🔵 SUPABASE SETTINGS: Checking for existing settings...",
+          selectedShowId,
+        );
         const res = await fetch(
-          `/.netlify/functions/supaLoadShowSettings?showId=${encodeURIComponent(selectedShowId)}`
+          `/.netlify/functions/supaLoadShowSettings?showId=${encodeURIComponent(selectedShowId)}`,
         );
         if (!res.ok) {
           console.error("Failed to load show settings:", await res.text());
@@ -525,47 +563,75 @@ export default function App() {
         }
         const { settings, exists } = await res.json();
 
-        supabaseSettingsLoadedRef.current = { showId: selectedShowId, exists, applied: false };
+        supabaseSettingsLoadedRef.current = {
+          showId: selectedShowId,
+          exists,
+          applied: false,
+        };
 
         if (exists && settings) {
           // Supabase has settings - use them (show was previously opened)
-          console.log("🔵 SUPABASE SETTINGS: Found existing settings, applying", settings);
-          console.log("🔵 SUPABASE SETTINGS: prizes value =", JSON.stringify(settings.prizes));
+          console.log(
+            "🔵 SUPABASE SETTINGS: Found existing settings, applying",
+            settings,
+          );
+          console.log(
+            "🔵 SUPABASE SETTINGS: prizes value =",
+            JSON.stringify(settings.prizes),
+          );
           applySettings(settings);
           supabaseSettingsLoadedRef.current.applied = true;
         } else {
           // No Supabase settings - create from Airtable config
-          console.log("🔵 SUPABASE SETTINGS: No existing settings, creating from Airtable config");
+          console.log(
+            "🔵 SUPABASE SETTINGS: No existing settings, creating from Airtable config",
+          );
           const config = showBundle?.config || {};
 
           // Build settings from Airtable config
           const newSettings = {};
 
           if (config.scoringMode) {
-            const mode = config.scoringMode.toLowerCase().replace(/[\s()]/g, "");
+            const mode = config.scoringMode
+              .toLowerCase()
+              .replace(/[\s()]/g, "");
             if (mode === "pub") newSettings.scoring_mode = "pub";
-            else if (mode === "pooledadaptive" || mode === "adaptive") newSettings.scoring_mode = "pooled-adaptive";
-            else if (mode === "pooled" || mode === "pooledstatic") newSettings.scoring_mode = "pooled";
+            else if (mode === "pooledadaptive" || mode === "adaptive")
+              newSettings.scoring_mode = "pooled-adaptive";
+            else if (mode === "pooled" || mode === "pooledstatic")
+              newSettings.scoring_mode = "pooled";
           }
-          if (typeof config.pubPoints === "number") newSettings.pub_points = config.pubPoints;
-          if (typeof config.poolPerQuestion === "number") newSettings.pool_per_question = config.poolPerQuestion;
-          if (typeof config.poolContribution === "number") newSettings.pool_contribution = config.poolContribution;
-          if (typeof config.timerDefault === "number") newSettings.timer_default = config.timerDefault;
+          if (typeof config.pubPoints === "number")
+            newSettings.pub_points = config.pubPoints;
+          if (typeof config.poolPerQuestion === "number")
+            newSettings.pool_per_question = config.poolPerQuestion;
+          if (typeof config.poolContribution === "number")
+            newSettings.pool_contribution = config.poolContribution;
+          if (typeof config.timerDefault === "number")
+            newSettings.timer_default = config.timerDefault;
           if (config.prizes) newSettings.prizes = config.prizes;
           if (config.hostName) newSettings.host_name = config.hostName;
           if (config.cohostName) newSettings.cohost_name = config.cohostName;
           if (config.location) newSettings.location_name = config.location;
           if (config.startTime) newSettings.start_times = config.startTime;
-          if (config.announcements) newSettings.announcements = config.announcements;
-          if (typeof config.totalGames === "number") newSettings.total_games = config.totalGames;
+          if (config.announcements)
+            newSettings.announcements = config.announcements;
+          if (typeof config.totalGames === "number")
+            newSettings.total_games = config.totalGames;
 
           // Save to Supabase
           if (Object.keys(newSettings).length > 0) {
-            console.log("🔵 SUPABASE SETTINGS: Saving initial settings from Airtable", newSettings);
+            console.log(
+              "🔵 SUPABASE SETTINGS: Saving initial settings from Airtable",
+              newSettings,
+            );
             await fetch("/.netlify/functions/supaSaveShowSettings", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ showId: selectedShowId, settings: newSettings }),
+              body: JSON.stringify({
+                showId: selectedShowId,
+                settings: newSettings,
+              }),
             });
           }
 
@@ -608,13 +674,20 @@ export default function App() {
         const updatedHostInfo = { ...currentHostInfo };
         if (settings.host_name) updatedHostInfo.host = settings.host_name;
         if (settings.cohost_name) updatedHostInfo.cohost = settings.cohost_name;
-        if (settings.location_name) updatedHostInfo.location = settings.location_name;
-        if (typeof settings.total_games === "number") updatedHostInfo.totalGames = String(settings.total_games);
-        if (settings.start_times) updatedHostInfo.startTimesText = settings.start_times;
-        if (settings.announcements) updatedHostInfo.announcements = settings.announcements;
+        if (settings.location_name)
+          updatedHostInfo.location = settings.location_name;
+        if (typeof settings.total_games === "number")
+          updatedHostInfo.totalGames = String(settings.total_games);
+        if (settings.start_times)
+          updatedHostInfo.startTimesText = settings.start_times;
+        if (settings.announcements)
+          updatedHostInfo.announcements = settings.announcements;
 
         const finalPrizes = settings.prizes || show.prizes || "";
-        console.log("🔵 APPLY SETTINGS: Setting prizes in scoringCache =", JSON.stringify(finalPrizes));
+        console.log(
+          "🔵 APPLY SETTINGS: Setting prizes in scoringCache =",
+          JSON.stringify(finalPrizes),
+        );
 
         return {
           ...prev,
@@ -639,7 +712,10 @@ export default function App() {
   useEffect(() => {
     if (!supabase || !selectedShowId) return;
 
-    console.log("🟣 SUPABASE REALTIME: Subscribing to show_settings for show", selectedShowId);
+    console.log(
+      "🟣 SUPABASE REALTIME: Subscribing to show_settings for show",
+      selectedShowId,
+    );
     const channel = supabase
       .channel(`show_settings:${selectedShowId}`)
       .on(
@@ -660,7 +736,8 @@ export default function App() {
           if (settings.scoring_mode) {
             const mode = settings.scoring_mode;
             if (mode === "pub") setScoringMode("pub");
-            else if (mode === "pooled-adaptive") setScoringMode("pooled-adaptive");
+            else if (mode === "pooled-adaptive")
+              setScoringMode("pooled-adaptive");
             else if (mode === "pooled") setScoringMode("pooled");
           }
           if (typeof settings.pub_points === "number") {
@@ -680,26 +757,37 @@ export default function App() {
           // Apply updated hostInfo and prizes to scoringCache
           setScoringCache((prev) => {
             const show = prev[selectedShowId] || DEFAULT_SHOW_STATE;
-            const currentHostInfo = show.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
+            const currentHostInfo =
+              show.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
 
             const updatedHostInfo = { ...currentHostInfo };
-            if (settings.host_name !== undefined) updatedHostInfo.host = settings.host_name || "";
-            if (settings.cohost_name !== undefined) updatedHostInfo.cohost = settings.cohost_name || "";
-            if (settings.location_name !== undefined) updatedHostInfo.location = settings.location_name || "";
-            if (settings.total_games !== undefined) updatedHostInfo.totalGames = settings.total_games ? String(settings.total_games) : "";
-            if (settings.start_times !== undefined) updatedHostInfo.startTimesText = settings.start_times || "";
-            if (settings.announcements !== undefined) updatedHostInfo.announcements = settings.announcements || "";
+            if (settings.host_name !== undefined)
+              updatedHostInfo.host = settings.host_name || "";
+            if (settings.cohost_name !== undefined)
+              updatedHostInfo.cohost = settings.cohost_name || "";
+            if (settings.location_name !== undefined)
+              updatedHostInfo.location = settings.location_name || "";
+            if (settings.total_games !== undefined)
+              updatedHostInfo.totalGames = settings.total_games
+                ? String(settings.total_games)
+                : "";
+            if (settings.start_times !== undefined)
+              updatedHostInfo.startTimesText = settings.start_times || "";
+            if (settings.announcements !== undefined)
+              updatedHostInfo.announcements = settings.announcements || "";
 
             return {
               ...prev,
               [selectedShowId]: {
                 ...show,
                 hostInfo: updatedHostInfo,
-                ...(settings.prizes !== undefined && { prizes: settings.prizes || "" }),
+                ...(settings.prizes !== undefined && {
+                  prizes: settings.prizes || "",
+                }),
               },
             };
           });
-        }
+        },
       )
       .subscribe();
 
@@ -721,11 +809,15 @@ export default function App() {
     // DON'T save to Supabase until we've loaded AND APPLIED settings
     // This prevents overwriting correct Supabase/Airtable values with localStorage defaults
     if (supabaseSettingsLoadedRef.current?.showId !== selectedShowId) {
-      console.log("🟡 SUPABASE SETTINGS SAVE SKIPPED: Settings not loaded yet for this show");
+      console.log(
+        "🟡 SUPABASE SETTINGS SAVE SKIPPED: Settings not loaded yet for this show",
+      );
       return;
     }
     if (!supabaseSettingsLoadedRef.current?.applied) {
-      console.log("🟡 SUPABASE SETTINGS SAVE SKIPPED: Settings loaded but not yet applied");
+      console.log(
+        "🟡 SUPABASE SETTINGS SAVE SKIPPED: Settings loaded but not yet applied",
+      );
       return;
     }
 
@@ -950,14 +1042,21 @@ export default function App() {
     // NAV SYNC — keeps all co-hosts' control panels in sync
     ch.on("broadcast", { event: "navSync" }, (msg) => {
       const data = msg?.payload ?? msg;
-      const { showId, navIsAnswerMode: mode, navIndex: idx, navAnswerStage: stage, navStarted: started } = data || {};
+      const {
+        showId,
+        navIsAnswerMode: mode,
+        navIndex: idx,
+        navAnswerStage: stage,
+        navStarted: started,
+      } = data || {};
       if (!showId || showId !== currentShowIdRef.current) return;
       navSyncFromRemoteRef.current = true;
       setNavIsAnswerMode(mode);
       setNavIndex(idx);
       setNavAnswerStage(stage);
       setNavStarted(started);
-      navSyncFromRemoteRef.current = false;
+      // Reset after React flushes state + effects, not synchronously
+      Promise.resolve().then(() => { navSyncFromRemoteRef.current = false; });
     });
 
     // TIEBREAKER ADDED
@@ -1233,18 +1332,18 @@ export default function App() {
         console.log("showBundle.config", showBundle?.config);
 
         console.log("[App] FULL SHOW BUNDLE:", bundle);
-console.log(
-  "[App] ROUNDS/CATEGORIES SUMMARY:",
-  (bundle?.rounds || []).map((r) => ({
-    round: r.round,
-    categories: (r.categories || []).map((c) => ({
-      categoryName: c.categoryName,
-      questionType: c.questionType,
-      questionCount: (c.questions || []).length,
-      questionOrders: (c.questions || []).map((q) => q.questionOrder),
-    })),
-  }))
-);
+        console.log(
+          "[App] ROUNDS/CATEGORIES SUMMARY:",
+          (bundle?.rounds || []).map((r) => ({
+            round: r.round,
+            categories: (r.categories || []).map((c) => ({
+              categoryName: c.categoryName,
+              questionType: c.questionType,
+              questionCount: (c.questions || []).length,
+              questionOrders: (c.questions || []).map((q) => q.questionOrder),
+            })),
+          })),
+        );
 
         setShowBundle(bundle);
 
@@ -1396,7 +1495,10 @@ console.log(
           clearTimeout(supabaseHostInfoSaveTimeoutRef.current);
         }
         supabaseHostInfoSaveTimeoutRef.current = setTimeout(() => {
-          console.log("🟢 SUPABASE SETTINGS SAVE (hostInfo/prizes):", { hostInfo: hi, prizes: prizesVal });
+          console.log("🟢 SUPABASE SETTINGS SAVE (hostInfo/prizes):", {
+            hostInfo: hi,
+            prizes: prizesVal,
+          });
           fetch("/.netlify/functions/supaSaveShowSettings", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1406,7 +1508,9 @@ console.log(
                 host_name: hi.host || null,
                 cohost_name: hi.cohost || null,
                 location_name: hi.location || null,
-                total_games: hi.totalGames ? parseInt(hi.totalGames, 10) || null : null,
+                total_games: hi.totalGames
+                  ? parseInt(hi.totalGames, 10) || null
+                  : null,
                 start_times: hi.startTimesText || null,
                 announcements: hi.announcements || null,
                 prizes: prizesVal || null,
@@ -1415,10 +1519,21 @@ console.log(
             }),
           })
             .then((res) => {
-              if (res.ok) console.log("🟢 SUPABASE SETTINGS SAVE SUCCESS (hostInfo/prizes)");
-              else console.error("Failed to save hostInfo/prizes to show_settings");
+              if (res.ok)
+                console.log(
+                  "🟢 SUPABASE SETTINGS SAVE SUCCESS (hostInfo/prizes)",
+                );
+              else
+                console.error(
+                  "Failed to save hostInfo/prizes to show_settings",
+                );
             })
-            .catch((err) => console.error("supaSaveShowSettings (hostInfo/prizes) error:", err));
+            .catch((err) =>
+              console.error(
+                "supaSaveShowSettings (hostInfo/prizes) error:",
+                err,
+              ),
+            );
         }, 500);
       }
 
@@ -1472,13 +1587,16 @@ console.log(
               ...(edit.question !== undefined && {
                 questionText: edit.question,
               }),
-              ...(edit.notes !== undefined && {
-                questionNotes: edit.notes,
+              ...(edit.questionNotes !== undefined && {
+                questionNotes: edit.questionNotes,
               }),
               ...(edit.pronunciationGuide !== undefined && {
                 questionPronunciationGuide: edit.pronunciationGuide,
               }),
               ...(edit.answer !== undefined && { answer: edit.answer }),
+              ...(edit.answerNotes !== undefined && {
+                answerNotes: edit.answerNotes,
+              }),
               _edited: true, // flag for UI to show indicator
             };
           }),
@@ -1492,13 +1610,19 @@ console.log(
           return {
             ...q,
             ...(edit.question !== undefined && { questionText: edit.question }),
-            ...(edit.notes !== undefined && {
-              questionNotes: edit.notes,
+            ...(edit.questionNotes !== undefined && {
+              questionNotes: edit.questionNotes,
             }),
             ...(edit.pronunciationGuide !== undefined && {
               questionPronunciationGuide: edit.pronunciationGuide,
             }),
             ...(edit.answer !== undefined && { answer: edit.answer }),
+            ...(edit.questionNotes !== undefined && {
+              questionNotes: edit.questionNotes,
+            }),
+            ...(edit.answerNotes !== undefined && {
+              answerNotes: edit.answerNotes,
+            }),
             _edited: true, // flag for UI to show indicator
           };
         });
@@ -1526,13 +1650,17 @@ console.log(
   const navFlatList = useMemo(() => {
     if (!showBundleWithEdits?.rounds) return [];
     const round = showBundleWithEdits.rounds.find(
-      (r) => String(r.round) === String(selectedRoundId)
+      (r) => String(r.round) === String(selectedRoundId),
     );
     if (!round) return [];
 
     const sorted = [...(round.categories || [])].sort((a, b) => {
-      const av = (a.questionType || "").toLowerCase().includes("visual") ? 1 : 0;
-      const bv = (b.questionType || "").toLowerCase().includes("visual") ? 1 : 0;
+      const av = (a.questionType || "").toLowerCase().includes("visual")
+        ? 1
+        : 0;
+      const bv = (b.questionType || "").toLowerCase().includes("visual")
+        ? 1
+        : 0;
       if (av !== bv) return bv - av; // visuals first
       return (a.categoryOrder ?? 999) - (b.categoryOrder ?? 999);
     });
@@ -1541,13 +1669,17 @@ console.log(
     const visualQuestions = [];
     for (const cat of sorted) {
       if ((cat.questionType || "").toLowerCase().includes("visual")) {
-        const qs = [...(cat.questions || [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        const qs = [...(cat.questions || [])].sort(
+          (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+        );
         for (const q of qs) {
           visualQuestions.push({
             questionNumber: q.questionOrder,
             questionText: q.questionText || "",
             categoryName: (cat.categoryName || "").trim(),
-            inlineImages: Array.isArray(q.questionImages) ? q.questionImages.map((img) => ({ url: img.url })) : [],
+            inlineImages: Array.isArray(q.questionImages)
+              ? q.questionImages.map((img) => ({ url: img.url }))
+              : [],
             currentInlineImageIndex: 0,
           });
         }
@@ -1570,8 +1702,11 @@ console.log(
     }
 
     for (const cat of sorted) {
-      const isVisual = (cat.questionType || "").toLowerCase().includes("visual");
-      const isTiebreaker = (cat.questionType || "").toLowerCase() === "tiebreaker";
+      const isVisual = (cat.questionType || "")
+        .toLowerCase()
+        .includes("visual");
+      const isTiebreaker =
+        (cat.questionType || "").toLowerCase() === "tiebreaker";
 
       // In Questions mode, skip visual categories (they're in the carousel)
       // Tiebreaker categories are always included
@@ -1581,12 +1716,14 @@ console.log(
           categoryName: (cat.categoryName || "").trim(),
           categoryDescription: cat.categoryDescription || "",
           isTiebreaker,
-          categoryAudio: Array.isArray(cat.categoryAudio) ? cat.categoryAudio.filter(a => a?.url) : [],
+          categoryAudio: Array.isArray(cat.categoryAudio)
+            ? cat.categoryAudio.filter((a) => a?.url)
+            : [],
         });
       }
 
       const questions = [...(cat.questions || [])].sort(
-        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
       );
       for (const q of questions) {
         items.push({
@@ -1605,7 +1742,9 @@ console.log(
           inlineImages: Array.isArray(q.questionImages)
             ? q.questionImages.map((img) => ({ url: img.url }))
             : [],
-          questionAudio: Array.isArray(q.questionAudio) ? q.questionAudio.filter(a => a?.url) : [],
+          questionAudio: Array.isArray(q.questionAudio)
+            ? q.questionAudio.filter((a) => a?.url)
+            : [],
         });
       }
     }
@@ -1616,14 +1755,20 @@ console.log(
   // Questions mode nav: carousel + non-visual categories + all questions (minus visual)
   // Visual questions are handled by the carousel item, not individually
   const navQuestionsMode = useMemo(
-    () => navFlatList.filter((item) => item.type === "carousel" || item.type === "category" || (item.type === "question" && !item.isVisual)),
-    [navFlatList]
+    () =>
+      navFlatList.filter(
+        (item) =>
+          item.type === "carousel" ||
+          item.type === "category" ||
+          (item.type === "question" && !item.isVisual),
+      ),
+    [navFlatList],
   );
 
   // Answers mode nav: all questions in order (visual included, no category/carousel items)
   const navQuestionList = useMemo(
     () => navFlatList.filter((item) => item.type === "question"),
-    [navFlatList]
+    [navFlatList],
   );
 
   // Reset nav position when show or round changes
@@ -1631,11 +1776,14 @@ console.log(
     setNavIndex(0);
     setNavAnswerStage(0);
     setNavStarted(false);
+    navSyncReadyRef.current = false; // don't broadcast until host actively pushes again
   }, [showBundle, selectedRoundId]);
 
-  // Broadcast nav state to co-hosts whenever it changes (skip if we're applying a remote sync)
+  // Broadcast nav state to co-hosts whenever it changes
+  // Guards: skip if we're applying a remote sync, skip if host hasn't pushed anything yet
   useEffect(() => {
     if (navSyncFromRemoteRef.current) return;
+    if (!navSyncReadyRef.current) return;
     if (!window.tvSend || !window._tvReady) return;
     window.tvSend("navSync", {
       showId: currentShowIdRef.current,
@@ -1647,28 +1795,49 @@ console.log(
   }, [navIsAnswerMode, navIndex, navAnswerStage, navStarted]);
 
   // Push a questions-mode item to the display
-  const pushNavItem = useCallback((item) => {
-    if (!item) return;
-    if (item.type === "carousel") {
-      sendToDisplay("questionCarousel", {
-        questions: item.visualQuestions,
-        currentIndex: 0,
-        autoCycle: true,
-      });
-      setCarouselActive(true);
-    } else {
-      // Close carousel if it was open
-      if (carouselActive) {
-        sendToDisplay("closeQuestionCarousel", null);
-        setCarouselActive(false);
+  const pushNavItem = useCallback(
+    (item) => {
+      if (!item) return;
+      if (item.type === "carousel") {
+        sendToDisplay("questionCarousel", {
+          questions: item.visualQuestions,
+          currentIndex: 0,
+          autoCycle: true,
+        });
+        setCarouselActive(true);
+      } else {
+        // Close carousel if it was open
+        if (carouselActive) {
+          sendToDisplay("closeQuestionCarousel", null);
+          setCarouselActive(false);
+        }
       }
-    }
-    if (item.type === "category") {
-      sendToDisplay("category", {
-        categoryName: item.categoryName,
-        categoryDescription: item.categoryDescription,
-      });
-    } else if (item.type === "question") {
+      if (item.type === "category") {
+        sendToDisplay("category", {
+          categoryName: item.categoryName,
+          categoryDescription: item.categoryDescription,
+        });
+      } else if (item.type === "question") {
+        const payload = {
+          questionNumber: item.questionNumber,
+          questionText: item.questionText,
+          categoryName: item.categoryName,
+        };
+        if (item.showImageByDefault && item.inlineImages?.length > 0) {
+          payload.inlineImages = item.inlineImages;
+          payload.currentInlineImageIndex = 0;
+        }
+        sendToDisplay("question", payload);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [carouselActive],
+  );
+
+  // Push an answers-mode question at a given stage (0=question, 1=answer, 2=stats)
+  const pushNavQuestion = useCallback(
+    (item, stage) => {
+      if (!item) return;
       const payload = {
         questionNumber: item.questionNumber,
         questionText: item.questionText,
@@ -1676,162 +1845,202 @@ console.log(
       };
       if (item.showImageByDefault && item.inlineImages?.length > 0) {
         payload.inlineImages = item.inlineImages;
-        payload.currentInlineImageIndex = 0;
+        // Auto-reveal answer image: image 0 for question, image 1 for answer/stats
+        if (item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
+          payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
+        } else {
+          payload.currentInlineImageIndex = 0;
+        }
+      }
+      if (stage >= 1) {
+        payload.answer = item.answer;
+      }
+      if (stage >= 2) {
+        const grid = composedCachedState?.grid || {};
+        const teams = composedCachedState?.teams || [];
+        let correctCount = 0;
+        for (const team of teams) {
+          if (
+            grid[team.showTeamId]?.[item.showQuestionId]?.isCorrect === true
+          ) {
+            correctCount++;
+          }
+        }
+        const scoringObj = {
+          mode: scoringMode,
+          pubPoints,
+          poolPerQuestion,
+          poolContribution,
+          teamCount: teams.length,
+        };
+        const questionBonus = item.bonusAvailable
+          ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
+          : null;
+        payload.correctCount = correctCount;
+        payload.totalTeams = teams.length;
+        payload.pointsPerTeam = computeAutoEarned(
+          { isCorrect: true },
+          scoringObj,
+          correctCount,
+        );
+        payload.bonusBreakdown = computeBonusBreakdown(
+          teams,
+          grid,
+          item.showQuestionId,
+          scoringObj,
+          correctCount,
+          questionBonus,
+        );
       }
       sendToDisplay("question", payload);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carouselActive]);
-
-  // Push an answers-mode question at a given stage (0=question, 1=answer, 2=stats)
-  const pushNavQuestion = useCallback((item, stage) => {
-    if (!item) return;
-    const payload = {
-      questionNumber: item.questionNumber,
-      questionText: item.questionText,
-      categoryName: item.categoryName,
-    };
-    if (item.showImageByDefault && item.inlineImages?.length > 0) {
-      payload.inlineImages = item.inlineImages;
-      // Auto-reveal answer image: image 0 for question, image 1 for answer/stats
-      if (item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
-        payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
-      } else {
-        payload.currentInlineImageIndex = 0;
-      }
-    }
-    if (stage >= 1) {
-      payload.answer = item.answer;
-    }
-    if (stage >= 2) {
-      const grid = composedCachedState?.grid || {};
-      const teams = composedCachedState?.teams || [];
-      let correctCount = 0;
-      for (const team of teams) {
-        if (grid[team.showTeamId]?.[item.showQuestionId]?.isCorrect === true) {
-          correctCount++;
-        }
-      }
-      const scoringObj = {
-        mode: scoringMode,
-        pubPoints,
-        poolPerQuestion,
-        poolContribution,
-        teamCount: teams.length,
-      };
-      const questionBonus = item.bonusAvailable
-        ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
-        : null;
-      payload.correctCount = correctCount;
-      payload.totalTeams = teams.length;
-      payload.pointsPerTeam = computeAutoEarned({ isCorrect: true }, scoringObj, correctCount);
-      payload.bonusBreakdown = computeBonusBreakdown(
-        teams, grid, item.showQuestionId, scoringObj, correctCount, questionBonus
-      );
-    }
-    sendToDisplay("question", payload);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composedCachedState, scoringMode, pubPoints, poolPerQuestion, poolContribution]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [
+      composedCachedState,
+      scoringMode,
+      pubPoints,
+      poolPerQuestion,
+      poolContribution,
+    ],
+  );
 
   // Unified question-send function for QuestionsMode buttons — builds full payload and syncs nav cursor
-  const pushDisplayQuestion = useCallback((showQuestionId, stage, withImages) => {
-    const item = navFlatList.find(i => i.type === "question" && i.showQuestionId === showQuestionId);
-    if (!item) return;
+  const pushDisplayQuestion = useCallback(
+    (showQuestionId, stage, withImages) => {
+      const item = navFlatList.find(
+        (i) => i.type === "question" && i.showQuestionId === showQuestionId,
+      );
+      if (!item) return;
 
-    const payload = {
-      questionNumber: item.questionNumber,
-      questionText: item.questionText,
-      categoryName: item.categoryName,
-    };
-
-    if (withImages && item.inlineImages?.length > 0) {
-      payload.inlineImages = item.inlineImages;
-      if (item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
-        payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
-      } else {
-        payload.currentInlineImageIndex = 0;
-      }
-    }
-
-    if (stage >= 1) {
-      payload.answer = item.answer;
-    }
-
-    if (stage >= 2) {
-      const grid = composedCachedState?.grid || {};
-      const teams = composedCachedState?.teams || [];
-      let correctCount = 0;
-      for (const team of teams) {
-        if (grid[team.showTeamId]?.[showQuestionId]?.isCorrect === true) correctCount++;
-      }
-      const scoringObj = {
-        mode: scoringMode,
-        pubPoints,
-        poolPerQuestion,
-        poolContribution,
-        teamCount: teams.length,
+      const payload = {
+        questionNumber: item.questionNumber,
+        questionText: item.questionText,
+        categoryName: item.categoryName,
       };
-      const questionBonus = item.bonusAvailable
-        ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
-        : null;
-      payload.correctCount = correctCount;
-      payload.totalTeams = teams.length;
-      payload.pointsPerTeam = computeAutoEarned({ isCorrect: true }, scoringObj, correctCount);
-      payload.bonusBreakdown = computeBonusBreakdown(
-        teams, grid, showQuestionId, scoringObj, correctCount, questionBonus
-      );
-    }
 
-    sendToDisplay("question", payload);
-
-    // Sync nav cursor — use navQuestionsMode (not navFlatList) so navIndex stays consistent with navForward/navBackward
-    const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
-    const idx = list.findIndex(i => i.type === "question" && i.showQuestionId === showQuestionId);
-    if (idx >= 0) {
-      setNavIndex(idx);
-      setNavAnswerStage(stage);
-      setNavStarted(true);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navFlatList, navQuestionList, navIsAnswerMode, composedCachedState, scoringMode, pubPoints, poolPerQuestion, poolContribution]);
-
-  // Wrapper around sendToDisplay that also syncs the nav cursor position
-  const sendToDisplayWithNavSync = useCallback((type, data) => {
-    sendToDisplay(type, data);
-    if (type === "question" && data?.questionNumber !== undefined) {
-      const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
-      const idx = list.findIndex(
-        (item) =>
-          item.type === "question" &&
-          String(item.questionNumber) === String(data.questionNumber) &&
-          item.categoryName === (data.categoryName || "").trim()
-      );
-      if (idx >= 0) {
-        setNavIndex(idx);
-        setNavStarted(true);
-        if (navIsAnswerMode) {
-          const stage =
-            data.correctCount !== undefined ? 2
-            : data.answer !== undefined ? 1
-            : 0;
-          setNavAnswerStage(stage);
+      if (withImages && item.inlineImages?.length > 0) {
+        payload.inlineImages = item.inlineImages;
+        if (item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
+          payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
+        } else {
+          payload.currentInlineImageIndex = 0;
         }
       }
-    } else if (type === "category" && !navIsAnswerMode && data?.categoryName) {
-      const idx = navFlatList.findIndex(
-        (item) => item.type === "category" && item.categoryName === data.categoryName
+
+      if (stage >= 1) {
+        payload.answer = item.answer;
+      }
+
+      if (stage >= 2) {
+        const grid = composedCachedState?.grid || {};
+        const teams = composedCachedState?.teams || [];
+        let correctCount = 0;
+        for (const team of teams) {
+          if (grid[team.showTeamId]?.[showQuestionId]?.isCorrect === true)
+            correctCount++;
+        }
+        const scoringObj = {
+          mode: scoringMode,
+          pubPoints,
+          poolPerQuestion,
+          poolContribution,
+          teamCount: teams.length,
+        };
+        const questionBonus = item.bonusAvailable
+          ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
+          : null;
+        payload.correctCount = correctCount;
+        payload.totalTeams = teams.length;
+        payload.pointsPerTeam = computeAutoEarned(
+          { isCorrect: true },
+          scoringObj,
+          correctCount,
+        );
+        payload.bonusBreakdown = computeBonusBreakdown(
+          teams,
+          grid,
+          showQuestionId,
+          scoringObj,
+          correctCount,
+          questionBonus,
+        );
+      }
+
+      sendToDisplay("question", payload);
+      navSyncReadyRef.current = true;
+
+      // Sync nav cursor — use navQuestionsMode (not navFlatList) so navIndex stays consistent with navForward/navBackward
+      const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
+      const idx = list.findIndex(
+        (i) => i.type === "question" && i.showQuestionId === showQuestionId,
       );
       if (idx >= 0) {
         setNavIndex(idx);
+        setNavAnswerStage(stage);
         setNavStarted(true);
       }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navIsAnswerMode, navFlatList, navQuestionList]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [
+      navFlatList,
+      navQuestionList,
+      navIsAnswerMode,
+      composedCachedState,
+      scoringMode,
+      pubPoints,
+      poolPerQuestion,
+      poolContribution,
+    ],
+  );
+
+  // Wrapper around sendToDisplay that also syncs the nav cursor position
+  const sendToDisplayWithNavSync = useCallback(
+    (type, data) => {
+      sendToDisplay(type, data);
+      if (type === "question" && data?.questionNumber !== undefined) {
+        const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
+        const idx = list.findIndex(
+          (item) =>
+            item.type === "question" &&
+            String(item.questionNumber) === String(data.questionNumber) &&
+            item.categoryName === (data.categoryName || "").trim(),
+        );
+        if (idx >= 0) {
+          setNavIndex(idx);
+          setNavStarted(true);
+          if (navIsAnswerMode) {
+            const stage =
+              data.correctCount !== undefined
+                ? 2
+                : data.answer !== undefined
+                  ? 1
+                  : 0;
+            setNavAnswerStage(stage);
+          }
+        }
+      } else if (
+        type === "category" &&
+        !navIsAnswerMode &&
+        data?.categoryName
+      ) {
+        const idx = navFlatList.findIndex(
+          (item) =>
+            item.type === "category" && item.categoryName === data.categoryName,
+        );
+        if (idx >= 0) {
+          setNavIndex(idx);
+          setNavStarted(true);
+        }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [navIsAnswerMode, navFlatList, navQuestionList],
+  );
 
   const navActiveList = navIsAnswerMode ? navQuestionList : navQuestionsMode;
 
   const navForward = useCallback(() => {
+    navSyncReadyRef.current = true;
     if (!navStarted) {
       // First press: send the current item without advancing
       setNavStarted(true);
@@ -1862,9 +2071,19 @@ console.log(
         pushNavItem(navQuestionsMode[nextIdx]);
       }
     }
-  }, [navStarted, navIsAnswerMode, navIndex, navAnswerStage, navQuestionsMode, navQuestionList, pushNavItem, pushNavQuestion]);
+  }, [
+    navStarted,
+    navIsAnswerMode,
+    navIndex,
+    navAnswerStage,
+    navQuestionsMode,
+    navQuestionList,
+    pushNavItem,
+    pushNavQuestion,
+  ]);
 
   const navBackward = useCallback(() => {
+    navSyncReadyRef.current = true;
     if (navIsAnswerMode) {
       const currentQ = navQuestionList[navIndex];
       if (!currentQ) return;
@@ -1885,24 +2104,37 @@ console.log(
         pushNavItem(navQuestionsMode[prevIdx]);
       }
     }
-  }, [navIsAnswerMode, navIndex, navAnswerStage, navQuestionsMode, navQuestionList, pushNavItem, pushNavQuestion]);
+  }, [
+    navIsAnswerMode,
+    navIndex,
+    navAnswerStage,
+    navQuestionsMode,
+    navQuestionList,
+    pushNavItem,
+    pushNavQuestion,
+  ]);
 
   const toggleNavMode = useCallback(() => {
-    setNavIsAnswerMode(prev => !prev);
+    setNavIsAnswerMode((prev) => !prev);
     setNavIndex(0);
     setNavAnswerStage(0);
     setNavStarted(false);
   }, []);
 
-  const getNavLabel = useCallback((list, idx, stage) => {
-    if (list.length === 0) return "No show";
-    const item = list[idx];
-    if (!item) return "—";
-    if (item.type === "carousel") return "Visual carousel";
-    if (item.type === "category") return item.categoryName || "Category";
-    const stageLabel = navIsAnswerMode ? ` · ${["question", "answer", "stats"][stage] ?? ""}` : "";
-    return `Q${item.questionNumber}${stageLabel}`;
-  }, [navIsAnswerMode]);
+  const getNavLabel = useCallback(
+    (list, idx, stage) => {
+      if (list.length === 0) return "No show";
+      const item = list[idx];
+      if (!item) return "—";
+      if (item.type === "carousel") return "Visual carousel";
+      if (item.type === "category") return item.categoryName || "Category";
+      const stageLabel = navIsAnswerMode
+        ? ` · ${["question", "answer", "stats"][stage] ?? ""}`
+        : "";
+      return `Q${item.questionNumber}${stageLabel}`;
+    },
+    [navIsAnswerMode],
+  );
 
   const navCurrentLabel = useMemo(() => {
     if (navActiveList.length === 0) return "No show";
@@ -1922,9 +2154,11 @@ console.log(
       sharedAudioRef.current.pause();
     }
     const audio = new Audio(url);
-    audio.onplay  = () => setSharedAudioPlaying(true);
+    audio.onplay = () => setSharedAudioPlaying(true);
     audio.onpause = () => setSharedAudioPlaying(false);
-    audio.onended = () => { setSharedAudioPlaying(false); };
+    audio.onended = () => {
+      setSharedAudioPlaying(false);
+    };
     sharedAudioRef.current = audio;
     setSharedAudioUrl(url);
     setSharedAudioPlaying(false);
@@ -1934,7 +2168,11 @@ console.log(
   const toggleAudio = useCallback(() => {
     const a = sharedAudioRef.current;
     if (!a) return;
-    if (sharedAudioPlaying) { a.pause(); } else { a.play(); }
+    if (sharedAudioPlaying) {
+      a.pause();
+    } else {
+      a.play();
+    }
   }, [sharedAudioPlaying]);
 
   const toggleNavImage = useCallback(() => {
@@ -1945,15 +2183,29 @@ console.log(
     setNavImageIndex(0);
     const stage = navIsAnswerMode ? navAnswerStage : 0;
     pushDisplayQuestion(item.showQuestionId, stage, newVisible);
-  }, [navImageVisible, navActiveList, navIndex, navIsAnswerMode, navAnswerStage, pushDisplayQuestion]);
+  }, [
+    navImageVisible,
+    navActiveList,
+    navIndex,
+    navIsAnswerMode,
+    navAnswerStage,
+    pushDisplayQuestion,
+  ]);
 
-  const cycleNavImage = useCallback((dir) => {
-    const item = navActiveList[navIndex];
-    if (!item || item.type !== "question" || !item.inlineImages?.length) return;
-    const newIdx = Math.max(0, Math.min(item.inlineImages.length - 1, navImageIndex + dir));
-    setNavImageIndex(newIdx);
-    sendToDisplay("updateInlineImageIndex", { currentIndex: newIdx });
-  }, [navActiveList, navIndex, navImageIndex]);
+  const cycleNavImage = useCallback(
+    (dir) => {
+      const item = navActiveList[navIndex];
+      if (!item || item.type !== "question" || !item.inlineImages?.length)
+        return;
+      const newIdx = Math.max(
+        0,
+        Math.min(item.inlineImages.length - 1, navImageIndex + dir),
+      );
+      setNavImageIndex(newIdx);
+      sendToDisplay("updateInlineImageIndex", { currentIndex: newIdx });
+    },
+    [navActiveList, navIndex, navImageIndex],
+  );
 
   // Stop audio and reset image toggle when nav position changes
   useEffect(() => {
@@ -1980,7 +2232,14 @@ console.log(
       }
       return null;
     }
-  }, [navIsAnswerMode, navQuestionsMode, navQuestionList, navIndex, navAnswerStage, getNavLabel]);
+  }, [
+    navIsAnswerMode,
+    navQuestionsMode,
+    navQuestionList,
+    navIndex,
+    navAnswerStage,
+    getNavLabel,
+  ]);
 
   // Helper function to edit a question field
   const editQuestionField = (showQuestionId, field, value) => {
@@ -2208,6 +2467,7 @@ console.log(
         setShowDetails={setshowDetails}
         displayControlsOpen={displayControlsOpen}
         setDisplayControlsOpen={setDisplayControlsOpen}
+        onOpenVenuePicker={openVenuePicker}
         showTimer={showTimer}
         setShowTimer={setShowTimer}
         setShowAnswerKey={setShowAnswerKey}
@@ -2340,8 +2600,9 @@ console.log(
                 }}
               >
                 <Button
-                  onClick={openDisplayWindow}
-                  title="Open Display Mode in new window"
+                  onClick={() => venueShowId && openDisplayWindow(venueShowId)}
+                  disabled={!venueShowId}
+                  title={venueShowId ? "Open Display Mode in new window" : "Select a venue first"}
                   style={{
                     fontSize: "1rem",
                     padding: ".45rem .55rem",
@@ -2355,11 +2616,11 @@ console.log(
 
                 <Button
                   onClick={() => {
-                    if (!hostId) return;
-                    const url = `${window.location.origin}?display&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1`;
-                    navigator.clipboard.writeText(url).catch(() =>
-                      window.prompt("Copy viewer link:", url)
-                    );
+                    if (!venueShowId) return;
+                    const url = `${window.location.origin}?display&venueShowId=${venueShowId}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1`;
+                    navigator.clipboard
+                      .writeText(url)
+                      .catch(() => window.prompt("Copy viewer link:", url));
                   }}
                   title="Copy view-only display link"
                   style={{
@@ -2434,9 +2695,19 @@ console.log(
 
               {/* Custom message row */}
               <div
-                style={{ display: "flex", flexDirection: "column", gap: ".4rem" }}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: ".4rem",
+                }}
               >
-                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: ".4rem",
+                    alignItems: "center",
+                  }}
+                >
                   <input
                     type="text"
                     value={customMessage}
@@ -2444,7 +2715,10 @@ console.log(
                     placeholder="Type a message for the TV…"
                     className="display-controls-input"
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && (customMessage.trim() || customMessageImage.trim())) {
+                      if (
+                        e.key === "Enter" &&
+                        (customMessage.trim() || customMessageImage.trim())
+                      ) {
                         sendToDisplay("message", {
                           text: customMessage.trim(),
                           imageUrl: customMessageImage.trim() || null,
@@ -2472,7 +2746,9 @@ console.log(
                         });
                       }
                     }}
-                    disabled={!customMessage.trim() && !customMessageImage.trim()}
+                    disabled={
+                      !customMessage.trim() && !customMessageImage.trim()
+                    }
                     title="Push this message to display"
                     style={{
                       fontSize: "1rem",
@@ -2480,7 +2756,10 @@ console.log(
                       minWidth: "2.25rem",
                       height: "2.25rem",
                       borderRadius: ".5rem",
-                      opacity: (customMessage.trim() || customMessageImage.trim()) ? 1 : 0.5,
+                      opacity:
+                        customMessage.trim() || customMessageImage.trim()
+                          ? 1
+                          : 0.5,
                     }}
                   >
                     📣
@@ -2488,7 +2767,13 @@ console.log(
                 </div>
 
                 {/* Image URL row */}
-                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: ".4rem",
+                    alignItems: "center",
+                  }}
+                >
                   <input
                     type="text"
                     value={customMessageImage}
@@ -2564,7 +2849,13 @@ console.log(
                 </div>
 
                 {/* ← current → row */}
-                <div style={{ display: "flex", alignItems: "center", gap: ".4rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: ".4rem",
+                  }}
+                >
                   <Button
                     onClick={navBackward}
                     disabled={
@@ -2574,7 +2865,12 @@ console.log(
                         : navIndex === 0)
                     }
                     title="Previous"
-                    style={{ fontSize: ".9rem", padding: ".25rem .45rem", borderRadius: ".4rem", flexShrink: 0 }}
+                    style={{
+                      fontSize: ".9rem",
+                      padding: ".25rem .45rem",
+                      borderRadius: ".4rem",
+                      flexShrink: 0,
+                    }}
                   >
                     ←
                   </Button>
@@ -2599,11 +2895,19 @@ console.log(
                     disabled={
                       navActiveList.length === 0 ||
                       (navStarted && navIsAnswerMode
-                        ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2
+                        ? navIndex >= navQuestionList.length - 1 &&
+                          navAnswerStage >= 2
                         : navStarted && navIndex >= navQuestionsMode.length - 1)
                     }
-                    title={navStarted ? "Next" : "Start — send first item to display"}
-                    style={{ fontSize: ".9rem", padding: ".25rem .45rem", borderRadius: ".4rem", flexShrink: 0 }}
+                    title={
+                      navStarted ? "Next" : "Start — send first item to display"
+                    }
+                    style={{
+                      fontSize: ".9rem",
+                      padding: ".25rem .45rem",
+                      borderRadius: ".4rem",
+                      flexShrink: 0,
+                    }}
                   >
                     {navStarted ? "→" : "▶"}
                   </Button>
@@ -2614,7 +2918,9 @@ console.log(
                   <div
                     style={{
                       fontSize: ".72rem",
-                      color: navStarted ? (colors.gray?.text || "#888") : colors.accent,
+                      color: navStarted
+                        ? colors.gray?.text || "#888"
+                        : colors.accent,
                       fontFamily: tokens.font.body,
                       textAlign: "center",
                       overflow: "hidden",
@@ -2623,14 +2929,24 @@ console.log(
                       fontWeight: navStarted ? 400 : 600,
                     }}
                   >
-                    {navStarted ? `next: ${navNextLabel}` : `▶ ${navCurrentLabel}`}
+                    {navStarted
+                      ? `next: ${navNextLabel}`
+                      : `▶ ${navCurrentLabel}`}
                   </div>
                 )}
               </div>
 
               {/* Audio players for current nav item */}
               {currentNavAudio.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: ".35rem", paddingTop: ".4rem", borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}` }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: ".35rem",
+                    paddingTop: ".4rem",
+                    borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}`,
+                  }}
+                >
                   {currentNavAudio.map((audioObj, i) => (
                     <SharedAudioPlayer
                       key={i}
@@ -2645,7 +2961,6 @@ console.log(
                   ))}
                 </div>
               )}
-
             </div>
           </Draggable>
 
@@ -2657,7 +2972,10 @@ console.log(
               onStop={(e, data) => {
                 const newPos = { x: data.x, y: data.y };
                 setPreviewPanelPosition(newPos);
-                localStorage.setItem("previewPanelPosition", JSON.stringify(newPos));
+                localStorage.setItem(
+                  "previewPanelPosition",
+                  JSON.stringify(newPos),
+                );
               }}
             >
               <div
@@ -2687,11 +3005,24 @@ console.log(
                   }}
                 >
                   <span style={{ opacity: 0.6 }}>⋮⋮</span>
-                  <span style={{ fontWeight: 500, color: colors.dark, fontFamily: tokens.font.body }}>
+                  <span
+                    style={{
+                      fontWeight: 500,
+                      color: colors.dark,
+                      fontFamily: tokens.font.body,
+                    }}
+                  >
                     Preview
                   </span>
-                  <div style={{ marginLeft: "auto", display: "flex", gap: ".2rem", cursor: "default" }}>
-                    {["S", "M", "L", "XL"].map(s => (
+                  <div
+                    style={{
+                      marginLeft: "auto",
+                      display: "flex",
+                      gap: ".2rem",
+                      cursor: "default",
+                    }}
+                  >
+                    {["S", "M", "L", "XL"].map((s) => (
                       <button
                         key={s}
                         onClick={() => setPanelSize(s)}
@@ -2702,7 +3033,8 @@ console.log(
                           padding: ".1rem .35rem",
                           borderRadius: ".3rem",
                           border: `1px solid ${colors.accent}`,
-                          background: panelSize === s ? colors.accent : "transparent",
+                          background:
+                            panelSize === s ? colors.accent : "transparent",
                           color: panelSize === s ? "#fff" : colors.accent,
                           cursor: "pointer",
                           lineHeight: 1.4,
@@ -2727,55 +3059,83 @@ console.log(
                   {[
                     { label: "Reset", onClick: handleReset },
                     { label: null /* time display */ },
-                    { label: timerRunning ? "Pause" : "Start", onClick: handleStartPause, primary: true },
+                    {
+                      label: timerRunning ? "Pause" : "Start",
+                      onClick: handleStartPause,
+                      primary: true,
+                    },
                     {
                       label: navStarted ? "→" : "▶",
                       onClick: navForward,
-                      disabled: navActiveList.length === 0 || (navStarted && navIsAnswerMode ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2 : navStarted && navIndex >= navQuestionsMode.length - 1),
+                      disabled:
+                        navActiveList.length === 0 ||
+                        (navStarted && navIsAnswerMode
+                          ? navIndex >= navQuestionList.length - 1 &&
+                            navAnswerStage >= 2
+                          : navStarted &&
+                            navIndex >= navQuestionsMode.length - 1),
                       title: navStarted ? "Next" : "Start display",
                     },
-                  ].map(({ label, onClick, disabled, title, primary }) => label === null ? (
-                    <span
-                      key="time"
-                      style={{
-                        fontSize: "1.1rem",
-                        fontWeight: "bold",
-                        fontFamily: tokens.font.body,
-                        minWidth: "2.8rem",
-                        textAlign: "center",
-                        color: timerRunning ? colors.accent : "#fff",
-                      }}
-                    >
-                      {timeLeft !== null ? `${timeLeft}s` : "--"}
-                    </span>
-                  ) : (
-                    <button
-                      key={label}
-                      onClick={onClick}
-                      disabled={disabled}
-                      title={title}
-                      style={{
-                        padding: ".25rem .55rem",
-                        fontSize: ".82rem",
-                        fontFamily: tokens.font.body,
-                        borderRadius: ".35rem",
-                        border: `1px solid ${primary ? colors.accent : "#888"}`,
-                        background: primary ? colors.accent : "transparent",
-                        color: "#fff",
-                        cursor: disabled ? "default" : "pointer",
-                        opacity: disabled ? 0.4 : 1,
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                  ].map(({ label, onClick, disabled, title, primary }) =>
+                    label === null ? (
+                      <span
+                        key="time"
+                        style={{
+                          fontSize: "1.1rem",
+                          fontWeight: "bold",
+                          fontFamily: tokens.font.body,
+                          minWidth: "2.8rem",
+                          textAlign: "center",
+                          color: timerRunning ? colors.accent : "#fff",
+                        }}
+                      >
+                        {timeLeft !== null ? `${timeLeft}s` : "--"}
+                      </span>
+                    ) : (
+                      <button
+                        key={label}
+                        onClick={onClick}
+                        disabled={disabled}
+                        title={title}
+                        style={{
+                          padding: ".25rem .55rem",
+                          fontSize: ".82rem",
+                          fontFamily: tokens.font.body,
+                          borderRadius: ".35rem",
+                          border: `1px solid ${primary ? colors.accent : "#888"}`,
+                          background: primary ? colors.accent : "transparent",
+                          color: "#fff",
+                          cursor: disabled ? "default" : "pointer",
+                          opacity: disabled ? 0.4 : 1,
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ),
+                  )}
                   {(() => {
                     const hasAudio = currentNavAudio.length > 0;
-                    const isPlaying = hasAudio && sharedAudioUrl === currentNavAudio[0].url && sharedAudioPlaying;
+                    const isPlaying =
+                      hasAudio &&
+                      sharedAudioUrl === currentNavAudio[0].url &&
+                      sharedAudioPlaying;
                     return (
                       <button
-                        onClick={hasAudio ? () => sharedAudioUrl === currentNavAudio[0].url ? toggleAudio() : playAudio(currentNavAudio[0].url) : undefined}
-                        title={!hasAudio ? "No audio" : isPlaying ? "Stop audio" : "Play audio"}
+                        onClick={
+                          hasAudio
+                            ? () =>
+                                sharedAudioUrl === currentNavAudio[0].url
+                                  ? toggleAudio()
+                                  : playAudio(currentNavAudio[0].url)
+                            : undefined
+                        }
+                        title={
+                          !hasAudio
+                            ? "No audio"
+                            : isPlaying
+                              ? "Stop audio"
+                              : "Play audio"
+                        }
                         disabled={!hasAudio}
                         style={{
                           padding: ".25rem .45rem",
@@ -2797,7 +3157,10 @@ console.log(
                   })()}
                   {(() => {
                     const item = navActiveList[navIndex];
-                    const hasImg = item?.type === "question" && item.inlineImages?.length > 0 && !item.showImageByDefault;
+                    const hasImg =
+                      item?.type === "question" &&
+                      item.inlineImages?.length > 0 &&
+                      !item.showImageByDefault;
                     const multiImg = hasImg && item.inlineImages.length > 1;
                     const btnStyle = {
                       padding: ".25rem .45rem",
@@ -2809,35 +3172,89 @@ console.log(
                       textAlign: "center",
                     };
                     return (
-                      <div style={{ display: "flex", alignItems: "center", gap: ".2rem" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: ".2rem",
+                        }}
+                      >
                         {navImageVisible && multiImg && (
                           <button
                             onClick={() => cycleNavImage(-1)}
                             disabled={navImageIndex === 0}
                             title="Previous image"
-                            style={{ ...btnStyle, border: "1px solid #888", background: "transparent", color: navImageIndex === 0 ? "#555" : "#fff", opacity: navImageIndex === 0 ? 0.35 : 1 }}
-                          >‹</button>
+                            style={{
+                              ...btnStyle,
+                              border: "1px solid #888",
+                              background: "transparent",
+                              color: navImageIndex === 0 ? "#555" : "#fff",
+                              opacity: navImageIndex === 0 ? 0.35 : 1,
+                            }}
+                          >
+                            ‹
+                          </button>
                         )}
                         <button
                           onClick={hasImg ? toggleNavImage : undefined}
                           disabled={!hasImg}
-                          title={!hasImg ? "No toggleable image" : navImageVisible ? "Hide image" : "Show image"}
-                          style={{ ...btnStyle, border: `1px solid ${navImageVisible ? colors.accent : "#888"}`, background: navImageVisible ? colors.accent : "transparent", color: hasImg ? "#fff" : "#555", opacity: hasImg ? 1 : 0.35, cursor: hasImg ? "pointer" : "default" }}
-                        >▣</button>
+                          title={
+                            !hasImg
+                              ? "No toggleable image"
+                              : navImageVisible
+                                ? "Hide image"
+                                : "Show image"
+                          }
+                          style={{
+                            ...btnStyle,
+                            border: `1px solid ${navImageVisible ? colors.accent : "#888"}`,
+                            background: navImageVisible
+                              ? colors.accent
+                              : "transparent",
+                            color: hasImg ? "#fff" : "#555",
+                            opacity: hasImg ? 1 : 0.35,
+                            cursor: hasImg ? "pointer" : "default",
+                          }}
+                        >
+                          ▣
+                        </button>
                         {navImageVisible && multiImg && (
                           <button
                             onClick={() => cycleNavImage(1)}
-                            disabled={navImageIndex >= item.inlineImages.length - 1}
+                            disabled={
+                              navImageIndex >= item.inlineImages.length - 1
+                            }
                             title="Next image"
-                            style={{ ...btnStyle, border: "1px solid #888", background: "transparent", color: navImageIndex >= item.inlineImages.length - 1 ? "#555" : "#fff", opacity: navImageIndex >= item.inlineImages.length - 1 ? 0.35 : 1 }}
-                          >›</button>
+                            style={{
+                              ...btnStyle,
+                              border: "1px solid #888",
+                              background: "transparent",
+                              color:
+                                navImageIndex >= item.inlineImages.length - 1
+                                  ? "#555"
+                                  : "#fff",
+                              opacity:
+                                navImageIndex >= item.inlineImages.length - 1
+                                  ? 0.35
+                                  : 1,
+                            }}
+                          >
+                            ›
+                          </button>
                         )}
                       </div>
                     );
                   })()}
                 </div>
                 {/* Preview iframe */}
-                <div style={{ width: previewW, height: Math.round(previewW * 1080 / 1920), overflow: "hidden", background: "#000" }}>
+                <div
+                  style={{
+                    width: previewW,
+                    height: Math.round((previewW * 1080) / 1920),
+                    overflow: "hidden",
+                    background: "#000",
+                  }}
+                >
                   <iframe
                     ref={previewIframeRef}
                     title="Display preview"
@@ -3455,7 +3872,6 @@ console.log(
             </Draggable>
           </div>
         )}
-
       </div>
 
       {/* Hidden file input for importing archived shows */}
@@ -3707,7 +4123,13 @@ console.log(
               <Button onClick={submitPassword}>Go</Button>
             </div>
             {passwordError && (
-              <p style={{ color: "red", fontSize: "0.82rem", marginTop: "0.5rem" }}>
+              <p
+                style={{
+                  color: "red",
+                  fontSize: "0.82rem",
+                  marginTop: "0.5rem",
+                }}
+              >
                 {passwordError}
               </p>
             )}
@@ -3743,10 +4165,23 @@ console.log(
 
             {hostSetupHosts.length > 0 && (
               <>
-                <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "#555" }}>
+                <p
+                  style={{
+                    fontSize: "0.85rem",
+                    marginBottom: "0.5rem",
+                    color: "#555",
+                  }}
+                >
                   Select an existing host:
                 </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "1rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.4rem",
+                    marginBottom: "1rem",
+                  }}
+                >
                   {hostSetupHosts.map((h) => (
                     <button
                       key={h.host_id}
@@ -3764,14 +4199,26 @@ console.log(
                     </button>
                   ))}
                 </div>
-                <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "#555" }}>
+                <p
+                  style={{
+                    fontSize: "0.85rem",
+                    marginBottom: "0.5rem",
+                    color: "#555",
+                  }}
+                >
                   Or create a new host:
                 </p>
               </>
             )}
 
             {hostSetupHosts.length === 0 && (
-              <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "#555" }}>
+              <p
+                style={{
+                  fontSize: "0.85rem",
+                  marginBottom: "0.5rem",
+                  color: "#555",
+                }}
+              >
                 Enter your name to get started:
               </p>
             )}
@@ -3795,7 +4242,13 @@ console.log(
             </div>
 
             {hostSetupError && (
-              <p style={{ color: "red", fontSize: "0.82rem", marginTop: "0.5rem" }}>
+              <p
+                style={{
+                  color: "red",
+                  fontSize: "0.82rem",
+                  marginTop: "0.5rem",
+                }}
+              >
                 {hostSetupError}
               </p>
             )}
@@ -3803,8 +4256,8 @@ console.log(
         </div>
       )}
 
-      {/* ── Display Picker Modal ── */}
-      {displayPickerOpen && (
+      {/* ── Venue Picker Modal ── */}
+      {venuePickerOpen && (
         <div
           style={{
             position: "fixed",
@@ -3821,35 +4274,48 @@ console.log(
               background: "#fff",
               borderRadius: 10,
               padding: "2rem",
-              width: 360,
+              width: 380,
               boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
             }}
           >
-            <h2 style={{ marginBottom: "1rem", fontSize: "1.1rem" }}>
-              Open which display?
+            <h2 style={{ marginBottom: "1rem", fontSize: "1.1rem", fontFamily: tokens.font.body }}>
+              Where are you hosting tonight?
             </h2>
 
-            <Button
-              onClick={launchOwnDisplay}
-              style={{ width: "100%", marginBottom: "0.5rem" }}
-            >
-              My display ({hostName})
-            </Button>
+            {venuePickerLoading && (
+              <p style={{ color: "#888", fontFamily: tokens.font.body, fontSize: ".9rem" }}>
+                Loading venues…
+              </p>
+            )}
 
-            {activeDisplays
-              .filter((d) => d.hostId !== hostId)
-              .map((d) => (
-                <Button
-                  key={d.hostId}
-                  onClick={() => joinDisplay(d.hostId, d.hostName)}
-                  style={{ width: "100%", marginBottom: "0.5rem" }}
-                >
-                  Join {d.hostName}'s display
-                </Button>
-              ))}
+            {!venuePickerLoading && venuePickerOptions.length === 0 && (
+              <p style={{ color: "#888", fontFamily: tokens.font.body, fontSize: ".9rem" }}>
+                No shows found for today.
+              </p>
+            )}
+
+            {!venuePickerLoading && venuePickerOptions.map((v) => (
+              <Button
+                key={v.venueShowId}
+                onClick={() => selectVenue(v.venueShowId, v.venueName)}
+                style={{
+                  width: "100%",
+                  marginBottom: "0.5rem",
+                  background: venueShowId === v.venueShowId ? colors.accent : undefined,
+                  color: venueShowId === v.venueShowId ? "#fff" : undefined,
+                }}
+              >
+                {v.venueName}
+                {v.showCount > 1 && (
+                  <span style={{ fontSize: ".75em", marginLeft: ".4rem", opacity: 0.7 }}>
+                    ({v.showCount} shows)
+                  </span>
+                )}
+              </Button>
+            ))}
 
             <button
-              onClick={() => setDisplayPickerOpen(false)}
+              onClick={() => setVenuePickerOpen(false)}
               style={{
                 marginTop: "0.5rem",
                 background: "transparent",
@@ -3858,6 +4324,7 @@ console.log(
                 cursor: "pointer",
                 fontSize: "0.85rem",
                 width: "100%",
+                fontFamily: tokens.font.body,
               }}
             >
               Cancel

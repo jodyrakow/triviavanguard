@@ -8,6 +8,7 @@ export default function Sidebar({
   setShowDetails,
   displayControlsOpen,
   setDisplayControlsOpen,
+  onOpenVenuePicker,
   showTimer,
   setShowTimer,
   showAnswerKey,
@@ -442,7 +443,11 @@ export default function Sidebar({
           onClick={() => {
             // Preserve scroll position
             const closestKey = getClosestQuestionKey?.();
-            setDisplayControlsOpen((prev) => !prev);
+            if (onOpenVenuePicker) {
+              onOpenVenuePicker();
+            } else {
+              setDisplayControlsOpen((prev) => !prev);
+            }
             if (closestKey && questionRefs?.current?.[closestKey]?.current) {
               // Use requestAnimationFrame to wait for DOM update, then scroll instantly
               requestAnimationFrame(() => {

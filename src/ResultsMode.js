@@ -86,7 +86,8 @@ export default function ResultsMode({
     };
     flat.sort(
       (a, b) =>
-        a.sortOrder - b.sortOrder || cvt(a.questionOrder) - cvt(b.questionOrder)
+        a.sortOrder - b.sortOrder ||
+        cvt(a.questionOrder) - cvt(b.questionOrder),
     );
     return flat;
   }, [showBundle]);
@@ -114,7 +115,7 @@ export default function ResultsMode({
       // Flat structure: single grid at top level contains all questions from all rounds
       return cachedByRound?.grid?.[showTeamId]?.[showQuestionId] || null;
     },
-    [cachedByRound]
+    [cachedByRound],
   );
 
   // ---- Show-wide TB detection (one per show) ----
@@ -124,14 +125,14 @@ export default function ResultsMode({
       : [];
     console.log(
       "🔍 ResultsMode - Searching for tiebreaker in rounds:",
-      allRounds
+      allRounds,
     );
     for (const r of allRounds) {
       console.log(
         "🔍 ResultsMode - Round",
         r.round,
         "questions array:",
-        r?.questions
+        r?.questions,
       );
       // Check flat questions array (where host-added tiebreakers are stored)
       for (const q of r?.questions || []) {
@@ -143,7 +144,7 @@ export default function ResultsMode({
         ) {
           console.log(
             "🎯 ResultsMode - FOUND TIEBREAKER in flat questions:",
-            q
+            q,
           );
           return q;
         }
@@ -186,7 +187,7 @@ export default function ResultsMode({
     ) {
       console.log(
         "✅ ResultsMode - Using tiebreakerNumber (numeric):",
-        tbQ.tiebreakerNumber
+        tbQ.tiebreakerNumber,
       );
       return tbQ.tiebreakerNumber;
     }
@@ -230,12 +231,15 @@ export default function ResultsMode({
       const v = cell?.tiebreakerGuess;
       return typeof v === "number" && Number.isFinite(v) ? v : null;
     },
-    [getCell, tbQ]
+    [getCell, tbQ],
   );
 
   // ----------------------- Prize editor state -----------------------
   // Convert shared prizes string to array
-  console.log("🎁 RESULTS MODE: prizesString prop =", JSON.stringify(prizesString));
+  console.log(
+    "🎁 RESULTS MODE: prizesString prop =",
+    JSON.stringify(prizesString),
+  );
   const prizes = useMemo(() => {
     if (!prizesString) return [];
     const arr = prizesString
@@ -274,14 +278,14 @@ export default function ResultsMode({
       poolContribution: Number(poolContribution || 0),
       teamCount: teams.length,
     }),
-    [scoringMode, pubPoints, poolPerQuestion, poolContribution, teams.length]
+    [scoringMode, pubPoints, poolPerQuestion, poolContribution, teams.length],
   );
 
   // ----------------------- Faction Statistics -----------------------
   const factionStats = useMemo(() => {
     // Get all factions that have been pledged to
     const pledgedFactions = new Set(
-      teams.map((t) => t.factionPledge).filter(Boolean)
+      teams.map((t) => t.factionPledge).filter(Boolean),
     );
 
     if (pledgedFactions.size === 0) {
@@ -387,21 +391,23 @@ export default function ResultsMode({
 
     // Filter out tiebreaker questions for scoring
     const scoringQuestions = tbQ
-      ? questions.filter((q) => q.showQuestionId !== (tbQ.showQuestionId || tbQ.id))
+      ? questions.filter(
+          (q) => q.showQuestionId !== (tbQ.showQuestionId || tbQ.id),
+        )
       : questions;
 
     // Use utility to build correct count map and team totals
     const nCorrectByQ = buildCorrectCountMap(
       teams,
       scoringQuestions,
-      adaptedGrid
+      adaptedGrid,
     );
     const totalByTeam = buildTeamTotals(
       teams,
       scoringQuestions,
       adaptedGrid,
       scoringConfig,
-      nCorrectByQ
+      nCorrectByQ,
     );
 
     // Base rows
@@ -438,7 +444,7 @@ export default function ResultsMode({
     rows.sort(
       (a, b) =>
         b.total - a.total ||
-        a.teamName.localeCompare(b.teamName, "en", { sensitivity: "base" })
+        a.teamName.localeCompare(b.teamName, "en", { sensitivity: "base" }),
     );
 
     // Use utility to compute places with tie handling
@@ -534,7 +540,7 @@ export default function ResultsMode({
           const inThisGroup = arr
             .map((x) => x.r)
             .filter(
-              (x) => selected.includes(x.showTeamId) && x.place <= prizeCount
+              (x) => selected.includes(x.showTeamId) && x.place <= prizeCount,
             );
 
           if (inThisGroup.length >= 2) {
@@ -553,7 +559,7 @@ export default function ResultsMode({
               .map((x, i) => ({ i, r: x.r }))
               .filter(
                 (x) =>
-                  selected.includes(x.r.showTeamId) && x.r.place <= prizeCount
+                  selected.includes(x.r.showTeamId) && x.r.place <= prizeCount,
               )
               .map((x) => x.i);
 
@@ -571,7 +577,7 @@ export default function ResultsMode({
         flattened.sort(
           (a, b) =>
             b.total - a.total ||
-            a.teamName.localeCompare(b.teamName, "en", { sensitivity: "base" })
+            a.teamName.localeCompare(b.teamName, "en", { sensitivity: "base" }),
         );
         let place = 0,
           prevKey = null,
@@ -617,7 +623,7 @@ export default function ResultsMode({
     // i.e., either no authored TB applied to them, or authored TB still left a tie.
     const ids = standings
       .filter(
-        (r) => r.place <= prizeCount && (!r.tieBroken || r.unbreakableTie)
+        (r) => r.place <= prizeCount && (!r.tieBroken || r.unbreakableTie),
       )
       .map((r) => r.showTeamId);
     // keep only groups where at least 2 share the same total
@@ -753,11 +759,11 @@ export default function ResultsMode({
       for (const arr of groups.values()) {
         if (arr.length < 2) continue;
         const selectedInGroup = arr.filter((r) =>
-          otfApplied.selected.includes(r.showTeamId)
+          otfApplied.selected.includes(r.showTeamId),
         );
         if (selectedInGroup.length < 2) continue;
         const intersectsPrizeBand = selectedInGroup.some(
-          (r) => r.place <= prizeCount
+          (r) => r.place <= prizeCount,
         );
         if (!intersectsPrizeBand) continue;
         // show OTF guesses for all selected teams in this tie group
@@ -801,7 +807,7 @@ export default function ResultsMode({
         "This will:\n" +
         "1. Download a JSON backup of this show\n" +
         "2. Create ShowTeams as needed in Airtable\n" +
-        "3. Replace any existing Scores for this show in Airtable"
+        "3. Replace any existing Scores for this show in Airtable",
     );
     if (!ok) return;
 
@@ -816,7 +822,7 @@ export default function ResultsMode({
     try {
       // exclude TB from scores
       const nonTBQuestions = questions.filter(
-        (q) => !(tbQ && q.showQuestionId === (tbQ.showQuestionId || tbQ.id))
+        (q) => !(tbQ && q.showQuestionId === (tbQ.showQuestionId || tbQ.id)),
       );
 
       // Filter out questions without questionId (host-added or edited questions)
@@ -829,10 +835,10 @@ export default function ResultsMode({
       if (missingQids.length) {
         console.warn(
           `⚠️ Skipping ${missingQids.length} questions without questionId links:`,
-          missingQids
+          missingQids,
         );
         setPublishDetail(
-          `Note: Skipping ${missingQids.length} host-added/edited questions (no Airtable link)`
+          `Note: Skipping ${missingQids.length} host-added/edited questions (no Airtable link)`,
         );
         // Wait a moment so user can see the message
         await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -856,7 +862,7 @@ export default function ResultsMode({
       const nCorrectByQ = buildCorrectCountMap(
         teams,
         questionsWithIds,
-        adaptedGridForPublish
+        adaptedGridForPublish,
       );
 
       setPublishDetail("Preparing payload…");
@@ -910,7 +916,7 @@ export default function ResultsMode({
             adaptedCell,
             config,
             correctCount,
-            questionBonus
+            questionBonus,
           );
 
           scoresPayload.push({
@@ -953,7 +959,7 @@ export default function ResultsMode({
       if (json.skippedInvalid > 0) {
         console.warn(
           `⚠️ Skipped ${json.skippedInvalid} questions with invalid record IDs:`,
-          json.invalidIdDetails
+          json.invalidIdDetails,
         );
       }
 
@@ -967,10 +973,11 @@ export default function ResultsMode({
             ([showQuestionId, edit]) => ({
               showQuestionId,
               question: edit.question,
-              notes: edit.notes,
+              questionNotes: edit.questionNotes,
               pronunciationGuide: edit.pronunciationGuide,
               answer: edit.answer,
-            })
+              answerNotes: edit.answerNotes,
+            }),
           );
 
           const editsRes = await fetch(
@@ -979,7 +986,7 @@ export default function ResultsMode({
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ edits: editsPayload }),
-            }
+            },
           );
 
           if (editsRes.ok) {
@@ -989,7 +996,7 @@ export default function ResultsMode({
           } else {
             console.error(
               "Failed to update question edits:",
-              await editsRes.text()
+              await editsRes.text(),
             );
           }
         } catch (e) {
@@ -1007,7 +1014,7 @@ export default function ResultsMode({
       }
       if (json.skippedInvalid > 0) {
         detailParts.push(
-          `⚠️ skipped ${json.skippedInvalid} question(s) with invalid IDs`
+          `⚠️ skipped ${json.skippedInvalid} question(s) with invalid IDs`,
         );
       }
       setPublishDetail(`✅ Published! ${detailParts.join(", ")}.`);
@@ -1151,7 +1158,7 @@ export default function ResultsMode({
           type="button"
           onClick={() => {
             setOtfSelectedTeams(
-              otfDefaultCandidates.length >= 2 ? otfDefaultCandidates : []
+              otfDefaultCandidates.length >= 2 ? otfDefaultCandidates : [],
             );
             setOtfGuesses({});
             setOtfSource({
@@ -1658,20 +1665,20 @@ export default function ResultsMode({
                               (() => {
                                 // First row of this tie group (by score) - show ALL buttons for entire group
                                 const allTiedByScore = arr.filter(
-                                  (row) => row.total === r.total
+                                  (row) => row.total === r.total,
                                 );
                                 const isTiedByScore = allTiedByScore.length > 1;
 
                                 // Get unique places within this tie group
                                 const uniquePlaces = [
                                   ...new Set(
-                                    allTiedByScore.map((t) => t.place)
+                                    allTiedByScore.map((t) => t.place),
                                   ),
                                 ].sort((a, b) => a - b);
 
                                 // For randomize button: get the highest place in the tie group
                                 const highestPlaceInTie = Math.min(
-                                  ...uniquePlaces
+                                  ...uniquePlaces,
                                 );
                                 const highestPlaceStr =
                                   ordinal(highestPlaceInTie);
@@ -1679,7 +1686,7 @@ export default function ResultsMode({
                                 // Check if there are "unlucky" teams (tied but outside prize band)
                                 const unluckyTeams = isTiedByScore
                                   ? allTiedByScore.filter(
-                                      (t) => t.place > prizeCount
+                                      (t) => t.place > prizeCount,
                                     )
                                   : [];
 
@@ -1732,7 +1739,7 @@ export default function ResultsMode({
                                         onClick={() => {
                                           const allTiedTeamNames =
                                             allTiedByScore.map(
-                                              (t) => t.teamName
+                                              (t) => t.teamName,
                                             );
                                           const shuffled = [
                                             ...allTiedTeamNames,
@@ -1766,11 +1773,11 @@ export default function ResultsMode({
                                     {uniquePlaces.map((place) => {
                                       const teamsAtThisPlace =
                                         allTiedByScore.filter(
-                                          (t) => t.place === place
+                                          (t) => t.place === place,
                                         );
                                       const placeStr = ordinal(place);
                                       const teamNames = teamsAtThisPlace.map(
-                                        (t) => t.teamName
+                                        (t) => t.teamName,
                                       );
                                       const prizeText =
                                         prizeCount > 0 && place <= prizeCount
@@ -1958,7 +1965,7 @@ export default function ResultsMode({
                 if (dups.length) {
                   console.warn(
                     "❌ Duplicate showTeamId keys in standings:",
-                    dups
+                    dups,
                   );
                   console.warn("Full standings:", standings);
                 }
@@ -1995,7 +2002,7 @@ export default function ResultsMode({
                             setOtfSelectedTeams((prev) => {
                               if (e.target.checked)
                                 return Array.from(
-                                  new Set([...prev, r.showTeamId])
+                                  new Set([...prev, r.showTeamId]),
                                 );
                               return prev.filter((id) => id !== r.showTeamId);
                             });
@@ -2069,7 +2076,7 @@ export default function ResultsMode({
                       onClick={async () => {
                         try {
                           const res = await fetch(
-                            "/.netlify/functions/getNextTiebreaker"
+                            "/.netlify/functions/getNextTiebreaker",
                           );
                           const json = await res.json();
                           if (!json || !json.id) {
@@ -2106,7 +2113,7 @@ export default function ResultsMode({
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ recordId: json.id }),
-                            }
+                            },
                           );
                           setOtfStage("guesses");
                         } catch {

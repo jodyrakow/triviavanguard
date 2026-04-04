@@ -10,7 +10,11 @@ import {
   colors as theme,
   tokens,
 } from "./styles";
-import { buildCorrectCountMap, computeAutoEarned, computeBonusBreakdown } from "./scoring/compute.js";
+import {
+  buildCorrectCountMap,
+  computeAutoEarned,
+  computeBonusBreakdown,
+} from "./scoring/compute.js";
 marked.setOptions({ breaks: true });
 export default function QuestionsMode({
   showBundle = { rounds: [], teams: [] },
@@ -43,8 +47,8 @@ export default function QuestionsMode({
   setHostInfo: setHostInfoProp,
   editQuestionField,
   addTiebreaker,
-  sendToDisplay,        // for non-question sends (category, carousel, etc.)
-  pushDisplayQuestion,  // for question sends — single unified path
+  sendToDisplay, // for non-question sends (category, carousel, etc.)
+  pushDisplayQuestion, // for question sends — single unified path
   displayControlsOpen = false,
   refreshBundle,
   carouselActive = false,
@@ -324,9 +328,17 @@ export default function QuestionsMode({
 
         let bonusBreakdown = [];
         if (q.bonusAvailable && q.bonusValue) {
-          const questionBonus = { bonusValue: q.bonusValue, maxBonuses: q.maxBonuses };
+          const questionBonus = {
+            bonusValue: q.bonusValue,
+            maxBonuses: q.maxBonuses,
+          };
           bonusBreakdown = computeBonusBreakdown(
-            teams, adaptedGrid, showQuestionId, scoringConfig, correctCount, questionBonus
+            teams,
+            adaptedGrid,
+            showQuestionId,
+            scoringConfig,
+            correctCount,
+            questionBonus,
           );
         }
 
@@ -350,8 +362,12 @@ export default function QuestionsMode({
     const result = [];
     for (const round of displayRounds) {
       const sortedCats = [...(round.categories || [])].sort((a, b) => {
-        const av = (a.questionType || "").toLowerCase().includes("visual") ? 0 : 1;
-        const bv = (b.questionType || "").toLowerCase().includes("visual") ? 0 : 1;
+        const av = (a.questionType || "").toLowerCase().includes("visual")
+          ? 0
+          : 1;
+        const bv = (b.questionType || "").toLowerCase().includes("visual")
+          ? 0
+          : 1;
         if (av !== bv) return av - bv; // visuals first
         return (a.categoryOrder ?? 999) - (b.categoryOrder ?? 999);
       });
@@ -413,10 +429,14 @@ export default function QuestionsMode({
 
         // Category images
         const groupKey = `${categoryName}|||${categoryDescription}`;
-        const catImagesArr = Array.isArray(cat.categoryImages) ? cat.categoryImages : [];
+        const catImagesArr = Array.isArray(cat.categoryImages)
+          ? cat.categoryImages
+          : [];
 
         // Category audio
-        const catAudioArr = Array.isArray(cat.categoryAudio) ? cat.categoryAudio : [];
+        const catAudioArr = Array.isArray(cat.categoryAudio)
+          ? cat.categoryAudio
+          : [];
 
         // Category question type
         const categoryQuestionType = (cat.questionType || "").toLowerCase();
@@ -576,8 +596,11 @@ export default function QuestionsMode({
                             questionText: q.questionText || "",
                             categoryName: categoryName,
                             inlineImages:
-                              Array.isArray(q.questionImages) && q.questionImages.length > 0
-                                ? q.questionImages.map((img) => ({ url: img.url }))
+                              Array.isArray(q.questionImages) &&
+                              q.questionImages.length > 0
+                                ? q.questionImages.map((img) => ({
+                                    url: img.url,
+                                  }))
                                 : [],
                             currentInlineImageIndex: 0,
                           }),
@@ -619,7 +642,10 @@ export default function QuestionsMode({
                 {catAudioArr.map(
                   (audioObj, i) =>
                     audioObj?.url && (
-                      <div key={i} style={{ marginTop: "0.5rem", maxWidth: "600px" }}>
+                      <div
+                        key={i}
+                        style={{ marginTop: "0.5rem", maxWidth: "600px" }}
+                      >
                         <SharedAudioPlayer
                           url={audioObj.url}
                           filename={audioObj.filename}
@@ -667,10 +693,7 @@ export default function QuestionsMode({
                   padding: "0.5rem",
                 }}
               >
-                <CategoryHeader
-                  secret
-                  number={categoryNumbers.get(cat)}
-                />
+                <CategoryHeader secret number={categoryNumbers.get(cat)} />
                 <div
                   style={{
                     margin: "0.5rem 1rem",
@@ -751,7 +774,11 @@ export default function QuestionsMode({
                             return (
                               <Button
                                 onClick={() => {
-                                  pushDisplayQuestion(q.showQuestionId, 0, hasImages);
+                                  pushDisplayQuestion(
+                                    q.showQuestionId,
+                                    0,
+                                    hasImages,
+                                  );
                                   setInlineVisualQuestionId(
                                     hasImages ? q.showQuestionId : null,
                                   );
@@ -774,7 +801,11 @@ export default function QuestionsMode({
                             <>
                               <Button
                                 onClick={() => {
-                                  pushDisplayQuestion(q.showQuestionId, 0, false);
+                                  pushDisplayQuestion(
+                                    q.showQuestionId,
+                                    0,
+                                    false,
+                                  );
                                   setInlineVisualQuestionId(null);
                                 }}
                                 style={{
@@ -790,7 +821,11 @@ export default function QuestionsMode({
                               {hasImages && (
                                 <Button
                                   onClick={() => {
-                                    pushDisplayQuestion(q.showQuestionId, 0, true);
+                                    pushDisplayQuestion(
+                                      q.showQuestionId,
+                                      0,
+                                      true,
+                                    );
                                     setInlineVisualQuestionId(q.showQuestionId);
                                   }}
                                   style={{
@@ -827,6 +862,7 @@ export default function QuestionsMode({
                                 questionPronunciationGuide:
                                   q.questionPronunciationGuide || "",
                                 answer: q.answer || "",
+                                answerNotes: q.answerNotes || "",
                               });
                             }}
                             style={{
@@ -925,6 +961,37 @@ export default function QuestionsMode({
                             __html: marked.parseInline(
                               q.questionPronunciationGuide,
                             ),
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* ANSWER NOTES */}
+                    {q.answerNotes?.trim() && showDetails && (
+                      <div
+                        style={{
+                          fontFamily: tokens.font.body,
+                          fontSize: "1rem",
+                          display: "flex",
+                          alignItems: "baseline",
+                          paddingLeft: "1.5rem",
+                          paddingTop: "0.25rem",
+                          marginTop: 0,
+                          marginBottom: 0,
+                        }}
+                      >
+                        <span
+                          style={{
+                            marginRight: "0.35rem",
+                            flexShrink: 0,
+                            fontSize: "0.9rem",
+                          }}
+                        >
+                          🟢
+                        </span>
+                        <span
+                          dangerouslySetInnerHTML={{
+                            __html: marked.parseInline(q.answerNotes),
                           }}
                         />
                       </div>
@@ -1055,8 +1122,7 @@ export default function QuestionsMode({
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setCurrentImageIndex((prev) => {
-                                      const curr =
-                                        prev[q.showQuestionId] || 0;
+                                      const curr = prev[q.showQuestionId] || 0;
                                       return {
                                         ...prev,
                                         [q.showQuestionId]:
@@ -1073,8 +1139,7 @@ export default function QuestionsMode({
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setCurrentImageIndex((prev) => {
-                                      const curr =
-                                        prev[q.showQuestionId] || 0;
+                                      const curr = prev[q.showQuestionId] || 0;
                                       return {
                                         ...prev,
                                         [q.showQuestionId]:
@@ -1093,32 +1158,39 @@ export default function QuestionsMode({
                     )}
 
                     {/* QUESTION-LEVEL AUDIO */}
-                    {Array.isArray(q.questionAudio) && q.questionAudio.length > 0 && (
-                      <div
-                        style={{
-                          marginTop: "0.5rem",
-                          marginLeft: "1.5rem",
-                          marginRight: "1.5rem",
-                        }}
-                      >
-                        {q.questionAudio.map(
-                          (audioObj, audioIdx) =>
-                            audioObj.url && (
-                              <div key={audioIdx} style={{ marginTop: "0.5rem", maxWidth: "600px" }}>
-                                <SharedAudioPlayer
-                                  url={audioObj.url}
-                                  filename={audioObj.filename}
-                                  sharedUrl={sharedAudioUrl}
-                                  sharedPlaying={sharedAudioPlaying}
-                                  audioRef={sharedAudioRef}
-                                  onPlay={onPlayAudio}
-                                  onToggle={onToggleAudio}
-                                />
-                              </div>
-                            ),
-                        )}
-                      </div>
-                    )}
+                    {Array.isArray(q.questionAudio) &&
+                      q.questionAudio.length > 0 && (
+                        <div
+                          style={{
+                            marginTop: "0.5rem",
+                            marginLeft: "1.5rem",
+                            marginRight: "1.5rem",
+                          }}
+                        >
+                          {q.questionAudio.map(
+                            (audioObj, audioIdx) =>
+                              audioObj.url && (
+                                <div
+                                  key={audioIdx}
+                                  style={{
+                                    marginTop: "0.5rem",
+                                    maxWidth: "600px",
+                                  }}
+                                >
+                                  <SharedAudioPlayer
+                                    url={audioObj.url}
+                                    filename={audioObj.filename}
+                                    sharedUrl={sharedAudioUrl}
+                                    sharedPlaying={sharedAudioPlaying}
+                                    audioRef={sharedAudioRef}
+                                    onPlay={onPlayAudio}
+                                    onToggle={onToggleAudio}
+                                  />
+                                </div>
+                              ),
+                          )}
+                        </div>
+                      )}
 
                     {/* ANSWER */}
                     {showDetails && (
@@ -1266,16 +1338,17 @@ export default function QuestionsMode({
                                 {hasImages && (
                                   <Button
                                     onClick={() => {
-                                      const nextStage =
-                                        isActiveQuestionWithImgs
-                                          ? (currentStageWithImgs + 1) % 3
-                                          : 0;
+                                      const nextStage = isActiveQuestionWithImgs
+                                        ? (currentStageWithImgs + 1) % 3
+                                        : 0;
                                       pushDisplayQuestion(
                                         q.showQuestionId,
                                         nextStage,
                                         true,
                                       );
-                                      setInlineVisualQuestionId(q.showQuestionId);
+                                      setInlineVisualQuestionId(
+                                        q.showQuestionId,
+                                      );
                                       setProgressiveRevealState((prev) => ({
                                         ...prev,
                                         activeQuestionIdWithImgs: questionId,
@@ -1348,18 +1421,35 @@ export default function QuestionsMode({
                             correct
                           </span>
 
-                          {qStats.bonusBreakdown && qStats.bonusBreakdown.length > 1 ? (
-                            <span style={{ marginLeft: ".6rem", fontSize: "1rem" }}>
+                          {qStats.bonusBreakdown &&
+                          qStats.bonusBreakdown.length > 1 ? (
+                            <span
+                              style={{ marginLeft: ".6rem", fontSize: "1rem" }}
+                            >
                               {qStats.bonusBreakdown.map((level, i) => (
                                 <span key={level.bonusLevel}>
                                   {i > 0 && " · "}
-                                  <span style={{ color: theme.accent, fontWeight: 700 }}>
+                                  <span
+                                    style={{
+                                      color: theme.accent,
+                                      fontWeight: 700,
+                                    }}
+                                  >
                                     {level.pointsPerTeam}
                                   </span>
                                   {" pts"}
                                   {level.bonusLevel > 0 && (
-                                    <span style={{ fontSize: ".9rem", opacity: 0.8 }}>
-                                      {" "}({level.bonusLevel} {"bonus" + (level.bonusLevel > 1 ? "es" : "")})
+                                    <span
+                                      style={{
+                                        fontSize: ".9rem",
+                                        opacity: 0.8,
+                                      }}
+                                    >
+                                      {" "}
+                                      ({level.bonusLevel}{" "}
+                                      {"bonus" +
+                                        (level.bonusLevel > 1 ? "es" : "")}
+                                      )
                                     </span>
                                   )}
                                 </span>
@@ -1408,33 +1498,70 @@ export default function QuestionsMode({
                     displayControlsOpen &&
                     inlineVisualQuestionId === q.showQuestionId &&
                     Array.isArray(q.questionImages) &&
-                    q.questionImages.length > 1 && (() => {
-                      const currentIdx = currentImageIndex[q.showQuestionId] || 0;
+                    q.questionImages.length > 1 &&
+                    (() => {
+                      const currentIdx =
+                        currentImageIndex[q.showQuestionId] || 0;
                       const totalImages = q.questionImages.length;
                       return (
-                        <div style={{ marginTop: "0.5rem", marginLeft: "1rem", marginBottom: "0.25rem" }}>
-                          <div style={{ fontSize: "0.85rem", marginBottom: "0.25rem", color: theme.accent, fontWeight: 600 }}>
-                            Inline Image Navigation ({currentIdx + 1} of {totalImages})
+                        <div
+                          style={{
+                            marginTop: "0.5rem",
+                            marginLeft: "1rem",
+                            marginBottom: "0.25rem",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "0.85rem",
+                              marginBottom: "0.25rem",
+                              color: theme.accent,
+                              fontWeight: 600,
+                            }}
+                          >
+                            Inline Image Navigation ({currentIdx + 1} of{" "}
+                            {totalImages})
                           </div>
                           <div style={{ display: "flex", gap: "0.5rem" }}>
                             <Button
                               onClick={() => {
-                                const newIdx = (currentIdx - 1 + totalImages) % totalImages;
-                                setCurrentImageIndex((prev) => ({ ...prev, [q.showQuestionId]: newIdx }));
-                                sendToDisplay("updateInlineImageIndex", { currentIndex: newIdx });
+                                const newIdx =
+                                  (currentIdx - 1 + totalImages) % totalImages;
+                                setCurrentImageIndex((prev) => ({
+                                  ...prev,
+                                  [q.showQuestionId]: newIdx,
+                                }));
+                                sendToDisplay("updateInlineImageIndex", {
+                                  currentIndex: newIdx,
+                                });
                               }}
-                              style={{ fontSize: tokens.font.size, fontFamily: tokens.font.body }}
+                              style={{
+                                fontSize: tokens.font.size,
+                                fontFamily: tokens.font.body,
+                              }}
                               title="Show previous inline image"
-                            >◀ Previous</Button>
+                            >
+                              ◀ Previous
+                            </Button>
                             <Button
                               onClick={() => {
                                 const newIdx = (currentIdx + 1) % totalImages;
-                                setCurrentImageIndex((prev) => ({ ...prev, [q.showQuestionId]: newIdx }));
-                                sendToDisplay("updateInlineImageIndex", { currentIndex: newIdx });
+                                setCurrentImageIndex((prev) => ({
+                                  ...prev,
+                                  [q.showQuestionId]: newIdx,
+                                }));
+                                sendToDisplay("updateInlineImageIndex", {
+                                  currentIndex: newIdx,
+                                });
                               }}
-                              style={{ fontSize: tokens.font.size, fontFamily: tokens.font.body }}
+                              style={{
+                                fontSize: tokens.font.size,
+                                fontFamily: tokens.font.body,
+                              }}
                               title="Show next inline image"
-                            >Next ▶</Button>
+                            >
+                              Next ▶
+                            </Button>
                           </div>
                         </div>
                       );
@@ -1861,6 +1988,33 @@ export default function QuestionsMode({
                   }}
                 />
               </label>
+
+              <label style={{ display: "block", marginBottom: ".6rem" }}>
+                <div style={{ marginBottom: 4, fontWeight: 600 }}>
+                  Answer notes (optional)
+                </div>
+                <textarea
+                  value={editingQuestion.answerNotes ?? ""}
+                  onChange={(e) =>
+                    setEditingQuestion((prev) => ({
+                      ...prev,
+                      answerNotes: e.target.value,
+                    }))
+                  }
+                  rows={2}
+                  placeholder="Optional context about the answer..."
+                  style={{
+                    width: "100%",
+                    padding: ".55rem .65rem",
+                    border: "1px solid #ccc",
+                    borderRadius: ".35rem",
+                    resize: "vertical",
+                    fontFamily: tokens.font.body,
+                    fontSize: "1rem",
+                    fontStyle: "italic",
+                  }}
+                />
+              </label>
             </div>
 
             {/* Footer */}
@@ -1905,6 +2059,11 @@ export default function QuestionsMode({
                       editingQuestion.showQuestionId,
                       "answer",
                       safeTrim(editingQuestion.answer),
+                    );
+                    editQuestionField(
+                      editingQuestion.showQuestionId,
+                      "answerNotes",
+                      safeTrim(editingQuestion.answerNotes),
                     );
                     editQuestionField(
                       editingQuestion.showQuestionId,

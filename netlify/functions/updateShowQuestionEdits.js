@@ -11,9 +11,10 @@ const TBL_SHOWQUESTIONS = "ShowQuestions";
 // Field names in ShowQuestions
 const F_EDITED_BY_HOST = "Edited by host";
 const F_EDITED_QUESTION = "Edited question";
-const F_EDITED_NOTES = "Edited notes";
+const F_EDITED_Q_NOTES = "Edited question notes";
 const F_EDITED_PRONUNCIATION = "Edited pronunciation guide";
 const F_EDITED_ANSWER = "Edited answer";
+const F_EDITED_A_NOTES = "Edited answer notes";
 
 // Airtable base
 const base = new Airtable({ apiKey: AIRTABLE_TOKEN }).base(AIRTABLE_BASE_ID);
@@ -27,8 +28,8 @@ const chunk = (arr, size = 10) => {
 
 /**
  * Update ShowQuestions with edits
- * @param {Array} edits - Array of { showQuestionId, question?, notes?, pronunciationGuide?, answer? }
- * Maps to Airtable fields: "Edited question", "Edited notes", "Edited pronunciation guide", "Edited answer"
+ * @param {Array} edits - Array of { showQuestionId, question?, questionNotes?, answerNotes?, pronunciationGuide?, answer? }
+ * Maps to Airtable fields: "Edited question", "Edited question notes", "Edited answer notes", "Edited pronunciation guide", "Edited answer"
  */
 async function updateShowQuestionEdits(edits) {
   if (!edits || !edits.length) return;
@@ -46,8 +47,8 @@ async function updateShowQuestionEdits(edits) {
       if (edit.question !== undefined && edit.question !== null) {
         fields[F_EDITED_QUESTION] = String(edit.question);
       }
-      if (edit.notes !== undefined && edit.notes !== null) {
-        fields[F_EDITED_NOTES] = String(edit.notes);
+      if (edit.questionNotes !== undefined && edit.questionNotes !== null) {
+        fields[F_EDITED_Q_NOTES] = String(edit.questionNotes);
       }
       if (
         edit.pronunciationGuide !== undefined &&
@@ -57,6 +58,9 @@ async function updateShowQuestionEdits(edits) {
       }
       if (edit.answer !== undefined && edit.answer !== null) {
         fields[F_EDITED_ANSWER] = String(edit.answer);
+      }
+      if (edit.answerNotes !== undefined && edit.answerNotes !== null) {
+        fields[F_EDITED_A_NOTES] = String(edit.answerNotes);
       }
 
       return {
@@ -101,9 +105,10 @@ exports.handler = async function handler(event) {
       (e) =>
         !e.showQuestionId ||
         (e.question === undefined &&
-          e.notes === undefined &&
+          e.questionNotes === undefined &&
+          e.answerNotes === undefined &&
           e.pronunciationGuide === undefined &&
-          e.answer === undefined)
+          e.answer === undefined),
     );
 
     if (invalidEdits.length) {

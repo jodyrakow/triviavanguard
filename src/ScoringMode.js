@@ -52,7 +52,7 @@ const loadGridFromSupabase = async (showId) => {
   try {
     console.log("🔵 SUPABASE LOAD: Fetching grid for show", showId);
     const res = await fetch(
-      `/.netlify/functions/supaLoadScoringCells?showId=${encodeURIComponent(showId)}`
+      `/.netlify/functions/supaLoadScoringCells?showId=${encodeURIComponent(showId)}`,
     );
     if (!res.ok) {
       console.error("Failed to load grid:", await res.text());
@@ -118,7 +118,7 @@ const loadShowTeamsFromSupabase = async (showId) => {
   try {
     console.log("🔵 SUPABASE LOAD SHOWTEAMS: Fetching for show", showId);
     const res = await fetch(
-      `/.netlify/functions/supaLoadShowTeams?showId=${encodeURIComponent(showId)}`
+      `/.netlify/functions/supaLoadShowTeams?showId=${encodeURIComponent(showId)}`,
     );
     if (!res.ok) {
       console.error("Failed to load ShowTeams:", await res.text());
@@ -203,8 +203,9 @@ export default function ScoringMode({
       questionId: (Array.isArray(q.questionId) && q.questionId[0]) || null,
       order: q.questionOrder,
       text: q.questionText || "",
-      notes: q.questionNotes || "",
+      questionNotes: q.questionNotes || "",
       answer: q.answer || "",
+      answerNotes: q.answerNotes || "",
       pubPerQuestion:
         typeof q.pointsPerQuestion === "number" ? q.pointsPerQuestion : null,
       // Bonus click-cycle fields
@@ -274,7 +275,7 @@ export default function ScoringMode({
   const removeTeam = (showTeamId) => {
     const hasAnyScores =
       Object.values(grid[showTeamId] || {}).some(
-        (c) => c?.isCorrect || (c?.bonusCount ?? 0) !== 0
+        (c) => c?.isCorrect || (c?.bonusCount ?? 0) !== 0,
       ) ||
       (teams.find((t) => t.showTeamId === showTeamId)?.showBonus ?? 0) !== 0;
 
@@ -283,7 +284,7 @@ export default function ScoringMode({
     const ok = window.confirm(
       hasAnyScores
         ? `Delete “${name}” and all their scores/bonuses for this round? This cannot be undone.`
-        : `Delete “${name}”?`
+        : `Delete “${name}”?`,
     );
     if (!ok) return;
 
@@ -344,7 +345,10 @@ export default function ScoringMode({
     setSupabaseLoaded(false);
 
     const loadFromSupabase = async () => {
-      console.log("🔵 SUPABASE: Loading teams and grid for show", selectedShowId);
+      console.log(
+        "🔵 SUPABASE: Loading teams and grid for show",
+        selectedShowId,
+      );
 
       // Load teams from Supabase
       const supabaseTeams = await loadShowTeamsFromSupabase(selectedShowId);
@@ -358,7 +362,11 @@ export default function ScoringMode({
       // Load grid from Supabase
       const supabaseGrid = await loadGridFromSupabase(selectedShowId);
       if (supabaseGrid) {
-        console.log("🔵 SUPABASE: Loaded grid with", Object.keys(supabaseGrid).length, "teams");
+        console.log(
+          "🔵 SUPABASE: Loaded grid with",
+          Object.keys(supabaseGrid).length,
+          "teams",
+        );
         setGrid(supabaseGrid);
       }
 
@@ -371,7 +379,10 @@ export default function ScoringMode({
   useEffect(() => {
     if (!supabase || !selectedShowId) return;
 
-    console.log("🟣 SUPABASE REALTIME: Subscribing to scoring_cells for show", selectedShowId);
+    console.log(
+      "🟣 SUPABASE REALTIME: Subscribing to scoring_cells for show",
+      selectedShowId,
+    );
     const channel = supabase
       .channel(`scoring_cells:${selectedShowId}`)
       .on(
@@ -389,9 +400,17 @@ export default function ScoringMode({
           console.log("🟣 SUPABASE REALTIME UPDATE:", {
             team: newRow.show_team_id,
             question: newRow.show_question_id,
-            isCorrect: newRow.is_correct
+            isCorrect: newRow.is_correct,
           });
-          const { show_team_id, show_question_id, is_correct, bonus_count, partial_count, tiebreaker_guess, tiebreaker_guess_raw } = newRow;
+          const {
+            show_team_id,
+            show_question_id,
+            is_correct,
+            bonus_count,
+            partial_count,
+            tiebreaker_guess,
+            tiebreaker_guess_raw,
+          } = newRow;
 
           setGrid((prev) => {
             const byTeam = prev[show_team_id] ? { ...prev[show_team_id] } : {};
@@ -404,7 +423,7 @@ export default function ScoringMode({
             };
             return { ...prev, [show_team_id]: byTeam };
           });
-        }
+        },
       )
       .subscribe();
 
@@ -417,7 +436,10 @@ export default function ScoringMode({
   useEffect(() => {
     if (!supabase || !selectedShowId) return;
 
-    console.log("🟣 SUPABASE REALTIME: Subscribing to show_teams for show", selectedShowId);
+    console.log(
+      "🟣 SUPABASE REALTIME: Subscribing to show_teams for show",
+      selectedShowId,
+    );
     const channel = supabase
       .channel(`show_teams:${selectedShowId}`)
       .on(
@@ -463,11 +485,16 @@ export default function ScoringMode({
           };
 
           setTeams((prev) => {
-            const existingIdx = prev.findIndex((t) => t.showTeamId === showTeamId);
+            const existingIdx = prev.findIndex(
+              (t) => t.showTeamId === showTeamId,
+            );
             if (existingIdx >= 0) {
               // Update existing team
               const updated = [...prev];
-              updated[existingIdx] = { ...updated[existingIdx], ...updatedTeam };
+              updated[existingIdx] = {
+                ...updated[existingIdx],
+                ...updatedTeam,
+              };
               return updated;
             } else {
               // Add new team
@@ -482,7 +509,7 @@ export default function ScoringMode({
             }
             return prev;
           });
-        }
+        },
       )
       .subscribe();
 
@@ -515,12 +542,12 @@ export default function ScoringMode({
       return [...teams].sort((a, b) =>
         (a.teamName || "").localeCompare(b.teamName || "", "en", {
           sensitivity: "base",
-        })
+        }),
       );
     }
     const pos = new Map(entryOrder.map((id, i) => [id, i]));
     return [...teams].sort(
-      (a, b) => (pos.get(a.showTeamId) ?? 1e9) - (pos.get(b.showTeamId) ?? 1e9)
+      (a, b) => (pos.get(a.showTeamId) ?? 1e9) - (pos.get(b.showTeamId) ?? 1e9),
     );
   }, [teams, sortMode, entryOrder]);
 
@@ -557,7 +584,7 @@ export default function ScoringMode({
           return updatedTeam;
         }
         return t;
-      })
+      }),
     );
 
     // Save to Supabase
@@ -575,7 +602,7 @@ export default function ScoringMode({
           return updatedTeam;
         }
         return t;
-      })
+      }),
     );
 
     // Save to Supabase
@@ -587,8 +614,8 @@ export default function ScoringMode({
   const setFactionPledge = (showTeamId, factionPledge) => {
     setTeams((prev) =>
       prev.map((t) =>
-        t.showTeamId === showTeamId ? { ...t, factionPledge } : t
-      )
+        t.showTeamId === showTeamId ? { ...t, factionPledge } : t,
+      ),
     );
     try {
       window.sendFactionPledge?.({
@@ -614,7 +641,7 @@ export default function ScoringMode({
       // Find team and question by ID instead of index to avoid stale closure issues
       const t = teams.find((team) => team.showTeamId === showTeamId);
       const q = questions.find(
-        (question) => question.showQuestionId === showQuestionId
+        (question) => question.showQuestionId === showQuestionId,
       );
       if (!t || !q) return;
 
@@ -635,7 +662,7 @@ export default function ScoringMode({
 
           if (currentPartial < q.numParts) {
             nextPartialCount = currentPartial + 1;
-            nextOn = (nextPartialCount === q.numParts);
+            nextOn = nextPartialCount === q.numParts;
           } else {
             // Already at max — cycle back to wrong
             nextPartialCount = 0;
@@ -685,7 +712,7 @@ export default function ScoringMode({
         return { ...prev, [showTeamId]: byTeam };
       });
     },
-    [teams, questions, selectedShowId, selectedRoundId]
+    [teams, questions, selectedShowId, selectedRoundId],
   );
 
   // Mark all cells in a question row as "passed" (reviewed but not clicked)
@@ -697,21 +724,28 @@ export default function ScoringMode({
         let anyChanges = false;
 
         for (const t of teams) {
-          const byTeam = updated[t.showTeamId] ? { ...updated[t.showTeamId] } : {};
+          const byTeam = updated[t.showTeamId]
+            ? { ...updated[t.showTeamId] }
+            : {};
           // Only mark if cell doesn't exist yet
           if (!byTeam[showQuestionId]) {
             byTeam[showQuestionId] = { isCorrect: false, passed: true };
             updated[t.showTeamId] = byTeam;
             anyChanges = true;
             // Save to Supabase
-            saveCellToSupabase(selectedShowId, t.showTeamId, showQuestionId, byTeam[showQuestionId]);
+            saveCellToSupabase(
+              selectedShowId,
+              t.showTeamId,
+              showQuestionId,
+              byTeam[showQuestionId],
+            );
           }
         }
 
         return anyChanges ? updated : prev;
       });
     },
-    [teams, selectedShowId]
+    [teams, selectedShowId],
   );
 
   useEffect(() => {
@@ -897,7 +931,7 @@ export default function ScoringMode({
       poolContribution: Number(poolContribution || 0),
       teamCount: teams.length,
     }),
-    [scoringMode, pubPoints, poolPerQuestion, poolContribution, teams.length]
+    [scoringMode, pubPoints, poolPerQuestion, poolContribution, teams.length],
   );
 
   const earnedFor = useCallback(
@@ -927,16 +961,17 @@ export default function ScoringMode({
       const questionBonus = q?.bonusAvailable
         ? { bonusValue: q.bonusValue, maxBonuses: q.maxBonuses }
         : null;
-      const questionPartial = q?.partialCreditAvailable && q?.numParts > 0
-        ? { numParts: q.numParts }
-        : null;
+      const questionPartial =
+        q?.partialCreditAvailable && q?.numParts > 0
+          ? { numParts: q.numParts }
+          : null;
 
       return computeCellPoints(
         adaptedCell,
         config,
         correctCount,
         questionBonus,
-        questionPartial
+        questionPartial,
       );
     },
     [
@@ -944,7 +979,7 @@ export default function ScoringMode({
       scoringConfig,
       pubPerQuestionByShowQ,
       questions,
-    ]
+    ],
   );
 
   // Adapt grid format for buildTeamTotals utility
@@ -971,7 +1006,7 @@ export default function ScoringMode({
       questions,
       adaptedGrid,
       scoringConfig,
-      correctCountByShowQuestionId
+      correctCountByShowQuestionId,
     );
   }, [
     teams,
@@ -993,7 +1028,7 @@ export default function ScoringMode({
           return updatedTeam;
         }
         return t;
-      })
+      }),
     );
 
     // Save to Supabase
@@ -1028,8 +1063,8 @@ export default function ScoringMode({
       const { showTeamId, teamId, teamName: finalName } = await res.json();
 
       const newTeam = {
-        showTeamId,  // Real Airtable ShowTeam ID
-        teamId,      // Real Airtable Team ID
+        showTeamId, // Real Airtable ShowTeam ID
+        teamId, // Real Airtable Team ID
         teamName: finalName || trimmed,
         showBonus: 0,
       };
@@ -1069,7 +1104,8 @@ export default function ScoringMode({
   // --- TB ADD: helpers to read/write tiebreaker guesses in local grid -------
   const getTBGuess = (showTeamId) => {
     if (!tiebreaker) return "";
-    const cell = grid[showTeamId]?.[(tiebreaker.showQuestionId || tiebreaker.id)] || {};
+    const cell =
+      grid[showTeamId]?.[tiebreaker.showQuestionId || tiebreaker.id] || {};
     if (typeof cell.tiebreakerGuessRaw === "string")
       return cell.tiebreakerGuessRaw;
     if (
@@ -1092,11 +1128,14 @@ export default function ScoringMode({
 
     setGrid((prev) => {
       const byTeam = prev[showTeamId] ? { ...prev[showTeamId] } : {};
-      const cell = byTeam[(tiebreaker.showQuestionId || tiebreaker.id)] || {
+      const cell = byTeam[tiebreaker.showQuestionId || tiebreaker.id] || {
         isCorrect: false,
         bonusCount: 0,
       };
-      byTeam[(tiebreaker.showQuestionId || tiebreaker.id)] = { ...cell, tiebreakerGuessRaw: raw };
+      byTeam[tiebreaker.showQuestionId || tiebreaker.id] = {
+        ...cell,
+        tiebreakerGuessRaw: raw,
+      };
       return { ...prev, [showTeamId]: byTeam };
     });
 
@@ -1111,7 +1150,7 @@ export default function ScoringMode({
 
     setGrid((prev) => {
       const byTeam = prev[showTeamId] ? { ...prev[showTeamId] } : {};
-      const cell = byTeam[(tiebreaker.showQuestionId || tiebreaker.id)] || {
+      const cell = byTeam[tiebreaker.showQuestionId || tiebreaker.id] || {
         isCorrect: false,
         bonusCount: 0,
       };
@@ -1302,8 +1341,8 @@ export default function ScoringMode({
               marginRight: "1rem",
             }}
           >
-            {socialsData.count} social{socialsData.count !== 1 ? "s" : ""} this round:{" "}
-            #{socialsData.questionLabels.join(", #")}
+            {socialsData.count} social{socialsData.count !== 1 ? "s" : ""} this
+            round: #{socialsData.questionLabels.join(", #")}
           </div>
         )}
       </div>
@@ -1577,7 +1616,7 @@ export default function ScoringMode({
                           onChange={(e) => {
                             setFactionPledge(
                               t.showTeamId,
-                              e.target.value || null
+                              e.target.value || null,
                             );
                           }}
                           style={{
@@ -1778,7 +1817,12 @@ export default function ScoringMode({
 
                   // Determine tile state: correct with bonus, partial credit, correct, or wrong
                   let tileState = tileStates.wrong;
-                  if (q.partialCreditAvailable && numParts > 0 && partialCount > 0 && !on) {
+                  if (
+                    q.partialCreditAvailable &&
+                    numParts > 0 &&
+                    partialCount > 0 &&
+                    !on
+                  ) {
                     tileState = tileStates.partialCredit;
                   } else if (on && bonusCount > 0) {
                     tileState = tileStates.correctWithBonus;
@@ -1797,7 +1841,9 @@ export default function ScoringMode({
                     ...(q.partialCreditAvailable && numParts > 0
                       ? {
                           borderColor: "#8896A4",
-                          ...(!on && partialCount === 0 ? { background: "#F0F2F5" } : null),
+                          ...(!on && partialCount === 0
+                            ? { background: "#F0F2F5" }
+                            : null),
                         }
                       : null),
                     // Dark blue border for questions with bonus available
@@ -2020,7 +2066,7 @@ export default function ScoringMode({
                     try {
                       const res = await fetch(
                         `/.netlify/functions/searchTeams?q=${encodeURIComponent(val)}`,
-                        { signal: controller.signal }
+                        { signal: controller.signal },
                       );
                       const json = await res.json();
 
@@ -2125,7 +2171,13 @@ export default function ScoringMode({
 
             {/* Loading indicator */}
             {isCreatingTeam && (
-              <div style={{ padding: "0.5rem", textAlign: "center", color: theme.accent }}>
+              <div
+                style={{
+                  padding: "0.5rem",
+                  textAlign: "center",
+                  color: theme.accent,
+                }}
+              >
                 Adding team...
               </div>
             )}
@@ -2150,7 +2202,9 @@ export default function ScoringMode({
                   opacity: isCreatingTeam || !teamInput.trim() ? 0.6 : 1,
                 }}
               >
-                {isCreatingTeam ? "Adding..." : `Add "${teamInput || "Unnamed"}"`}
+                {isCreatingTeam
+                  ? "Adding..."
+                  : `Add "${teamInput || "Unnamed"}"`}
               </button>
               <button
                 disabled={isCreatingTeam}
