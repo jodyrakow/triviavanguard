@@ -294,7 +294,7 @@ export default function App() {
   const [navAudioIndex, setNavAudioIndex] = useState(0); // current audio index when cycling
   const [navGoToInput, setNavGoToInput] = useState(""); // "go to" input value
   const [previewMinimized, setPreviewMinimized] = useState(false); // hide iframe, keep controls visible
-  const [panelSize, setPanelSize] = useState("S"); // S=460px, M=580px, L=720px, XL=940px panel width
+  const [panelSize, setPanelSize] = useState("M"); // S=460px, M=580px, L=720px, XL=940px panel width
   const sharedAudioRef = useRef(null);
   const [sharedAudioUrl, setSharedAudioUrl] = useState("");
   const [sharedAudioPlaying, setSharedAudioPlaying] = useState(false);
@@ -2738,7 +2738,7 @@ export default function App() {
                       {label}
                     </button>
                   );
-                  const arrowBtn = (label, onClick, disabled) => (
+                  const arrowBtn = (label, onClick, disabled, extraStyle = {}) => (
                     <button
                       onClick={disabled ? undefined : onClick}
                       disabled={disabled}
@@ -2749,6 +2749,7 @@ export default function App() {
                         minWidth: "1.4rem",
                         opacity: disabled ? 0.25 : 1,
                         cursor: disabled ? "default" : "pointer",
+                        ...extraStyle,
                       }}
                     >
                       {label}
@@ -2766,32 +2767,32 @@ export default function App() {
                         {modeBtn("Answers", navIsAnswerMode, toggleNavMode)}
                       </div>
 
-                      {/* Center column: info box only — full height */}
+                      {/* Center column: info box only — full height, text centered */}
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-                        <div style={{ background: "#fff", borderRadius: ".5rem", padding: ".3rem .6rem", minWidth: 0, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                          <div style={{ fontWeight: 700, fontSize: ".85rem", color: colors.dark, fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div style={{ background: "#fff", borderRadius: ".5rem", padding: ".3rem .6rem", minWidth: 0, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                          <div style={{ fontWeight: 700, fontSize: ".85rem", color: colors.dark, fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center" }}>
                             {navStarted ? navCurrentLabel : `▶ ${navCurrentLabel}`}
                           </div>
                           {navStarted && navNextLabel && (
-                            <div style={{ fontSize: ".72rem", color: "#888", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <div style={{ fontSize: ".72rem", color: "#888", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center" }}>
                               next: {navNextLabel}
                             </div>
                           )}
                         </div>
                       </div>
 
-                      {/* Timer column: timer row + go-to row + nav arrows */}
-                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: ".25rem" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: ".25rem" }}>
-                          <button onClick={handleReset} style={{ ...btnBase }}>Reset</button>
-                          <span style={{ fontSize: "1rem", fontWeight: "bold", fontFamily: tokens.font.body, minWidth: "2.5rem", textAlign: "center", color: timerRunning ? colors.accent : "#fff" }}>
-                            {timeLeft !== null ? `${timeLeft}s` : "--"}
-                          </span>
-                          <button onClick={handleStartPause} style={{ ...btnBase, border: `1px solid ${colors.accent}`, background: colors.accent }}>
-                            {timerRunning ? "Pause" : "Start"}
-                          </button>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: ".25rem" }}>
+                      {/* Timer+nav section: 3-column grid so Reset/35s/Start sit above go-to+input/←/→ */}
+                      <div style={{ display: "grid", gridTemplateColumns: "auto auto auto", gap: ".25rem", alignItems: "center" }}>
+                        {/* Row 1 */}
+                        <button onClick={handleReset} style={{ ...btnBase }}>Reset</button>
+                        <span style={{ fontSize: "1rem", fontWeight: "bold", fontFamily: tokens.font.body, textAlign: "center", color: timerRunning ? colors.accent : "#fff", justifySelf: "center" }}>
+                          {timeLeft !== null ? `${timeLeft}s` : "--"}
+                        </span>
+                        <button onClick={handleStartPause} style={{ ...btnBase, border: `1px solid ${colors.accent}`, background: colors.accent }}>
+                          {timerRunning ? "Pause" : "Start"}
+                        </button>
+                        {/* Row 2 */}
+                        <div style={{ display: "flex", alignItems: "center", gap: ".2rem" }}>
                           <span style={{ fontSize: ".72rem", color: "#aaa", flexShrink: 0, fontFamily: tokens.font.body }}>go to</span>
                           <input
                             value={navGoToInput}
@@ -2799,7 +2800,7 @@ export default function App() {
                             onKeyDown={(e) => { if (e.key === "Enter") navGoTo(); }}
                             placeholder="#"
                             style={{
-                              width: "3rem",
+                              width: "2.5rem",
                               fontSize: ".8rem",
                               padding: ".2rem .35rem",
                               borderRadius: ".3rem",
@@ -2809,14 +2810,14 @@ export default function App() {
                               fontFamily: tokens.font.body,
                             }}
                           />
-                          {arrowBtn("←", navBackward, navActiveList.length === 0 || navAtStart)}
-                          {arrowBtn(navStarted ? "→" : "▶", navForward, navActiveList.length === 0 || navAtEnd)}
                         </div>
+                        {arrowBtn("←", navBackward, navActiveList.length === 0 || navAtStart, { width: "100%" })}
+                        {arrowBtn(navStarted ? "→" : "▶", navForward, navActiveList.length === 0 || navAtEnd, { width: "100%" })}
                       </div>
 
-                      {/* Audio column: < > arrows above ♪ button */}
+                      {/* Audio column: ‹ › arrows above ♪ button */}
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: ".25rem" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", width: "3rem" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", width: "4rem" }}>
                           {arrowBtn("‹", () => cycleNavAudio(-1), !multiAudio || navAudioIndex === 0)}
                           {arrowBtn("›", () => cycleNavAudio(1), !multiAudio || navAudioIndex >= currentNavAudio.length - 1)}
                         </div>
@@ -2826,7 +2827,7 @@ export default function App() {
                           title={!hasAudio ? "No audio" : isPlaying ? "Stop audio" : "Play audio"}
                           style={{
                             ...btnBase,
-                            width: "3rem",
+                            width: "4rem",
                             border: `1px solid ${isPlaying ? colors.accent : "#888"}`,
                             background: isPlaying ? colors.accent : "transparent",
                             color: hasAudio ? "#fff" : "#555",
@@ -2838,9 +2839,9 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* Image column: < > arrows above ▣ button */}
+                      {/* Image column: ‹ › arrows above ▣ button */}
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: ".25rem" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", width: "3rem" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", width: "4rem" }}>
                           {arrowBtn("‹", () => cycleNavImage(-1), !multiImg || navImageIndex === 0)}
                           {arrowBtn("›", () => cycleNavImage(1), !multiImg || navImageIndex >= imgCount - 1)}
                         </div>
@@ -2850,7 +2851,7 @@ export default function App() {
                           title={!hasImg ? "No image" : navImageVisible ? "Hide image" : "Show image"}
                           style={{
                             ...btnBase,
-                            width: "3rem",
+                            width: "4rem",
                             border: `1px solid ${navImageVisible ? colors.accent : "#888"}`,
                             background: navImageVisible ? colors.accent : "transparent",
                             color: hasImg ? "#fff" : "#555",
