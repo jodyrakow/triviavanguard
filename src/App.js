@@ -2781,10 +2781,10 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Timer+nav section: two explicit rows with matched column widths */}
+                      {/* Timer+nav section: two rows; "go to" label floats left with nothing above it */}
                       <div style={{ display: "flex", flexDirection: "column", gap: ".25rem" }}>
-                        {/* Row 1: Reset | 35s | Start */}
-                        <div style={{ display: "flex", alignItems: "center", gap: ".25rem" }}>
+                        {/* Row 1: indent by "go to" label width so Reset sits above the input */}
+                        <div style={{ display: "flex", alignItems: "center", gap: ".25rem", paddingLeft: "2.75rem" }}>
                           <button onClick={handleReset} style={{ ...btnBase, width: "4.5rem" }}>Reset</button>
                           <span style={{ width: "3rem", textAlign: "center", fontSize: "1rem", fontWeight: "bold", fontFamily: tokens.font.body, color: timerRunning ? colors.accent : "#fff" }}>
                             {timeLeft !== null ? `${timeLeft}s` : "--"}
@@ -2793,28 +2793,26 @@ export default function App() {
                             {timerRunning ? "Pause" : "Start"}
                           </button>
                         </div>
-                        {/* Row 2: go to + input (same width as Reset) | ← (same width as 35s) | → (same width as Start) */}
+                        {/* Row 2: "go to" floats left (nothing above it), input aligns under Reset */}
                         <div style={{ display: "flex", alignItems: "center", gap: ".25rem" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: ".2rem", width: "4.5rem" }}>
-                            <span style={{ fontSize: ".72rem", color: "#aaa", flexShrink: 0, fontFamily: tokens.font.body }}>go to</span>
-                            <input
-                              value={navGoToInput}
-                              onChange={(e) => setNavGoToInput(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === "Enter") navGoTo(); }}
-                              placeholder="#"
-                              style={{
-                                flex: 1,
-                                minWidth: 0,
-                                fontSize: ".8rem",
-                                padding: ".2rem .35rem",
-                                borderRadius: ".3rem",
-                                border: "1px solid #555",
-                                background: "rgba(255,255,255,0.1)",
-                                color: "#fff",
-                                fontFamily: tokens.font.body,
-                              }}
-                            />
-                          </div>
+                          <span style={{ width: "2.5rem", flexShrink: 0, fontSize: ".72rem", color: "#aaa", fontFamily: tokens.font.body, textAlign: "right" }}>go to</span>
+                          <input
+                            value={navGoToInput}
+                            onChange={(e) => setNavGoToInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") navGoTo(); }}
+                            placeholder="#"
+                            style={{
+                              width: "4.5rem",
+                              flexShrink: 0,
+                              fontSize: ".8rem",
+                              padding: ".2rem .35rem",
+                              borderRadius: ".3rem",
+                              border: "1px solid #555",
+                              background: "rgba(255,255,255,0.1)",
+                              color: "#fff",
+                              fontFamily: tokens.font.body,
+                            }}
+                          />
                           {arrowBtn("←", navBackward, navActiveList.length === 0 || navAtStart, { width: "3rem" })}
                           {arrowBtn(navStarted ? "→" : "▶", navForward, navActiveList.length === 0 || navAtEnd, { width: "3rem" })}
                         </div>
