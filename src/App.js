@@ -308,6 +308,7 @@ export default function App() {
   // Supabase channel for broadcasting to the display window
   const displayBroadcastRef = useRef(null);
   const previewIframeRef = useRef(null);
+  const navSyncFromRemoteRef = useRef(false); // true while applying a remote navSync, to prevent re-broadcast
 
   // On mount: check localStorage for saved host identity, verify against Supabase
   useEffect(() => {
@@ -944,6 +945,19 @@ export default function App() {
         } catch {}
         return next;
       });
+    });
+
+    // NAV SYNC — keeps all co-hosts' control panels in sync
+    ch.on("broadcast", { event: "navSync" }, (msg) => {
+      const data = msg?.payload ?? msg;
+      const { showId, navIsAnswerMode: mode, navIndex: idx, navAnswerStage: stage, navStarted: started } = data || {};
+      if (!showId || showId !== currentShowIdRef.current) return;
+      navSyncFromRemoteRef.current = true;
+      setNavIsAnswerMode(mode);
+      setNavIndex(idx);
+      setNavAnswerStage(stage);
+      setNavStarted(started);
+      navSyncFromRemoteRef.current = false;
     });
 
     // TIEBREAKER ADDED
@@ -1618,6 +1632,19 @@ console.log(
     setNavAnswerStage(0);
     setNavStarted(false);
   }, [showBundle, selectedRoundId]);
+
+  // Broadcast nav state to co-hosts whenever it changes (skip if we're applying a remote sync)
+  useEffect(() => {
+    if (navSyncFromRemoteRef.current) return;
+    if (!window.tvSend || !window._tvReady) return;
+    window.tvSend("navSync", {
+      showId: currentShowIdRef.current,
+      navIsAnswerMode,
+      navIndex,
+      navAnswerStage,
+      navStarted,
+    });
+  }, [navIsAnswerMode, navIndex, navAnswerStage, navStarted]);
 
   // Push a questions-mode item to the display
   const pushNavItem = useCallback((item) => {
