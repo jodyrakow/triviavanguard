@@ -2803,6 +2803,7 @@ export default function App() {
                             placeholder="#"
                             style={{
                               width: "3rem",
+                              boxSizing: "border-box",
                               flexShrink: 0,
                               fontSize: ".8rem",
                               padding: ".2rem .35rem",
