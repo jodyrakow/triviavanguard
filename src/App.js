@@ -321,6 +321,7 @@ export default function App() {
   // venueShowId: stable key for the venue's display channel — "{locationRecordId}:{date}"
   // Persisted to localStorage so co-host sessions survive refresh
   const [venueShowId, setVenueShowId] = useState(() => localStorage.getItem("tv_venueShowId") || null);
+  const [venueName, setVenueName] = useState(() => localStorage.getItem("tv_venueName") || null);
 
   // Active displays detected via Supabase Presence on "tv:displays"
   const [activeDisplays, setActiveDisplays] = useState([]);
@@ -482,15 +483,18 @@ export default function App() {
   const openDisplayWindow = useCallback((vid) => {
     const alreadyOpen = activeDisplays.some((d) => d.venueShowId === vid);
     if (alreadyOpen) return;
-    const url = `${window.location.origin}?display&venueShowId=${vid}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}`;
+    const name = localStorage.getItem("tv_venueName") || "";
+    const url = `${window.location.origin}?display&venueShowId=${vid}&venueName=${encodeURIComponent(name)}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}`;
     const win = window.open(url, `display:${vid}`, "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no");
     if (win) win.focus();
   }, [activeDisplays, hostId, hostName]);
 
   // Select a venue — sets channel, persists, opens controls + display window
-  const selectVenue = useCallback((vid, venueName) => {
+  const selectVenue = useCallback((vid, name) => {
     setVenueShowId(vid);
+    setVenueName(name);
     localStorage.setItem("tv_venueShowId", vid);
+    localStorage.setItem("tv_venueName", name);
     setVenuePickerOpen(false);
     setDisplayControlsOpen(true);
     openDisplayWindow(vid);
@@ -3965,6 +3969,37 @@ export default function App() {
                 No shows found for today.
               </p>
             )}
+
+            {(() => {
+              const activeVenues = [...new Map(activeDisplays.map((d) => [d.venueShowId, d])).values()];
+              if (activeVenues.length === 0) return null;
+              return (
+                <div style={{ marginBottom: "1rem" }}>
+                  <p style={{ fontWeight: 600, fontSize: ".8rem", color: "#888", fontFamily: tokens.font.body, marginBottom: ".4rem", textTransform: "uppercase", letterSpacing: ".04em" }}>
+                    Currently active
+                  </p>
+                  {activeVenues.map((d) => (
+                    <Button
+                      key={d.venueShowId}
+                      onClick={() => selectVenue(d.venueShowId, d.venueName || d.venueShowId)}
+                      style={{
+                        width: "100%",
+                        marginBottom: "0.4rem",
+                        background: venueShowId === d.venueShowId ? colors.accent : undefined,
+                        color: venueShowId === d.venueShowId ? "#fff" : undefined,
+                      }}
+                    >
+                      {d.venueName || d.venueShowId}
+                    </Button>
+                  ))}
+                  {venuePickerOptions.length > 0 && (
+                    <p style={{ fontWeight: 600, fontSize: ".8rem", color: "#888", fontFamily: tokens.font.body, margin: ".8rem 0 .4rem", textTransform: "uppercase", letterSpacing: ".04em" }}>
+                      Tonight's shows
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {!venuePickerLoading && (
               <form

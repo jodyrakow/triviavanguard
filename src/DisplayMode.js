@@ -19,6 +19,7 @@ export default function DisplayMode() {
   // Read params from URL (?display&venueShowId=xxx&hostId=yyy&hostName=zzz&viewer=1)
   const params = new URLSearchParams(window.location.search);
   const urlVenueShowId = params.get("venueShowId");
+  const urlVenueName = decodeURIComponent(params.get("venueName") || "");
   const urlHostId = params.get("hostId");
   const urlHostName = decodeURIComponent(params.get("hostName") || "");
   const isViewer = params.get("viewer") === "1";
@@ -69,7 +70,7 @@ export default function DisplayMode() {
       presenceCh = supabase.channel("tv:displays");
       presenceCh.subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await presenceCh.track({ venueShowId: urlVenueShowId, hostId: urlHostId, hostName: urlHostName });
+          await presenceCh.track({ venueShowId: urlVenueShowId, venueName: urlVenueName, hostId: urlHostId, hostName: urlHostName });
         }
       });
     }
