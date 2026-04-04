@@ -2766,9 +2766,8 @@ export default function App() {
                         {modeBtn("Answers", navIsAnswerMode, toggleNavMode)}
                       </div>
 
-                      {/* Center column: info box + go-to row */}
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".25rem", minWidth: 0 }}>
-                        {/* Info box */}
+                      {/* Center column: info box only — full height */}
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
                         <div style={{ background: "#fff", borderRadius: ".5rem", padding: ".3rem .6rem", minWidth: 0, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
                           <div style={{ fontWeight: 700, fontSize: ".85rem", color: colors.dark, fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {navStarted ? navCurrentLabel : `▶ ${navCurrentLabel}`}
@@ -2779,7 +2778,19 @@ export default function App() {
                             </div>
                           )}
                         </div>
-                        {/* Go-to + nav arrows */}
+                      </div>
+
+                      {/* Timer column: timer row + go-to row + nav arrows */}
+                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: ".25rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: ".25rem" }}>
+                          <button onClick={handleReset} style={{ ...btnBase }}>Reset</button>
+                          <span style={{ fontSize: "1rem", fontWeight: "bold", fontFamily: tokens.font.body, minWidth: "2.5rem", textAlign: "center", color: timerRunning ? colors.accent : "#fff" }}>
+                            {timeLeft !== null ? `${timeLeft}s` : "--"}
+                          </span>
+                          <button onClick={handleStartPause} style={{ ...btnBase, border: `1px solid ${colors.accent}`, background: colors.accent }}>
+                            {timerRunning ? "Pause" : "Start"}
+                          </button>
+                        </div>
                         <div style={{ display: "flex", alignItems: "center", gap: ".25rem" }}>
                           <span style={{ fontSize: ".72rem", color: "#aaa", flexShrink: 0, fontFamily: tokens.font.body }}>go to</span>
                           <input
@@ -2788,8 +2799,7 @@ export default function App() {
                             onKeyDown={(e) => { if (e.key === "Enter") navGoTo(); }}
                             placeholder="#"
                             style={{
-                              flex: 1,
-                              minWidth: 0,
+                              width: "3rem",
                               fontSize: ".8rem",
                               padding: ".2rem .35rem",
                               borderRadius: ".3rem",
@@ -2801,19 +2811,6 @@ export default function App() {
                           />
                           {arrowBtn("←", navBackward, navActiveList.length === 0 || navAtStart)}
                           {arrowBtn(navStarted ? "→" : "▶", navForward, navActiveList.length === 0 || navAtEnd)}
-                        </div>
-                      </div>
-
-                      {/* Timer column */}
-                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-start", gap: ".25rem" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: ".25rem" }}>
-                          <button onClick={handleReset} style={{ ...btnBase }}>Reset</button>
-                          <span style={{ fontSize: "1rem", fontWeight: "bold", fontFamily: tokens.font.body, minWidth: "2.5rem", textAlign: "center", color: timerRunning ? colors.accent : "#fff" }}>
-                            {timeLeft !== null ? `${timeLeft}s` : "--"}
-                          </span>
-                          <button onClick={handleStartPause} style={{ ...btnBase, border: `1px solid ${colors.accent}`, background: colors.accent }}>
-                            {timerRunning ? "Pause" : "Start"}
-                          </button>
                         </div>
                       </div>
 
