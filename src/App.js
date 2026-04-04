@@ -11,7 +11,6 @@ import "./App.css";
 import "react-h5-audio-player/lib/styles.css";
 import Draggable from "react-draggable";
 import QuestionsMode from "./QuestionsMode";
-import SharedAudioPlayer from "./SharedAudioPlayer";
 import ScoringMode from "./ScoringMode";
 import ResultsMode from "./ResultsMode";
 import Sidebar from "./Sidebar";
@@ -80,7 +79,6 @@ export default function App() {
   const [currentImageIndex, setCurrentImageIndex] = useState({});
   const [carouselActive, setCarouselActive] = useState(false);
   const timerRef = useRef(null);
-  const displayControlsRef = useRef(null);
   const previewPanelRef = useRef(null);
 
   const [rtStatus, setRtStatus] = useState("INIT"); // ✅ moved inside
@@ -278,10 +276,6 @@ export default function App() {
 
   // Display controls state
   const [displayControlsOpen, setDisplayControlsOpen] = useState(false);
-  const [displayControlsPosition, setDisplayControlsPosition] = useState({
-    x: 0,
-    y: 0,
-  });
   const [previewPanelPosition, setPreviewPanelPosition] = useState({
     x: 20,
     y: 20,
@@ -304,6 +298,7 @@ export default function App() {
   const [navImageIndex, setNavImageIndex] = useState(0); // current image index when cycling
   const [navAudioIndex, setNavAudioIndex] = useState(0); // current audio index when cycling
   const [navGoToInput, setNavGoToInput] = useState(""); // "go to" input value
+  const [previewMinimized, setPreviewMinimized] = useState(false); // hide iframe, keep controls visible
   const [panelSize, setPanelSize] = useState("S"); // S=460px, M=580px, L=720px, XL=940px panel width
   const sharedAudioRef = useRef(null);
   const [sharedAudioUrl, setSharedAudioUrl] = useState("");
@@ -939,14 +934,8 @@ export default function App() {
     return () => clearTimeout(t);
   }, [timerRunning, timeLeft, timerDuration]);
 
-  // Restore display controls position from localStorage
+  // Restore panel positions from localStorage
   useEffect(() => {
-    const savedPosition = localStorage.getItem("displayControlsPosition");
-    if (savedPosition) {
-      try {
-        setDisplayControlsPosition(JSON.parse(savedPosition));
-      } catch {}
-    }
     const savedPreviewPos = localStorage.getItem("previewPanelPosition");
     if (savedPreviewPos) {
       try {
@@ -2530,7 +2519,7 @@ export default function App() {
           }
           setHostInfo={(val) => patchShared({ hostInfo: val })}
           displayControlsOpen={displayControlsOpen}
-          setDisplayControlsPosition={setDisplayControlsPosition}
+
           scoringMode={scoringMode}
           setScoringMode={setScoringMode}
           pubPoints={pubPoints}
@@ -2564,7 +2553,7 @@ export default function App() {
         <img src={logo} alt="TriviaVanguard" style={{ height: "68px" }} />
       </div>
 
-      {/* Display Controls Panel (app-level, available in all modes) */}
+      {/* Unified Display Panel */}
       {displayControlsOpen && (
         <div
           style={{
@@ -2578,173 +2567,151 @@ export default function App() {
           }}
         >
           <Draggable
-            nodeRef={displayControlsRef}
-            position={displayControlsPosition}
+            nodeRef={previewPanelRef}
+            position={previewPanelPosition}
             onStop={(e, data) => {
               const newPos = { x: data.x, y: data.y };
-              setDisplayControlsPosition(newPos);
-              localStorage.setItem(
-                "displayControlsPosition",
-                JSON.stringify(newPos),
-              );
+              setPreviewPanelPosition(newPos);
+              localStorage.setItem("previewPanelPosition", JSON.stringify(newPos));
             }}
           >
             <div
-              ref={displayControlsRef}
+              ref={previewPanelRef}
               style={{
                 position: "absolute",
                 pointerEvents: "auto",
                 display: "flex",
                 flexDirection: "column",
-                gap: ".5rem",
-                width: "min(300px, calc(100vw - 2rem))",
                 backgroundColor: "#fff",
-                padding: ".6rem .7rem",
                 borderRadius: "12px",
                 boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
                 border: `2px solid ${colors.accent}`,
+                overflow: "hidden",
+                width: previewW,
               }}
             >
-              {/* Drag / title row */}
+              {/* Header: drag handle + title + S/M/L/XL + minimize + close */}
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: ".5rem",
+                  gap: ".4rem",
+                  padding: ".3rem .5rem",
                   cursor: "grab",
                   userSelect: "none",
                 }}
               >
                 <span style={{ opacity: 0.6 }}>⋮⋮</span>
-                <span
-                  style={{
-                    fontWeight: 500,
-                    color: colors.dark,
-                    fontFamily: tokens.font.body,
-                  }}
-                >
-                  Display controls
+                <span style={{ fontWeight: 500, color: colors.dark, fontFamily: tokens.font.body }}>
+                  Display
                 </span>
+                <div style={{ marginLeft: "auto", display: "flex", gap: ".2rem", cursor: "default" }}>
+                  {["S", "M", "L", "XL"].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setPanelSize(s)}
+                      style={{
+                        fontSize: ".7rem",
+                        fontFamily: tokens.font.body,
+                        fontWeight: panelSize === s ? 700 : 400,
+                        padding: ".1rem .35rem",
+                        borderRadius: ".3rem",
+                        border: `1px solid ${colors.accent}`,
+                        background: panelSize === s ? colors.accent : "transparent",
+                        color: panelSize === s ? "#fff" : colors.accent,
+                        cursor: "pointer",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPreviewMinimized((p) => !p)}
+                    title={previewMinimized ? "Show preview" : "Hide preview"}
+                    style={{
+                      fontSize: ".7rem",
+                      fontFamily: tokens.font.body,
+                      padding: ".1rem .4rem",
+                      borderRadius: ".3rem",
+                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
+                      background: "transparent",
+                      color: colors.dark,
+                      cursor: "pointer",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {previewMinimized ? "▲" : "▼"}
+                  </button>
+                  <button
+                    onClick={() => setDisplayControlsOpen(false)}
+                    title="Close"
+                    style={{
+                      fontSize: ".7rem",
+                      fontFamily: tokens.font.body,
+                      padding: ".1rem .4rem",
+                      borderRadius: ".3rem",
+                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
+                      background: "transparent",
+                      color: colors.dark,
+                      cursor: "pointer",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
-              {/* Everything below stays basically the same */}
+              {/* Utility buttons row */}
               <div
                 style={{
                   display: "flex",
                   flexWrap: "wrap",
                   gap: ".4rem",
                   alignItems: "center",
+                  padding: ".3rem .5rem",
+                  borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}`,
                 }}
               >
                 <Button
                   onClick={() => venueShowId && openDisplayWindow(venueShowId)}
                   disabled={!venueShowId}
                   title={venueShowId ? "Open Display Mode in new window" : "Select a venue first"}
-                  style={{
-                    fontSize: "1rem",
-                    padding: ".45rem .55rem",
-                    minWidth: "2.25rem",
-                    height: "2.25rem",
-                    borderRadius: ".5rem",
-                  }}
-                >
-                  📺
-                </Button>
-
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >📺</Button>
                 <Button
                   onClick={() => {
                     if (!venueShowId) return;
                     const url = `${window.location.origin}?display&venueShowId=${venueShowId}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1`;
-                    navigator.clipboard
-                      .writeText(url)
-                      .catch(() => window.prompt("Copy viewer link:", url));
+                    navigator.clipboard.writeText(url).catch(() => window.prompt("Copy viewer link:", url));
                   }}
                   title="Copy view-only display link"
-                  style={{
-                    fontSize: "1rem",
-                    padding: ".45rem .55rem",
-                    minWidth: "2.25rem",
-                    height: "2.25rem",
-                    borderRadius: ".5rem",
-                  }}
-                >
-                  🔗
-                </Button>
-
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >🔗</Button>
                 <Button
-                  onClick={() => {
-                    sendToDisplay("closeQuestionCarousel", null);
-                    sendToDisplay("standby", null);
-                    setCarouselActive(false);
-                  }}
+                  onClick={() => { sendToDisplay("closeQuestionCarousel", null); sendToDisplay("standby", null); setCarouselActive(false); }}
                   title="Clear the display (standby screen)"
-                  style={{
-                    fontSize: "1rem",
-                    padding: ".45rem .55rem",
-                    minWidth: "2.25rem",
-                    height: "2.25rem",
-                    borderRadius: ".5rem",
-                  }}
-                >
-                  🧹
-                </Button>
-
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >🧹</Button>
                 <Button
                   onClick={() => sendToDisplay("toggleGuide")}
                   title="Toggle alignment guide"
-                  style={{
-                    fontSize: "1rem",
-                    padding: ".45rem .55rem",
-                    minWidth: "2.25rem",
-                    height: "2.25rem",
-                    borderRadius: ".5rem",
-                  }}
-                >
-                  📐
-                </Button>
-
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >📐</Button>
                 <Button
-                  onClick={() => {
-                    setDisplayFontSize((prev) => {
-                      const newSize = Math.max(50, prev - 10);
-                      sendToDisplay("fontSize", { size: newSize });
-                      return newSize;
-                    });
-                  }}
+                  onClick={() => setDisplayFontSize((prev) => { const s = Math.max(50, prev - 10); sendToDisplay("fontSize", { size: s }); return s; })}
                   title="Decrease display text size"
-                >
-                  A-
-                </Button>
-
+                >A-</Button>
                 <Button
-                  onClick={() => {
-                    setDisplayFontSize((prev) => {
-                      const newSize = Math.min(400, prev + 10);
-                      sendToDisplay("fontSize", { size: newSize });
-                      return newSize;
-                    });
-                  }}
+                  onClick={() => setDisplayFontSize((prev) => { const s = Math.min(400, prev + 10); sendToDisplay("fontSize", { size: s }); return s; })}
                   title="Increase display text size"
-                >
-                  A+
-                </Button>
+                >A+</Button>
               </div>
 
               {/* Custom message row */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: ".4rem",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    gap: ".4rem",
-                    alignItems: "center",
-                  }}
-                >
+              <div style={{ display: "flex", flexDirection: "column", gap: ".3rem", padding: ".3rem .5rem .4rem", borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}` }}>
+                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
                   <input
                     type="text"
                     value={customMessage}
@@ -2752,336 +2719,33 @@ export default function App() {
                     placeholder="Type a message for the TV…"
                     className="display-controls-input"
                     onKeyDown={(e) => {
-                      if (
-                        e.key === "Enter" &&
-                        (customMessage.trim() || customMessageImage.trim())
-                      ) {
-                        sendToDisplay("message", {
-                          text: customMessage.trim(),
-                          imageUrl: customMessageImage.trim() || null,
-                        });
+                      if (e.key === "Enter" && (customMessage.trim() || customMessageImage.trim())) {
+                        sendToDisplay("message", { text: customMessage.trim(), imageUrl: customMessageImage.trim() || null });
                       }
                     }}
-                    style={{
-                      flex: 1,
-                      fontSize: ".9rem",
-                      padding: ".5rem .6rem",
-                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
-                      borderRadius: ".6rem",
-                      minWidth: "200px",
-                      backgroundColor: "#fff",
-                      color: colors.dark || "#2B394A",
-                    }}
+                    style={{ flex: 1, fontSize: ".85rem", padding: ".4rem .55rem", border: `1px solid ${colors.gray?.border || "#ccc"}`, borderRadius: ".5rem", backgroundColor: "#fff", color: colors.dark || "#2B394A" }}
                   />
-
                   <ButtonPrimary
-                    onClick={() => {
-                      if (customMessage.trim() || customMessageImage.trim()) {
-                        sendToDisplay("message", {
-                          text: customMessage.trim(),
-                          imageUrl: customMessageImage.trim() || null,
-                        });
-                      }
-                    }}
-                    disabled={
-                      !customMessage.trim() && !customMessageImage.trim()
-                    }
+                    onClick={() => { if (customMessage.trim() || customMessageImage.trim()) sendToDisplay("message", { text: customMessage.trim(), imageUrl: customMessageImage.trim() || null }); }}
+                    disabled={!customMessage.trim() && !customMessageImage.trim()}
                     title="Push this message to display"
-                    style={{
-                      fontSize: "1rem",
-                      padding: ".45rem .55rem",
-                      minWidth: "2.25rem",
-                      height: "2.25rem",
-                      borderRadius: ".5rem",
-                      opacity:
-                        customMessage.trim() || customMessageImage.trim()
-                          ? 1
-                          : 0.5,
-                    }}
-                  >
-                    📣
-                  </ButtonPrimary>
+                    style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", opacity: customMessage.trim() || customMessageImage.trim() ? 1 : 0.5 }}
+                  >📣</ButtonPrimary>
                 </div>
-
-                {/* Image URL row */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: ".4rem",
-                    alignItems: "center",
-                  }}
-                >
+                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
                   <input
                     type="text"
                     value={customMessageImage}
                     onChange={(e) => setCustomMessageImage(e.target.value)}
                     placeholder="Paste image URL here…"
                     className="display-controls-input"
-                    style={{
-                      flex: 1,
-                      fontSize: ".85rem",
-                      padding: ".4rem .6rem",
-                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
-                      borderRadius: ".6rem",
-                      minWidth: "200px",
-                      backgroundColor: "#fff",
-                      color: colors.dark || "#2B394A",
-                    }}
+                    style={{ flex: 1, fontSize: ".8rem", padding: ".35rem .55rem", border: `1px solid ${colors.gray?.border || "#ccc"}`, borderRadius: ".5rem", backgroundColor: "#fff", color: colors.dark || "#2B394A" }}
                   />
                   {customMessageImage.trim() && (
-                    <Button
-                      onClick={() => setCustomMessageImage("")}
-                      title="Clear image"
-                      style={{
-                        fontSize: ".85rem",
-                        padding: ".3rem .5rem",
-                        minWidth: "2rem",
-                        height: "2rem",
-                        borderRadius: ".5rem",
-                      }}
-                    >
-                      ✕
-                    </Button>
+                    <Button onClick={() => setCustomMessageImage("")} title="Clear image" style={{ fontSize: ".8rem", padding: ".25rem .4rem", minWidth: "1.8rem", height: "1.8rem", borderRadius: ".4rem" }}>✕</Button>
                   )}
                 </div>
               </div>
-
-              {/* Display nav row */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: ".3rem",
-                  paddingTop: ".4rem",
-                  borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}`,
-                }}
-              >
-                {/* Mode toggle */}
-                <div style={{ display: "flex", gap: ".3rem" }}>
-                  {["Questions", "Answers"].map((mode) => {
-                    const isActive = (mode === "Answers") === navIsAnswerMode;
-                    return (
-                      <button
-                        key={mode}
-                        onClick={isActive ? undefined : toggleNavMode}
-                        disabled={navActiveList.length === 0 || isActive}
-                        style={{
-                          flex: 1,
-                          fontSize: ".78rem",
-                          padding: ".3rem .4rem",
-                          borderRadius: ".4rem",
-                          border: `2px solid ${colors.accent}`,
-                          background: isActive ? colors.accent : "transparent",
-                          color: isActive ? "#fff" : colors.accent,
-                          fontWeight: isActive ? 700 : 400,
-                          cursor: "pointer",
-                          fontFamily: tokens.font.body,
-                          opacity: navActiveList.length === 0 ? 0.4 : 1,
-                        }}
-                      >
-                        {mode}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* ← current → row */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: ".4rem",
-                  }}
-                >
-                  <Button
-                    onClick={navBackward}
-                    disabled={
-                      navActiveList.length === 0 ||
-                      (navIsAnswerMode
-                        ? navIndex === 0 && navAnswerStage === 0
-                        : navIndex === 0)
-                    }
-                    title="Previous"
-                    style={{
-                      fontSize: ".9rem",
-                      padding: ".25rem .45rem",
-                      borderRadius: ".4rem",
-                      flexShrink: 0,
-                    }}
-                  >
-                    ←
-                  </Button>
-                  <span
-                    style={{
-                      flex: 1,
-                      textAlign: "center",
-                      fontSize: ".78rem",
-                      fontWeight: 600,
-                      color: colors.dark,
-                      fontFamily: tokens.font.body,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      opacity: navActiveList.length === 0 ? 0.4 : 1,
-                    }}
-                  >
-                    {navCurrentLabel}
-                  </span>
-                  <Button
-                    onClick={navForward}
-                    disabled={
-                      navActiveList.length === 0 ||
-                      (navStarted && navIsAnswerMode
-                        ? navIndex >= navQuestionList.length - 1 &&
-                          navAnswerStage >= 2
-                        : navStarted && navIndex >= navQuestionsMode.length - 1)
-                    }
-                    title={
-                      navStarted ? "Next" : "Start — send first item to display"
-                    }
-                    style={{
-                      fontSize: ".9rem",
-                      padding: ".25rem .45rem",
-                      borderRadius: ".4rem",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {navStarted ? "→" : "▶"}
-                  </Button>
-                </div>
-
-                {/* Up next / ready to send label */}
-                {(navNextLabel || !navStarted) && (
-                  <div
-                    style={{
-                      fontSize: ".72rem",
-                      color: navStarted
-                        ? colors.gray?.text || "#888"
-                        : colors.accent,
-                      fontFamily: tokens.font.body,
-                      textAlign: "center",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      fontWeight: navStarted ? 400 : 600,
-                    }}
-                  >
-                    {navStarted
-                      ? `next: ${navNextLabel}`
-                      : `▶ ${navCurrentLabel}`}
-                  </div>
-                )}
-              </div>
-
-              {/* Audio players for current nav item */}
-              {currentNavAudio.length > 0 && (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: ".35rem",
-                    paddingTop: ".4rem",
-                    borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}`,
-                  }}
-                >
-                  {currentNavAudio.map((audioObj, i) => (
-                    <SharedAudioPlayer
-                      key={i}
-                      url={audioObj.url}
-                      filename={audioObj.filename}
-                      sharedUrl={sharedAudioUrl}
-                      sharedPlaying={sharedAudioPlaying}
-                      audioRef={sharedAudioRef}
-                      onPlay={playAudio}
-                      onToggle={toggleAudio}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </Draggable>
-
-          {/* Preview panel — separate floating panel */}
-          {hostId && (
-            <Draggable
-              nodeRef={previewPanelRef}
-              position={previewPanelPosition}
-              onStop={(e, data) => {
-                const newPos = { x: data.x, y: data.y };
-                setPreviewPanelPosition(newPos);
-                localStorage.setItem(
-                  "previewPanelPosition",
-                  JSON.stringify(newPos),
-                );
-              }}
-            >
-              <div
-                ref={previewPanelRef}
-                style={{
-                  position: "absolute",
-                  pointerEvents: "auto",
-                  display: "flex",
-                  flexDirection: "column",
-                  backgroundColor: "#fff",
-                  borderRadius: "12px",
-                  boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-                  border: `2px solid ${colors.accent}`,
-                  overflow: "hidden",
-                  width: previewW,
-                }}
-              >
-                {/* Preview drag / title row */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: ".4rem",
-                    padding: ".3rem .5rem",
-                    cursor: "grab",
-                    userSelect: "none",
-                  }}
-                >
-                  <span style={{ opacity: 0.6 }}>⋮⋮</span>
-                  <span
-                    style={{
-                      fontWeight: 500,
-                      color: colors.dark,
-                      fontFamily: tokens.font.body,
-                    }}
-                  >
-                    Preview
-                  </span>
-                  <div
-                    style={{
-                      marginLeft: "auto",
-                      display: "flex",
-                      gap: ".2rem",
-                      cursor: "default",
-                    }}
-                  >
-                    {["S", "M", "L", "XL"].map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setPanelSize(s)}
-                        style={{
-                          fontSize: ".7rem",
-                          fontFamily: tokens.font.body,
-                          fontWeight: panelSize === s ? 700 : 400,
-                          padding: ".1rem .35rem",
-                          borderRadius: ".3rem",
-                          border: `1px solid ${colors.accent}`,
-                          background:
-                            panelSize === s ? colors.accent : "transparent",
-                          color: panelSize === s ? "#fff" : colors.accent,
-                          cursor: "pointer",
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
                 {/* Control bar — 2-row layout */}
                 {(() => {
                   const item = navActiveList[navIndex];
@@ -3252,34 +2916,36 @@ export default function App() {
                     </div>
                   );
                 })()}
-                {/* Preview iframe */}
-                <div
-                  style={{
-                    width: previewW,
-                    height: Math.round((previewW * 1080) / 1920),
-                    overflow: "hidden",
-                    background: "#000",
-                  }}
-                >
-                  <iframe
-                    ref={previewIframeRef}
-                    title="Display preview"
+                {/* Preview iframe — hidden when minimized */}
+                {!previewMinimized && (
+                  <div
                     style={{
-                      width: 1920,
-                      height: 1080,
-                      border: "none",
-                      transformOrigin: "top left",
-                      transform: `scale(${previewW / 1920})`,
-                      display: "block",
-                      pointerEvents: "none",
+                      width: previewW,
+                      height: Math.round((previewW * 1080) / 1920),
+                      overflow: "hidden",
+                      background: "#000",
                     }}
-                  />
-                </div>
+                  >
+                    <iframe
+                      ref={previewIframeRef}
+                      title="Display preview"
+                      style={{
+                        width: 1920,
+                        height: 1080,
+                        border: "none",
+                        transformOrigin: "top left",
+                        transform: `scale(${previewW / 1920})`,
+                        display: "block",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </Draggable>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+
 
       {/* Answer Key Modal (app-level) */}
       {showAnswerKey && (
