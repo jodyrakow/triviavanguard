@@ -1850,32 +1850,11 @@ console.log(
   }, [navIsAnswerMode, navIndex, navAnswerStage, navQuestionsMode, navQuestionList, pushNavItem, pushNavQuestion]);
 
   const toggleNavMode = useCallback(() => {
-    const nextMode = !navIsAnswerMode;
-    setNavIsAnswerMode(nextMode);
-    if (nextMode) {
-      // Switching to answers mode: find current question in navQuestionList
-      const currentItem = navQuestionsMode[navIndex];
-      if (currentItem?.type === "question") {
-        const idx = navQuestionList.findIndex(
-          (q) => q.showQuestionId === currentItem.showQuestionId
-        );
-        setNavIndex(idx >= 0 ? idx : 0);
-      } else {
-        setNavIndex(0);
-      }
-    } else {
-      // Switching to questions mode: find current question in navQuestionsMode
-      const currentQ = navQuestionList[navIndex];
-      if (currentQ) {
-        const idx = navQuestionsMode.findIndex(
-          (item) => item.type === "question" && item.showQuestionId === currentQ.showQuestionId
-        );
-        setNavIndex(idx >= 0 ? idx : 0);
-      }
-    }
+    setNavIsAnswerMode(prev => !prev);
+    setNavIndex(0);
     setNavAnswerStage(0);
     setNavStarted(false);
-  }, [navIsAnswerMode, navQuestionsMode, navQuestionList, navIndex]);
+  }, []);
 
   const getNavLabel = useCallback((list, idx, stage) => {
     if (list.length === 0) return "No show";
