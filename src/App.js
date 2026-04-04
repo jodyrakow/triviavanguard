@@ -381,7 +381,7 @@ export default function App() {
   const selectHost = (id, name) => {
     setHostId(id);
     setHostName(name);
-    setDisplayTargetHostId(id);
+
     localStorage.setItem("tvHostId", id);
     localStorage.setItem("tvHostName", name);
     setHostSetupOpen(false);
