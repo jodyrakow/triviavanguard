@@ -169,6 +169,41 @@ export function buildTeamTotals(
 }
 
 /**
+ * Compute partial credit breakdown for a single question — returns each earned partial level.
+ * Used for stats pill display and TV display.
+ */
+export function computePartialBreakdown(teams, grid, showQuestionId, scoring, correctCount, questionPartial) {
+  if (!questionPartial || questionPartial.numParts <= 0) return [];
+
+  const numParts = questionPartial.numParts;
+  const levels = new Map(); // partialCount -> number of teams at that level
+
+  for (const t of teams) {
+    const cell = grid[t.showTeamId]?.[showQuestionId];
+    if (cell?.isCorrect) {
+      levels.set(numParts, (levels.get(numParts) || 0) + 1);
+    } else if (cell?.partialCount > 0) {
+      const pc = cell.partialCount;
+      levels.set(pc, (levels.get(pc) || 0) + 1);
+    }
+  }
+
+  if (levels.size === 0) return [];
+
+  const result = [];
+  for (let p = 1; p <= numParts; p++) {
+    if (!levels.has(p)) continue;
+    const mockCell = p === numParts
+      ? { isCorrect: true, partialCount: numParts }
+      : { isCorrect: false, partialCount: p };
+    const pts = computeCellPoints(mockCell, scoring, correctCount, null, questionPartial);
+    result.push({ partialCount: p, numParts, pointsPerTeam: pts, teamCount: levels.get(p) });
+  }
+
+  return result;
+}
+
+/**
  * Compute bonus breakdown for a single question — returns only earned levels.
  * Used for stats pill display and TV display.
  */

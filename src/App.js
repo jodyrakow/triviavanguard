@@ -26,7 +26,7 @@ import {
   ui,
   Button,
 } from "./styles/index.js";
-import { computeAutoEarned, computeBonusBreakdown } from "./scoring/compute.js";
+import { computeAutoEarned, computeBonusBreakdown, computePartialBreakdown } from "./scoring/compute.js";
 import { supabase } from "./supabaseClient.js";
 export { supabase };
 
@@ -1765,6 +1765,7 @@ export default function App() {
         items.push({
           type: "question",
           isVisual,
+          isTiebreaker,
           showQuestionId: q.showQuestionId,
           questionNumber: q.questionOrder,
           questionText: q.questionText || "",
@@ -1773,6 +1774,8 @@ export default function App() {
           bonusAvailable: !!q.bonusAvailable,
           bonusValue: q.bonusValue || null,
           maxBonuses: q.maxBonuses || null,
+          partialCreditAvailable: !!q.partialCreditAvailable,
+          numParts: typeof q.numParts === "number" ? q.numParts : null,
           showImageByDefault: !!q.showImageByDefault,
           autoRevealAnswerImage: !!q.autoRevealAnswerImage,
           inlineImages: Array.isArray(q.questionImages)
@@ -1912,7 +1915,7 @@ export default function App() {
       if (stage >= 1) {
         payload.answer = item.answer;
       }
-      if (stage >= 2) {
+      if (stage >= 2 && !item.isTiebreaker) {
         const grid = composedCachedState?.grid || {};
         const teams = composedCachedState?.teams || [];
         let correctCount = 0;
@@ -1933,13 +1936,18 @@ export default function App() {
         const questionBonus = item.bonusAvailable
           ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
           : null;
+        const questionPartial = item.partialCreditAvailable && item.numParts > 0
+          ? { numParts: item.numParts }
+          : null;
         payload.correctCount = correctCount;
         payload.totalTeams = teams.length;
-        payload.pointsPerTeam = computeAutoEarned(
-          { isCorrect: true },
-          scoringObj,
-          correctCount,
-        );
+        if (scoringMode !== "pub") {
+          payload.pointsPerTeam = computeAutoEarned(
+            { isCorrect: true },
+            scoringObj,
+            correctCount,
+          );
+        }
         payload.bonusBreakdown = computeBonusBreakdown(
           teams,
           grid,
@@ -1947,6 +1955,14 @@ export default function App() {
           scoringObj,
           correctCount,
           questionBonus,
+        );
+        payload.partialBreakdown = computePartialBreakdown(
+          teams,
+          grid,
+          item.showQuestionId,
+          scoringObj,
+          correctCount,
+          questionPartial,
         );
       }
       sendToDisplay("question", payload);
@@ -1988,7 +2004,7 @@ export default function App() {
         payload.answer = item.answer;
       }
 
-      if (stage >= 2) {
+      if (stage >= 2 && !item.isTiebreaker) {
         const grid = composedCachedState?.grid || {};
         const teams = composedCachedState?.teams || [];
         let correctCount = 0;
@@ -2006,13 +2022,18 @@ export default function App() {
         const questionBonus = item.bonusAvailable
           ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
           : null;
+        const questionPartial = item.partialCreditAvailable && item.numParts > 0
+          ? { numParts: item.numParts }
+          : null;
         payload.correctCount = correctCount;
         payload.totalTeams = teams.length;
-        payload.pointsPerTeam = computeAutoEarned(
-          { isCorrect: true },
-          scoringObj,
-          correctCount,
-        );
+        if (scoringMode !== "pub") {
+          payload.pointsPerTeam = computeAutoEarned(
+            { isCorrect: true },
+            scoringObj,
+            correctCount,
+          );
+        }
         payload.bonusBreakdown = computeBonusBreakdown(
           teams,
           grid,
@@ -2020,6 +2041,14 @@ export default function App() {
           scoringObj,
           correctCount,
           questionBonus,
+        );
+        payload.partialBreakdown = computePartialBreakdown(
+          teams,
+          grid,
+          showQuestionId,
+          scoringObj,
+          correctCount,
+          questionPartial,
         );
       }
 

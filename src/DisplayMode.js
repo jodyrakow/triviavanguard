@@ -338,6 +338,7 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
     totalTeams,
     inlineImages,
     bonusBreakdown,
+    partialBreakdown,
   } = content || {};
 
   const scale = fontSize / 100;
@@ -588,10 +589,11 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
           </div>
         )}
 
-      {/* Stats wrapper #2 (points per team / bonus breakdown) */}
+      {/* Stats wrapper #2 (points per team / bonus breakdown / partial breakdown) */}
       {answer &&
         (pointsPerTeam != null ||
-          (bonusBreakdown && bonusBreakdown.length > 0)) && (
+          (bonusBreakdown && bonusBreakdown.length > 0) ||
+          (partialBreakdown && partialBreakdown.length > 0)) && (
           <div
             style={{
               position: "absolute",
@@ -608,7 +610,7 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
           >
             <div
               style={{
-                fontSize: `${(bonusBreakdown && bonusBreakdown.length > 1 ? 1.8 : 2.25) * scale}rem`,
+                fontSize: `${((bonusBreakdown && bonusBreakdown.length > 1) || (partialBreakdown && partialBreakdown.length > 1) ? 1.8 : 2.25) * scale}rem`,
                 color: theme.dark,
                 fontFamily: tokens.font.body,
               }}
@@ -628,6 +630,22 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
                         {"bonus" + (level.bonusLevel > 1 ? "es" : "")})
                       </span>
                     )}
+                  </span>
+                ))
+              ) : partialBreakdown && partialBreakdown.length > 0 ? (
+                partialBreakdown.map((level, i) => (
+                  <span key={level.partialCount}>
+                    {i > 0 && " · "}
+                    <span style={{ color: theme.accent, fontWeight: 700 }}>
+                      {level.pointsPerTeam}
+                    </span>
+                    {" pts"}
+                    <span style={{ opacity: 0.7 }}>
+                      {" "}
+                      ({level.partialCount === level.numParts
+                        ? "full"
+                        : `${level.partialCount}/${level.numParts}`})
+                    </span>
                   </span>
                 ))
               ) : (
