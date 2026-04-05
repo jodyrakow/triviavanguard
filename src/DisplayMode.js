@@ -553,12 +553,7 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
               textAlign: "center",
             }}
             dangerouslySetInnerHTML={{
-              __html: marked.parseInline(
-                // Strip commas from purely numeric answers (e.g. years: "1,985" → "1985")
-                /^[\d,]+$/.test((answer || "").trim())
-                  ? answer.replace(/,/g, "")
-                  : answer || ""
-              ),
+              __html: marked.parseInline(answer || ""),
             }}
           />
         </div>
