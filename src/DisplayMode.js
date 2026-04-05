@@ -65,15 +65,18 @@ export default function DisplayMode() {
         handleMessage(msg.payload || {});
       })
       .on("broadcast", { event: "request_state" }, () => {
-        // Another display/preview is asking what's currently showing — respond with our state
-        const current = displayStateRef.current;
-        if (current && current.type !== "standby") {
-          broadcastCh.send({
-            type: "broadcast",
-            event: "display_update",
-            payload: { type: current.type, content: current.content },
-          });
-        }
+        // Another display/preview is asking what's currently showing — respond after a short delay
+        // so any in-flight display_update broadcasts arrive first and win
+        setTimeout(() => {
+          const current = displayStateRef.current;
+          if (current && current.type !== "standby") {
+            broadcastCh.send({
+              type: "broadcast",
+              event: "display_update",
+              payload: { type: current.type, content: current.content },
+            });
+          }
+        }, 300);
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
@@ -141,7 +144,7 @@ export default function DisplayMode() {
         <CategoryDisplay content={displayState.content} fontSize={fontSize} />
       )}
       {displayState.type === "message" && (
-        <MessageDisplay content={displayState.content} fontSize={fontSize} />
+        <MessageDisplay key={displayState.content?.text} content={displayState.content} fontSize={fontSize} />
       )}
       {displayState.type === "standings" && (
         <StandingsDisplay content={displayState.content} />
