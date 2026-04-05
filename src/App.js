@@ -429,9 +429,9 @@ export default function App() {
 
     const ch = supabase.channel(`tv:display:${venueShowId}`)
       .on("broadcast", { event: "request_state" }, () => {
-        // A display just loaded and is requesting the last known state
-        if (lastSentPayloadRef.current && displayBroadcastRef.current) {
-          displayBroadcastRef.current.send({
+        // A display just loaded and is requesting the last known state — respond directly on ch
+        if (lastSentPayloadRef.current) {
+          ch.send({
             type: "broadcast",
             event: "display_update",
             payload: lastSentPayloadRef.current,
