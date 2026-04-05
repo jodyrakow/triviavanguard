@@ -2598,7 +2598,7 @@ export default function App() {
               >
                 <span style={{ opacity: 0.6 }}>⋮⋮</span>
                 <span style={{ fontWeight: 500, color: colors.dark, fontFamily: tokens.font.body }}>
-                  Display
+                  Mission Control
                 </span>
                 <div style={{ marginLeft: "auto", display: "flex", gap: ".2rem", cursor: "default" }}>
                   {["S", "M", "L", "XL"].map((s) => (
