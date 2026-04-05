@@ -2702,7 +2702,7 @@ export default function App() {
                   const multiAudio = currentNavAudio.length > 1;
                   const currentAudio = currentNavAudio[navAudioIndex] || currentNavAudio[0];
                   const isPlaying = hasAudio && sharedAudioUrl === currentAudio?.url && sharedAudioPlaying;
-                  const hasImg = item?.type === "question" && item.inlineImages?.length > 0 && !item.showImageByDefault;
+                  const hasImg = item?.type === "question" && item.inlineImages?.length > 0;
                   const multiImg = !!(hasImg && item.inlineImages.length > 1);
                   const imgCount = hasImg ? item.inlineImages.length : 0;
                   const btnBase = {
