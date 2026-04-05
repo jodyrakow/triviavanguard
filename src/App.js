@@ -491,11 +491,37 @@ export default function App() {
   // Open a display window for the given venueShowId — skips if one is already open
   const openDisplayWindow = useCallback((vid) => {
     const alreadyOpen = activeDisplays.some((d) => d.venueShowId === vid);
-    if (alreadyOpen) return;
+    if (alreadyOpen) {
+      // Display already open — re-send last known state so it catches up
+      if (lastSentPayloadRef.current && displayBroadcastRef.current) {
+        setTimeout(() => {
+          if (displayBroadcastRef.current && lastSentPayloadRef.current) {
+            displayBroadcastRef.current.send({
+              type: "broadcast",
+              event: "display_update",
+              payload: lastSentPayloadRef.current,
+            });
+          }
+        }, 1500);
+      }
+      return;
+    }
     const name = localStorage.getItem("tv_venueName") || "";
     const url = `${window.location.origin}?display&venueShowId=${vid}&venueName=${encodeURIComponent(name)}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}`;
     const win = window.open(url, `display:${vid}`, "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no");
     if (win) win.focus();
+    // After the new window has had time to subscribe, push the last known state
+    if (lastSentPayloadRef.current) {
+      setTimeout(() => {
+        if (displayBroadcastRef.current && lastSentPayloadRef.current) {
+          displayBroadcastRef.current.send({
+            type: "broadcast",
+            event: "display_update",
+            payload: lastSentPayloadRef.current,
+          });
+        }
+      }, 3000);
+    }
   }, [activeDisplays, hostId, hostName]);
 
   // Select a venue — sets channel, persists, opens controls + display window

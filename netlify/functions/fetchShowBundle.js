@@ -5,16 +5,6 @@ const AIRTABLE_BASE_ID = "appnwzfwa2Bl6V2jX";
 const AIRTABLE_API_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}`;
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
 
-// Sanitize Markdown: fix stray spaces adjacent to bold/italic delimiters
-// e.g. "** word**" or "word **" which most parsers treat as literal asterisks
-function sanitizeMd(text) {
-  if (!text || typeof text !== "string") return text;
-  return text
-    .replace(/\*\* /g, "**") // space after opening **
-    .replace(/ \*\*/g, "**") // space before closing **
-    .replace(/__ /g, "__") // space after opening __
-    .replace(/ __/g, "__"); // space before closing __
-}
 
 // Build Airtable URL
 function buildUrl(
@@ -222,9 +212,9 @@ export async function handler(event) {
         showCategoryId: rec.id,
         showId: normalizedShowId,
         superSecret: !!f["Super secret"],
-        categoryName: sanitizeMd(f["Category name"] || ""),
-        categoryDescription: sanitizeMd(f["Category description"] || ""),
-        categoryNotes: sanitizeMd(f["Category notes"] || ""),
+        categoryName: f["Category name"] || "",
+        categoryDescription: f["Category description"] || "",
+        categoryNotes: f["Category notes"] || "",
         categoryPronunciationGuide: f["Category pronunciation guide"] || "",
         questionType: qTypeCell?.name || qTypeCell || null,
         categoryImages: toAttachmentArray(f["Category image attachments"]),
@@ -311,25 +301,17 @@ export async function handler(event) {
         showImageByDefault: !!f["Show image by default"],
         autoRevealAnswerImage: !!f["Auto-reveal answer image"],
         faction: f["Faction"] || null,
-        questionText: sanitizeMd(
-          hasEditedQuestion ? f["Edited question"] : f["Question text"] || "",
-        ),
-        questionNotes: sanitizeMd(
-          hasEditedQuestionNotes
-            ? f["Edited question notes"]
-            : f["Question notes"] || "",
-        ),
-        answerNotes: sanitizeMd(
-          hasEditedAnswerNotes
-            ? f["Edited answer notes"]
-            : f["Answer notes"] || "",
-        ),
+        questionText: hasEditedQuestion ? f["Edited question"] : f["Question text"] || "",
+        questionNotes: hasEditedQuestionNotes
+          ? f["Edited question notes"]
+          : f["Question notes"] || "",
+        answerNotes: hasEditedAnswerNotes
+          ? f["Edited answer notes"]
+          : f["Answer notes"] || "",
         questionPronunciationGuide: hasEditedPronunciation
           ? f["Edited pronunciation guide"]
           : f["Pronunciation guide"] || "",
-        answer: sanitizeMd(
-          hasEditedAnswer ? f["Edited answer"] : f["Answer"] || "",
-        ),
+        answer: hasEditedAnswer ? f["Edited answer"] : f["Answer"] || "",
         tiebreakerNumber: f["Tiebreaker number"] || "",
         questionImages: toAttachmentArray(f["Question image attachments"]),
         questionAudio: toAttachmentArray(f["Question audio attachments"]),
