@@ -6,19 +6,17 @@ import { marked } from "marked";
 import { supabase } from "./supabaseClient.js";
 marked.setOptions({ breaks: true });
 export default function DisplayMode() {
-  const [displayState, setDisplayState] = useState({
-    type: "standby", // "standby" | "question" | "standings" | "message" | "break"
-    content: null,
-  });
+  const params = new URLSearchParams(window.location.search);
+  const urlVenueShowId = params.get("venueShowId");
+
+  const [displayState, setDisplayState] = useState({ type: "standby", content: null });
   const [fontSize, setFontSize] = useState(190); // percentage
   const [inlineImageIndex, setInlineImageIndex] = useState(0); // Current inline image index
   const [questionCarousel, setQuestionCarousel] = useState(null); // { questions: [], currentIndex: 0, autoCycle: true }
 
   const [showGuide, setShowGuide] = useState(false);
 
-  // Read params from URL (?display&venueShowId=xxx&hostId=yyy&hostName=zzz&viewer=1)
-  const params = new URLSearchParams(window.location.search);
-  const urlVenueShowId = params.get("venueShowId");
+  // Read remaining params from URL
   const urlVenueName = decodeURIComponent(params.get("venueName") || "");
   const urlHostId = params.get("hostId");
   const urlHostName = decodeURIComponent(params.get("hostName") || "");
@@ -28,6 +26,10 @@ export default function DisplayMode() {
   useEffect(() => {
     document.title = "TriviaVanguard display";
   }, []);
+
+  // Keep a ref to current displayState so the broadcast handler can respond with it without stale closures
+  const displayStateRef = React.useRef(displayState);
+  useEffect(() => { displayStateRef.current = displayState; }, [displayState]);
 
   // Listen for display updates via Supabase Realtime broadcast
   useEffect(() => {
@@ -62,9 +64,20 @@ export default function DisplayMode() {
       .on("broadcast", { event: "display_update" }, (msg) => {
         handleMessage(msg.payload || {});
       })
+      .on("broadcast", { event: "request_state" }, () => {
+        // Another display/preview is asking what's currently showing — respond with our state
+        const current = displayStateRef.current;
+        if (current && current.type !== "standby") {
+          broadcastCh.send({
+            type: "broadcast",
+            event: "display_update",
+            payload: { type: current.type, content: current.content },
+          });
+        }
+      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          // Request the last known state from the host
+          // Ask any existing display window what it's currently showing
           broadcastCh.send({
             type: "broadcast",
             event: "request_state",
