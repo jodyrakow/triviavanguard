@@ -3184,13 +3184,8 @@ export default function App() {
             setPrizes={(val) => patchShared({ prizes: String(val || "") })}
             setHostInfo={(val) => patchShared({ hostInfo: val })}
             editQuestionField={editQuestionField}
-            displayControlsOpen={displayControlsOpen}
             addTiebreaker={addTiebreaker}
-            sendToDisplay={sendToDisplayWithNavSync}
-            pushDisplayQuestion={pushDisplayQuestion}
             refreshBundle={refreshBundle}
-            carouselActive={carouselActive}
-            setCarouselActive={setCarouselActive}
             sharedAudioUrl={sharedAudioUrl}
             sharedAudioPlaying={sharedAudioPlaying}
             sharedAudioRef={sharedAudioRef}
