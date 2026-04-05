@@ -1985,15 +1985,18 @@ export default function App() {
     (type, data) => {
       sendToDisplay(type, data);
       if (type === "question" && data?.questionNumber !== undefined) {
-        const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
-        const idx = list.findIndex(
+        // Always search navQuestionList (includes visual questions) to find the item
+        const found = navQuestionList.find(
           (item) =>
             item.type === "question" &&
             String(item.questionNumber) === String(data.questionNumber) &&
             item.categoryName === (data.categoryName || "").trim(),
         );
-        if (idx >= 0) {
-          setNavIndex(idx);
+        if (found) {
+          // Find index in the active list (navQuestionsMode or navQuestionList)
+          const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
+          const idx = list.indexOf(found) !== -1 ? list.indexOf(found) : navQuestionList.indexOf(found);
+          setNavIndex(idx >= 0 ? idx : 0);
           setNavStarted(true);
           if (navIsAnswerMode) {
             const stage =
@@ -2707,7 +2710,10 @@ export default function App() {
               </div>
                 {/* Control bar — 2-row layout */}
                 {(() => {
-                  const item = navActiveList[navIndex];
+                  // Use navQuestionList for item lookup so visual questions (filtered out of navQuestionsMode) are found
+                  const item = navActiveList[navIndex]?.type === "question"
+                    ? (navQuestionList.find(q => q.showQuestionId === navActiveList[navIndex]?.showQuestionId) ?? navActiveList[navIndex])
+                    : navActiveList[navIndex];
                   const hasAudio = currentNavAudio.length > 0;
                   const multiAudio = currentNavAudio.length > 1;
                   const currentAudio = currentNavAudio[navAudioIndex] || currentNavAudio[0];
