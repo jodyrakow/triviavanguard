@@ -14,6 +14,7 @@ import QuestionsMode from "./QuestionsMode";
 import ScoringMode from "./ScoringMode";
 import ResultsMode from "./ResultsMode";
 import Sidebar from "./Sidebar";
+import { RULES_ITEMS, PHONE_AWAY_ITEM } from "./rulesItems";
 import SidebarMenu from "./SidebarMenu";
 import AnswerKeyPanel from "./AnswerKeyPanel";
 import logo from "./trivia-logo.png";
@@ -283,6 +284,10 @@ export default function App() {
 
   const [customMessage, setCustomMessage] = useState("");
   const [customMessageImage, setCustomMessageImage] = useState("");
+
+  // Script panel state
+  const [scriptPanelOpen, setScriptPanelOpen] = useState(false);
+  const [rulesStartedWithScript, setRulesStartedWithScript] = useState(false);
 
   // Display nav state
   const [navIsAnswerMode, setNavIsAnswerMode] = useState(false);
@@ -1802,11 +1807,28 @@ export default function App() {
     [navFlatList],
   );
 
+  // Rules items as nav prefix — full list or just phoneAway
+  const navRulesPrefix = useMemo(
+    () => RULES_ITEMS.map((item) => ({ type: "rules", ...item })),
+    [],
+  );
+  const phoneAwayPrefix = useMemo(
+    () => [{ type: "rules", ...PHONE_AWAY_ITEM }],
+    [],
+  );
+
+  // Combined Questions mode list: rules prefix + show content
+  const navWithRules = useMemo(() => {
+    const prefix = rulesStartedWithScript ? navRulesPrefix : phoneAwayPrefix;
+    return [...prefix, ...navQuestionsMode];
+  }, [rulesStartedWithScript, navQuestionsMode, navRulesPrefix, phoneAwayPrefix]);
+
   // Reset nav position when show or round changes
   useEffect(() => {
     setNavIndex(0);
     setNavAnswerStage(0);
     setNavStarted(false);
+    setRulesStartedWithScript(false);
     navSyncReadyRef.current = false; // don't broadcast until host actively pushes again
   }, [showBundle, selectedRoundId]);
 
@@ -1829,6 +1851,10 @@ export default function App() {
   const pushNavItem = useCallback(
     (item) => {
       if (!item) return;
+      if (item.type === "rules") {
+        sendToDisplay("message", { text: item.text, fontSize: item.fontSize || 119 });
+        return;
+      }
       if (item.type === "carousel") {
         sendToDisplay("questionCarousel", {
           questions: item.visualQuestions,
@@ -2037,8 +2063,8 @@ export default function App() {
             item.categoryName === (data.categoryName || "").trim(),
         );
         if (found) {
-          // Find index in the active list (navQuestionsMode or navQuestionList)
-          const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
+          // Find index in the active list — use navWithRules so questions are offset past the rules prefix
+          const list = navIsAnswerMode ? navQuestionList : navWithRules;
           const idx = list.indexOf(found) !== -1 ? list.indexOf(found) : navQuestionList.indexOf(found);
           setNavIndex(idx >= 0 ? idx : 0);
           setNavStarted(true);
@@ -2068,20 +2094,24 @@ export default function App() {
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [navIsAnswerMode, navFlatList, navQuestionList],
+    [navIsAnswerMode, navFlatList, navQuestionList, navWithRules],
   );
 
-  const navActiveList = navIsAnswerMode ? navQuestionList : navQuestionsMode;
+  const navActiveList = navIsAnswerMode ? navQuestionList : navWithRules;
 
   const navForward = useCallback(() => {
     navSyncReadyRef.current = true;
     if (!navStarted) {
-      // First press: send the current item without advancing
+      // First press: snapshot whether script is open, then send first item
+      setRulesStartedWithScript(scriptPanelOpen);
       setNavStarted(true);
       if (navIsAnswerMode) {
         pushNavQuestion(navQuestionList[navIndex], 0);
       } else {
-        pushNavItem(navQuestionsMode[navIndex]);
+        // navWithRules not yet updated with snapshot — compute prefix inline
+        const prefix = scriptPanelOpen ? navRulesPrefix : phoneAwayPrefix;
+        const combined = [...prefix, ...navQuestionsMode];
+        pushNavItem(combined[navIndex]);
       }
       return;
     }
@@ -2099,10 +2129,10 @@ export default function App() {
         pushNavQuestion(navQuestionList[nextIdx], 0);
       }
     } else {
-      if (navIndex < navQuestionsMode.length - 1) {
+      if (navIndex < navWithRules.length - 1) {
         const nextIdx = navIndex + 1;
         setNavIndex(nextIdx);
-        pushNavItem(navQuestionsMode[nextIdx]);
+        pushNavItem(navWithRules[nextIdx]);
       }
     }
   }, [
@@ -2110,10 +2140,14 @@ export default function App() {
     navIsAnswerMode,
     navIndex,
     navAnswerStage,
+    navWithRules,
     navQuestionsMode,
+    navRulesPrefix,
+    phoneAwayPrefix,
     navQuestionList,
     pushNavItem,
     pushNavQuestion,
+    scriptPanelOpen,
   ]);
 
   const navBackward = useCallback(() => {
@@ -2135,14 +2169,14 @@ export default function App() {
       if (navIndex > 0) {
         const prevIdx = navIndex - 1;
         setNavIndex(prevIdx);
-        pushNavItem(navQuestionsMode[prevIdx]);
+        pushNavItem(navWithRules[prevIdx]);
       }
     }
   }, [
     navIsAnswerMode,
     navIndex,
     navAnswerStage,
-    navQuestionsMode,
+    navWithRules,
     navQuestionList,
     pushNavItem,
     pushNavQuestion,
@@ -2153,6 +2187,14 @@ export default function App() {
     setNavIndex(0);
     setNavAnswerStage(0);
     setNavStarted(false);
+    setRulesStartedWithScript(false);
+  }, []);
+
+  const resetNav = useCallback(() => {
+    setNavIndex(0);
+    setNavStarted(false);
+    setNavAnswerStage(0);
+    setRulesStartedWithScript(false);
   }, []);
 
   const getNavLabel = useCallback(
@@ -2160,6 +2202,7 @@ export default function App() {
       if (list.length === 0) return "No show";
       const item = list[idx];
       if (!item) return "—";
+      if (item.type === "rules") return item.label || "Rule";
       if (item.type === "carousel") return "Visual carousel";
       if (item.type === "category") return item.categoryName || "Category";
       const stageLabel = navIsAnswerMode
@@ -2305,14 +2348,14 @@ export default function App() {
       }
       return null;
     } else {
-      if (navIndex < navQuestionsMode.length - 1) {
-        return getNavLabel(navQuestionsMode, navIndex + 1, 0);
+      if (navIndex < navWithRules.length - 1) {
+        return getNavLabel(navWithRules, navIndex + 1, 0);
       }
       return null;
     }
   }, [
     navIsAnswerMode,
-    navQuestionsMode,
+    navWithRules,
     navQuestionList,
     navIndex,
     navAnswerStage,
@@ -2560,6 +2603,12 @@ export default function App() {
         poolPerQuestion={poolPerQuestion}
         poolContribution={poolContribution}
         sendToDisplay={sendToDisplayWithNavSync}
+        scriptPanelOpen={scriptPanelOpen}
+        setScriptPanelOpen={setScriptPanelOpen}
+        navIndex={navIndex}
+        navStarted={navStarted}
+        navRulesLength={navRulesPrefix.length}
+        onResetNav={resetNav}
       >
         <SidebarMenu
           showTimer={showTimer}
@@ -2818,7 +2867,7 @@ export default function App() {
                   const navAtStart = navIsAnswerMode ? navIndex === 0 && navAnswerStage === 0 : navIndex === 0;
                   const navAtEnd = navStarted && (navIsAnswerMode
                     ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2
-                    : navIndex >= navQuestionsMode.length - 1);
+                    : navIndex >= navWithRules.length - 1);
                   return (
                     <div style={{ background: colors.dark, display: "flex", gap: ".4rem", padding: ".35rem .5rem", alignItems: "stretch" }}>
                       {/* Left column: mode toggles */}

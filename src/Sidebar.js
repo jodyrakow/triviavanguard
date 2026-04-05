@@ -1,6 +1,6 @@
 // Sidebar.js - Collapsible sidebar drawer with hamburger menu
-import React, { useState, useMemo } from "react";
-import { createPortal } from "react-dom";
+import React, { useState, useMemo, useRef } from "react";
+import Draggable from "react-draggable";
 import { tokens, colors as theme } from "./styles/index.js";
 
 export default function Sidebar({
@@ -24,10 +24,21 @@ export default function Sidebar({
   poolPerQuestion,
   poolContribution,
   sendToDisplay,
+  scriptPanelOpen,
+  setScriptPanelOpen,
+  navIndex,
+  navStarted,
+  navRulesLength,
+  onResetNav,
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  // Script modal state (moved from QuestionsMode)
-  const [scriptOpen, setScriptOpen] = useState(false);
+  const scriptPanelRef = useRef(null);
+  const [scriptPanelPosition, setScriptPanelPosition] = useState(() => {
+    try {
+      const saved = localStorage.getItem("scriptPanelPosition");
+      return saved ? JSON.parse(saved) : { x: 80, y: 80 };
+    } catch { return { x: 80, y: 80 }; }
+  });
 
   // ========== HOST SCRIPT GENERATION (moved from QuestionsMode) ==========
 
@@ -349,6 +360,63 @@ export default function Sidebar({
     allRounds,
   ]);
 
+  // Which RULES_ITEMS index is currently highlighted (null if not in rules section)
+  const activeRulesIndex = navStarted && navIndex < navRulesLength ? navIndex : null;
+
+  // Split hostScript into segments for per-rule highlighting
+  // The rules section starts with "\nNow before we get going"
+  // Bullets map: 0→ruleIdx1, 1→ruleIdx2, 2→ruleIdx3, 3+4→ruleIdx4, 5→ruleIdx5, 6→ruleIdx5, closing→ruleIdx6
+  const scriptSections = useMemo(() => {
+    const rulesMarker = "\nNow before we get going";
+    const rulesStart = hostScript.indexOf(rulesMarker);
+    if (rulesStart === -1) return [{ text: hostScript, ruleIndex: null }];
+
+    const preRules = hostScript.slice(0, rulesStart);
+    const rulesBody = hostScript.slice(rulesStart);
+
+    // Find all ● positions
+    const bulletPos = [];
+    let from = 0;
+    while (true) {
+      const pos = rulesBody.indexOf("●", from);
+      if (pos === -1) break;
+      bulletPos.push(pos);
+      from = pos + 1;
+    }
+
+    if (bulletPos.length < 6) return [{ text: preRules, ruleIndex: null }, { text: rulesBody, ruleIndex: null }];
+
+    const seg = (start, end) => rulesBody.slice(start, end);
+
+    // ruleIndex 0 = "Get ready" (intro before first bullet)
+    // ruleIndex 1 = No devices (bullet 0)
+    // ruleIndex 2 = Don't shout (bullet 1)
+    // ruleIndex 3 = Spelling (bullet 2)
+    // ruleIndex 4 = Names (bullets 3+4)
+    // ruleIndex 5 = Our answer + be generous (bullets 5+6)
+    // ruleIndex 6 = Phones away (closing paragraph after last bullet)
+    const sections = [
+      { text: preRules, ruleIndex: null },
+      { text: seg(0, bulletPos[0]), ruleIndex: 0 },
+      { text: seg(bulletPos[0], bulletPos[1]), ruleIndex: 1 },
+      { text: seg(bulletPos[1], bulletPos[2]), ruleIndex: 2 },
+      { text: seg(bulletPos[2], bulletPos[3]), ruleIndex: 3 },
+      { text: seg(bulletPos[3], bulletPos[5]), ruleIndex: 4 },
+      { text: seg(bulletPos[5], undefined), ruleIndex: 5 },
+    ];
+
+    // If there's a closing paragraph (visual round text), split it off as ruleIndex 6
+    const lastSec = sections[sections.length - 1];
+    const closingMarker = "\n\n";
+    const closingPos = lastSec.text.lastIndexOf(closingMarker);
+    if (closingPos !== -1) {
+      sections[sections.length - 1] = { text: lastSec.text.slice(0, closingPos), ruleIndex: 5 };
+      sections.push({ text: lastSec.text.slice(closingPos), ruleIndex: 6 });
+    }
+
+    return sections;
+  }, [hostScript]);
+
   return (
     <>
       {/* Sidebar with hamburger button always visible */}
@@ -571,7 +639,7 @@ export default function Sidebar({
 
         {/* Speech bubble button - Show host script */}
         <button
-          onClick={() => setScriptOpen(true)}
+          onClick={() => setScriptPanelOpen((prev) => !prev)}
           style={{
             position: "absolute",
             top: "235px",
@@ -619,259 +687,96 @@ export default function Sidebar({
         />
       )}
 
-      {/* Script Modal */}
-      {scriptOpen &&
-        createPortal(
-          <div
-            onMouseDown={() => setScriptOpen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(43,57,74,.65)",
-              zIndex: 9999,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "1rem",
+      {/* Script Panel — draggable, stays open while host uses Mission Control */}
+      {scriptPanelOpen && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9000 }}>
+          <Draggable
+            nodeRef={scriptPanelRef}
+            position={scriptPanelPosition}
+            onStop={(e, data) => {
+              const pos = { x: data.x, y: data.y };
+              setScriptPanelPosition(pos);
+              localStorage.setItem("scriptPanelPosition", JSON.stringify(pos));
             }}
           >
             <div
-              onMouseDown={(e) => e.stopPropagation()}
+              ref={scriptPanelRef}
               style={{
-                width: "75vw",
-                height: "75vh",
-                maxWidth: "100vw",
-                maxHeight: "100vh",
-                background: "#fff",
-                borderRadius: ".6rem",
-                border: `1px solid ${theme.accent}`,
-                overflow: "auto",
-                resize: "both",
-                boxShadow: "0 10px 30px rgba(0,0,0,.25)",
-                fontFamily: tokens.font.body,
+                position: "absolute",
+                pointerEvents: "auto",
+                width: "680px",
+                maxWidth: "90vw",
+                height: "70vh",
                 display: "flex",
                 flexDirection: "column",
+                backgroundColor: "#fff",
+                borderRadius: ".6rem",
+                border: `1px solid ${theme.accent}`,
+                boxShadow: "0 10px 30px rgba(0,0,0,.25)",
+                overflow: "hidden",
               }}
             >
-              <div
-                style={{
-                  background: theme.dark,
-                  color: "#fff",
-                  padding: ".6rem .8rem",
-                  borderBottom: `2px solid ${theme.accent}`,
-                  fontFamily: tokens.font.display,
-                  fontSize: "1.5rem",
-                  letterSpacing: ".01em",
-                }}
-              >
-                Host Script
+              {/* Header */}
+              <div style={{
+                background: theme.dark,
+                color: "#fff",
+                padding: ".5rem .75rem",
+                borderBottom: `2px solid ${theme.accent}`,
+                cursor: "grab",
+                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: ".5rem",
+                flexShrink: 0,
+              }}>
+                <span style={{ opacity: 0.5, fontSize: ".9rem" }}>⋮⋮</span>
+                <span style={{ flex: 1, fontFamily: tokens.font.display, fontSize: "1.1rem" }}>Host Script</span>
+                <button
+                  onClick={onResetNav}
+                  title="Reset nav to start"
+                  style={{
+                    fontSize: ".78rem", padding: ".2rem .5rem", borderRadius: ".3rem",
+                    border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.1)",
+                    color: "#fff", cursor: "pointer",
+                  }}
+                >↺ Reset to start</button>
+                <button
+                  onClick={() => setScriptPanelOpen(false)}
+                  title="Close"
+                  style={{
+                    fontSize: ".78rem", padding: ".2rem .45rem", borderRadius: ".3rem",
+                    border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.1)",
+                    color: "#fff", cursor: "pointer",
+                  }}
+                >✕</button>
               </div>
 
-              <textarea
-                readOnly
-                value={hostScript}
-                style={{
-                  width: "100%",
-                  flex: 1,
-                  resize: "none",
-                  padding: "1rem",
-                  border: "none",
-                  borderTop: "1px solid #ddd",
-                  borderBottom: "1px solid #ddd",
-                  fontFamily: tokens.font.body,
-                  lineHeight: 1.35,
-                  fontSize: "1.25rem",
-                  whiteSpace: "pre-wrap",
-                  wordWrap: "break-word",
-                  boxSizing: "border-box",
-                }}
-              />
-
-              <div
-                style={{
-                  padding: ".8rem .9rem",
-                  borderTop: "1px solid #eee",
-                }}
-              >
-                {/* Push to Display buttons - only show when display controls are open */}
-                {sendToDisplay && displayControlsOpen && (
-                  <>
-                    <div
-                      style={{
-                        marginBottom: ".75rem",
-                        fontWeight: 600,
-                        fontSize: ".9rem",
-                        color: theme.dark,
-                      }}
-                    >
-                      Push to Display:
-                    </div>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: ".5rem",
-                        marginBottom: ".75rem",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Get ready to play!",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 Get ready to play!
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "No electronic devices may be out during the round",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 No devices
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Don't shout out the answers",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 Don't shout
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Spelling doesn't count unless we say it does",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 Spelling
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Real people: Last names\nFictional people: First or last names\n(unless we say otherwise!)",
-                            fontSize: 119,
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 Names
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Our answer is the\ncorrect answer",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 Our answer
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Put those phones away, because the contest starts NOW!",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                          gridColumn: "1 / -1",
-                        }}
-                      >
-                        📺 Contest starts NOW!
-                      </button>
-                    </div>
-                  </>
-                )}
-
-                {/* Close button */}
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setScriptOpen(false)}
-                    style={{
-                      padding: ".5rem .75rem",
-                      border: "1px solid #ccc",
-                      background: "#f7f7f7",
-                      borderRadius: ".35rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Close
-                  </button>
-                </div>
+              {/* Script body with rule highlighting */}
+              <div style={{
+                flex: 1,
+                overflow: "auto",
+                padding: "1rem",
+                fontFamily: tokens.font.body,
+                fontSize: "1.15rem",
+                lineHeight: 1.4,
+                whiteSpace: "pre-wrap",
+                wordWrap: "break-word",
+              }}>
+                {scriptSections.map((section, i) => (
+                  <span
+                    key={i}
+                    style={
+                      activeRulesIndex !== null && activeRulesIndex === section.ruleIndex
+                        ? { background: "#ffe066", color: "#1a1a1a", borderRadius: "2px" }
+                        : undefined
+                    }
+                  >{section.text}</span>
+                ))}
               </div>
             </div>
-          </div>,
-          document.body
-        )}
+          </Draggable>
+        </div>
+      )}
     </>
   );
 }
