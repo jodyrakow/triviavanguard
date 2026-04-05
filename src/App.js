@@ -2210,19 +2210,29 @@ export default function App() {
   const navGoTo = useCallback(() => {
     const input = navGoToInput.trim().toUpperCase();
     if (!input) return;
-    const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
-    const idx = list.findIndex(
-      (item) => item.type === "question" && String(item.questionNumber || "").toUpperCase() === input,
+    // Search all questions (navQuestionList includes visual; navQuestionsMode does not)
+    const found = navQuestionList.find(
+      (item) => String(item.questionNumber || "").toUpperCase() === input,
     );
-    if (idx === -1) return;
-    setNavIndex(idx);
-    setNavAnswerStage(0);
-    setNavStarted(true);
-    navSyncReadyRef.current = true;
+    if (!found) return;
     if (navIsAnswerMode) {
-      pushNavQuestion(list[idx], 0);
+      const idx = navQuestionList.indexOf(found);
+      setNavIndex(idx);
+      setNavAnswerStage(0);
+      setNavStarted(true);
+      navSyncReadyRef.current = true;
+      pushNavQuestion(found, 0);
     } else {
-      pushNavItem(list[idx]);
+      // For Questions mode, find the item in navQuestionsMode if it's there; otherwise use navFlatList item directly
+      const qIdx = navQuestionsMode.indexOf(found);
+      const idx = qIdx !== -1 ? qIdx : navQuestionsMode.findIndex(
+        (item) => item.type === "question" && String(item.questionNumber || "").toUpperCase() === input,
+      );
+      setNavIndex(idx !== -1 ? idx : 0);
+      setNavAnswerStage(0);
+      setNavStarted(true);
+      navSyncReadyRef.current = true;
+      pushNavItem(found);
     }
     setNavGoToInput("");
   }, [navGoToInput, navIsAnswerMode, navQuestionList, navQuestionsMode, pushNavQuestion, pushNavItem]);
