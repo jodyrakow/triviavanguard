@@ -414,6 +414,9 @@ export default function App() {
     }
   }, [passwordInput]);
 
+  // Track last meaningful display payload so late-joining displays can catch up
+  const lastSentPayloadRef = React.useRef(null);
+
   // Keep display broadcast channel in sync with venueShowId
   useEffect(() => {
     if (!supabase || !venueShowId) return;
@@ -424,7 +427,17 @@ export default function App() {
       displayBroadcastRef.current = null;
     }
 
-    const ch = supabase.channel(`tv:display:${venueShowId}`);
+    const ch = supabase.channel(`tv:display:${venueShowId}`)
+      .on("broadcast", { event: "request_state" }, () => {
+        // A display just loaded and is requesting the last known state
+        if (lastSentPayloadRef.current && displayBroadcastRef.current) {
+          displayBroadcastRef.current.send({
+            type: "broadcast",
+            event: "display_update",
+            payload: lastSentPayloadRef.current,
+          });
+        }
+      });
     ch.subscribe((status) => {
       if (status === "SUBSCRIBED") {
         displayBroadcastRef.current = ch;
@@ -463,11 +476,16 @@ export default function App() {
   const sendToDisplay = (type, data) => {
     if (!displayBroadcastRef.current) return;
     console.log("[sendToDisplay]", type, data);
+    const payload = { type, content: data };
     displayBroadcastRef.current.send({
       type: "broadcast",
       event: "display_update",
-      payload: { type, content: data },
+      payload,
     });
+    // Remember last meaningful state so late-joining displays can catch up
+    if (type !== "standby" && type !== "toggleGuide" && type !== "setGuide" && type !== "fontSize") {
+      lastSentPayloadRef.current = payload;
+    }
   };
 
   // Open a display window for the given venueShowId — skips if one is already open

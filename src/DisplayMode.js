@@ -62,7 +62,16 @@ export default function DisplayMode() {
       .on("broadcast", { event: "display_update" }, (msg) => {
         handleMessage(msg.payload || {});
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          // Request the last known state from the host
+          broadcastCh.send({
+            type: "broadcast",
+            event: "request_state",
+            payload: {},
+          });
+        }
+      });
 
     // Join shared presence channel — viewers are invisible (no track)
     let presenceCh = null;
