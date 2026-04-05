@@ -706,14 +706,16 @@ export default function Sidebar({
                 pointerEvents: "auto",
                 width: "680px",
                 maxWidth: "90vw",
-                height: "70vh",
+                height: "88vh",
+                minHeight: "200px",
                 display: "flex",
                 flexDirection: "column",
                 backgroundColor: "#fff",
                 borderRadius: ".6rem",
                 border: `1px solid ${theme.accent}`,
                 boxShadow: "0 10px 30px rgba(0,0,0,.25)",
-                overflow: "hidden",
+                overflow: "auto",
+                resize: "vertical",
               }}
             >
               {/* Header */}
