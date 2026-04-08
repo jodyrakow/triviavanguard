@@ -385,6 +385,7 @@ export default function ResultsMode({
         adaptedGrid[teamId][questionId] = {
           isCorrect: cell.isCorrect,
           bonusCount: cell.bonusCount || 0,
+          partialCount: cell.partialCount ?? 0,
         };
       }
     }
@@ -853,7 +854,8 @@ export default function ResultsMode({
           const cell = rawGrid[teamId][questionId];
           adaptedGridForPublish[teamId][questionId] = {
             isCorrect: cell.isCorrect,
-            bonusCount: cell.bonusCount,
+            bonusCount: cell.bonusCount || 0,
+            partialCount: cell.partialCount ?? 0,
           };
         }
       }

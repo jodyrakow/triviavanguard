@@ -1205,17 +1205,34 @@ export default function App() {
           "[supaLoadScoring] Fetching scoring data for show:",
           selectedShowId,
         );
-        const res = await fetch(
-          `/.netlify/functions/supaLoadScoring?showId=${encodeURIComponent(selectedShowId)}`,
-        );
+        const [res, teamsRes] = await Promise.all([
+          fetch(`/.netlify/functions/supaLoadScoring?showId=${encodeURIComponent(selectedShowId)}`),
+          fetch(`/.netlify/functions/supaLoadShowTeams?showId=${encodeURIComponent(selectedShowId)}`),
+        ]);
         console.log("[supaLoadScoring] Response status:", res.status);
         const json = await res.json();
+        const teamsJson = teamsRes.ok ? await teamsRes.json() : null;
         console.log("[supaLoadScoring] Response data:", json);
         console.log("[supaLoadScoring] Payload:", json.payload);
+
+        // Build a map of fresh showBonus values from show_teams (source of truth for bonus)
+        const freshBonusMap = {};
+        for (const t of teamsJson?.teams ?? []) {
+          freshBonusMap[t.showTeamId] = t.showBonus ?? 0;
+        }
 
         setScoringCache((prev) => {
           const prevShow = prev[selectedShowId] || DEFAULT_SHOW_STATE;
           const loadedData = json.payload ?? prevShow;
+
+          // Merge fresh showBonus values into the loaded teams
+          if (loadedData?.teams) {
+            loadedData.teams = loadedData.teams.map((t) =>
+              freshBonusMap[t.showTeamId] !== undefined
+                ? { ...t, showBonus: freshBonusMap[t.showTeamId] }
+                : t,
+            );
+          }
 
           // Only override scoring settings if the show has actual scoring data saved
           const gridHasData =
