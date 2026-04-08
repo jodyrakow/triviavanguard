@@ -140,6 +140,7 @@ export default function App() {
             show_question_id,
             is_correct,
             bonus_count,
+            partial_count,
             tiebreaker_guess,
             tiebreaker_guess_raw,
           } = newRow;
@@ -160,6 +161,7 @@ export default function App() {
                     [show_question_id]: {
                       isCorrect: is_correct,
                       bonusCount: bonus_count || 0,
+                      partialCount: partial_count ?? 0,
                       tiebreakerGuess: tiebreaker_guess,
                       tiebreakerGuessRaw: tiebreaker_guess_raw,
                     },

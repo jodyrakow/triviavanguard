@@ -262,6 +262,7 @@ export default function ScoringMode({
   // Keep refs to each cell <div> for scrolling into view
   const cellRefs = useRef({});
   const tbRefs = useRef({});
+  const scoringBroadcastRef = useRef(null);
   const onEnterBlur = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -515,6 +516,31 @@ export default function ScoringMode({
 
     return () => {
       supabase.removeChannel(channel);
+    };
+  }, [selectedShowId]);
+
+  // ---------- Scoring broadcast channel (team bonus live sync) ----------
+  useEffect(() => {
+    if (!supabase || !selectedShowId) return;
+
+    const ch = supabase
+      .channel(`scoring:${selectedShowId}`)
+      .on("broadcast", { event: "team_bonus" }, ({ payload }) => {
+        const { showTeamId, showBonus } = payload || {};
+        if (!showTeamId) return;
+        setTeams((prev) =>
+          prev.map((t) =>
+            t.showTeamId === showTeamId ? { ...t, showBonus: showBonus ?? 0 } : t,
+          ),
+        );
+      })
+      .subscribe();
+
+    scoringBroadcastRef.current = ch;
+
+    return () => {
+      supabase.removeChannel(ch);
+      scoringBroadcastRef.current = null;
     };
   }, [selectedShowId]);
 
@@ -1020,21 +1046,23 @@ export default function ScoringMode({
   const updateShowBonus = (showTeamId, val) => {
     const v = Number(val) || 0;
 
-    let updatedTeam = null;
+    const currentTeam = teams.find((t) => t.showTeamId === showTeamId);
+    if (!currentTeam) return;
+
+    const updatedTeam = { ...currentTeam, showBonus: v };
     setTeams((prev) =>
-      prev.map((t) => {
-        if (t.showTeamId === showTeamId) {
-          updatedTeam = { ...t, showBonus: v };
-          return updatedTeam;
-        }
-        return t;
-      }),
+      prev.map((t) => (t.showTeamId === showTeamId ? updatedTeam : t)),
     );
 
-    // Save to Supabase
-    if (updatedTeam) {
-      saveShowTeamToSupabase(selectedShowId, updatedTeam);
-    }
+    // Save to Supabase (persists for new host joins)
+    saveShowTeamToSupabase(selectedShowId, updatedTeam);
+
+    // Broadcast to other active hosts immediately
+    scoringBroadcastRef.current?.send({
+      type: "broadcast",
+      event: "team_bonus",
+      payload: { showTeamId, showBonus: v },
+    });
   };
 
   const addTeamLocal = async (teamName, airtableTeamId = null) => {
