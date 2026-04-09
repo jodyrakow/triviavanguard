@@ -26,7 +26,7 @@ import {
   ui,
   Button,
 } from "./styles/index.js";
-import { computeAutoEarned, computeBonusBreakdown, computePartialBreakdown } from "./scoring/compute.js";
+import { computeAutoEarned, computeBonusBreakdown, computePartialBreakdown, buildCorrectCountMap, buildTeamTotals, computePlaces } from "./scoring/compute.js";
 import { supabase } from "./supabaseClient.js";
 export { supabase };
 
@@ -1620,6 +1620,167 @@ export default function App() {
     };
   })();
 
+  // 🔸 Results navigation — standings & prizes computation (mirrors ResultsMode logic)
+  const resultsOrdinal = (n) => {
+    const s = ["th", "st", "nd", "rd"], v = n % 100;
+    return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+  };
+
+  const resultsPrizes = useMemo(() => {
+    return (composedCachedState?.prizes || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  }, [composedCachedState]);
+  const resultsPrizeCount = resultsPrizes.length;
+
+  // Flatten all questions from all rounds (including tiebreakers)
+  const resultsAllQuestions = useMemo(() => {
+    if (!showBundle?.rounds) return [];
+    const qs = [];
+    for (const r of showBundle.rounds) {
+      for (const q of r.questions || []) qs.push(q);
+      for (const cat of r.categories || []) {
+        for (const q of cat.questions || []) qs.push(q);
+      }
+    }
+    return qs;
+  }, [showBundle]);
+
+  // Detect show-wide tiebreaker question
+  const resultsTbQ = useMemo(() => {
+    if (!showBundle?.rounds) return null;
+    for (const r of showBundle.rounds) {
+      for (const q of r.questions || []) {
+        const t = (q.questionType || "").toLowerCase();
+        if (t === "tiebreaker" || String(q.questionOrder).toUpperCase() === "TB" || String(q.id || "").startsWith("tb-"))
+          return q;
+      }
+      for (const cat of r.categories || []) {
+        for (const q of cat.questions || []) {
+          const t = (q.questionType || "").toLowerCase();
+          if (t === "tiebreaker" || String(q.questionOrder).toUpperCase() === "TB" || String(q.id || "").startsWith("tb-"))
+            return q;
+        }
+      }
+    }
+    return null;
+  }, [showBundle]);
+
+  // Parse numeric answer from tiebreaker question
+  const resultsTbNumber = useMemo(() => {
+    if (!resultsTbQ) return null;
+    if (typeof resultsTbQ.tiebreakerNumber === "number" && Number.isFinite(resultsTbQ.tiebreakerNumber))
+      return resultsTbQ.tiebreakerNumber;
+    const pick = (v) => (Array.isArray(v) ? v[0] : v);
+    const raw = pick(resultsTbQ.tiebreakerNumber)?.trim() ||
+      pick(resultsTbQ.answer)?.trim() ||
+      resultsTbQ.answerText?.trim() ||
+      resultsTbQ.correctAnswer?.trim() || null;
+    if (!raw) return null;
+    const m = String(raw).replace(/[\s,]/g, "").match(/-?\d+(?:\.\d+)?/);
+    if (!m) return null;
+    const n = Number(m[0]);
+    return Number.isFinite(n) ? n : null;
+  }, [resultsTbQ]);
+
+  // Compute standings (same logic as ResultsMode)
+  const resultsStandings = useMemo(() => {
+    const teams = composedCachedState?.teams || [];
+    const grid = composedCachedState?.grid || {};
+    if (!teams.length || !resultsAllQuestions.length) return [];
+
+    // Adapt grid format
+    const adaptedGrid = {};
+    for (const teamId in grid) {
+      adaptedGrid[teamId] = {};
+      for (const qId in grid[teamId]) {
+        const cell = grid[teamId][qId];
+        adaptedGrid[teamId][qId] = { isCorrect: cell.isCorrect, bonusCount: cell.bonusCount || 0, partialCount: cell.partialCount ?? 0 };
+      }
+    }
+
+    const tbQId = resultsTbQ?.showQuestionId || resultsTbQ?.id;
+    const scoringQuestions = tbQId
+      ? resultsAllQuestions.filter(q => (q.showQuestionId || q.id) !== tbQId)
+      : resultsAllQuestions;
+
+    const scoringConfig = { mode: scoringMode, pubPoints: Number(pubPoints || 0), poolPerQuestion: Number(poolPerQuestion || 0), poolContribution: Number(poolContribution || 0), teamCount: teams.length };
+    const nCorrectByQ = buildCorrectCountMap(teams, scoringQuestions, adaptedGrid);
+    const totalByTeam = buildTeamTotals(teams, scoringQuestions, adaptedGrid, scoringConfig, nCorrectByQ);
+
+    const getTbGuess = (showTeamId) => {
+      if (!resultsTbQ) return null;
+      const cell = grid[showTeamId]?.[tbQId];
+      const v = cell?.tiebreakerGuess;
+      return typeof v === "number" && Number.isFinite(v) ? v : null;
+    };
+
+    const rows = teams.map(t => {
+      const total = +(totalByTeam[t.showTeamId] ?? 0);
+      const guess = getTbGuess(t.showTeamId);
+      const delta = resultsTbNumber !== null && guess !== null ? Math.abs(guess - resultsTbNumber) : Infinity;
+      return {
+        showTeamId: t.showTeamId,
+        teamName: t.teamName || "(Unnamed team)",
+        total,
+        tbGuess: guess,
+        tbDelta: delta,
+        tieBroken: false,
+        unbreakableTie: false,
+        _tbGroupBroken: false,
+        _tbRank: 0,
+      };
+    });
+
+    rows.sort((a, b) => b.total - a.total || a.teamName.localeCompare(b.teamName, "en", { sensitivity: "base" }));
+    const places = computePlaces(totalByTeam);
+    for (const r of rows) r.place = places[r.showTeamId];
+
+    if (!resultsPrizeCount || resultsTbNumber === null || !resultsTbQ) return rows;
+
+    // Identify tie groups and reorder by tbDelta within prize band
+    const groups = [];
+    let idx = 0;
+    while (idx < rows.length) {
+      const gStart = idx, tot = rows[idx].total;
+      idx++;
+      while (idx < rows.length && rows[idx].total === tot) idx++;
+      groups.push([gStart, idx]);
+    }
+
+    for (const [gStart, gEnd] of groups) {
+      if (gStart >= resultsPrizeCount || gStart < 0) continue;
+      const slice = rows.slice(gStart, gEnd);
+      if (!slice.some(r => Number.isFinite(r.tbDelta))) continue;
+      slice.sort((a, b) => {
+        if (a.total !== b.total) return 0;
+        if (a.tbDelta !== b.tbDelta) return a.tbDelta - b.tbDelta;
+        return a.teamName.localeCompare(b.teamName, "en", { sensitivity: "base" });
+      });
+      const best = slice[0]?.tbDelta, second = slice[1]?.tbDelta;
+      const groupBroken = slice.length > 1 && Number.isFinite(best) && Number.isFinite(second) && best !== second;
+      slice.forEach((r, k) => { r.tieBroken = true; r._tbGroupBroken = !!groupBroken; r._tbRank = k; });
+      if (slice.length > 1 && Number.isFinite(best)) {
+        const topTied = slice.filter(r => r.tbDelta === best);
+        if (topTied.length > 1) topTied.forEach(r => (r.unbreakableTie = true));
+      }
+      for (let k = 0; k < slice.length; k++) rows[gStart + k] = slice[k];
+    }
+
+    // Re-assign places after TB reordering
+    let prevKey = null, place = 0, cnt = 0;
+    for (const r of rows) {
+      cnt++;
+      const tieKey = r._tbGroupBroken ? `${r.total}|${r._tbRank}` : `${r.total}|`;
+      if (prevKey === null || tieKey !== prevKey) { place = cnt; prevKey = tieKey; }
+      r.place = place;
+    }
+    return rows;
+  }, [composedCachedState, resultsAllQuestions, resultsTbQ, resultsTbNumber, resultsPrizeCount, scoringMode, pubPoints, poolPerQuestion, poolContribution]);
+
+  const resultsTiebreakerWasUsed = useMemo(
+    () => resultsStandings.some(r => r.place <= resultsPrizeCount && r._tbGroupBroken),
+    [resultsStandings, resultsPrizeCount],
+  );
+
   // 🔸 Merge question edits into showBundle for display
   const showBundleWithEdits = useMemo(() => {
     if (!showBundle) return null;
@@ -1837,6 +1998,112 @@ export default function App() {
     [navFlatList],
   );
 
+  // Build the ordered results-reveal nav sequence from last place to first
+  // Each step has type: "results-splash" | "results-scramble" | "results-tb-combined" | "results-non-winners" | "results-place-reveal"
+  const resultsNavSequence = useMemo(() => {
+    const steps = [];
+    if (!resultsStandings.length) return steps;
+
+    // Step 1: splash screen
+    steps.push({ type: "results-splash" });
+
+    // Build total-groups from last to first (for the reveal sequence)
+    // Unique total values, sorted ascending (last → first)
+    const uniqueTotals = [...new Set(resultsStandings.map(r => r.total))].sort((a, b) => a - b);
+
+    // Compute pointsAhead for each total — how many points they are ahead of the next group below them
+    // (i.e., the gap to the group with the next-lower total)
+    const pointsAheadByTotal = new Map();
+    for (let i = 1; i < uniqueTotals.length; i++) {
+      pointsAheadByTotal.set(uniqueTotals[i], uniqueTotals[i] - uniqueTotals[i - 1]);
+    }
+
+    // Collect which totals are prize-band totals (at least one team with place <= prizeCount)
+    const prizeBandTotals = new Set(
+      resultsStandings.filter(r => resultsPrizeCount > 0 && r.place <= resultsPrizeCount).map(r => r.total)
+    );
+
+    for (const total of uniqueTotals) {
+      const group = resultsStandings.filter(r => r.total === total);
+      const pointsAhead = pointsAheadByTotal.get(total) ?? null;
+      const inPrizeBand = prizeBandTotals.has(total);
+
+      // Are all of these teams outside the prize band?
+      const allOutsidePrizeBand = group.every(r => !resultsPrizeCount || r.place > resultsPrizeCount);
+
+      if (allOutsidePrizeBand && group.length > 0) {
+        // Non-winners: single reveal with all teams (no prize)
+        steps.push({
+          type: "results-non-winners",
+          teams: group.map(r => r.teamName),
+          points: total,
+          pointsAhead,
+          isTied: group.length > 1,
+        });
+        continue;
+      }
+
+      // Prize band — check if tiebreaker was used within this total group
+      const anyTbBroken = group.some(r => r._tbGroupBroken);
+
+      if (anyTbBroken && resultsTiebreakerWasUsed) {
+        // Tiebreaker was used: scramble step followed by combined TB Q+A step, then individual reveal
+        steps.push({
+          type: "results-scramble",
+          teams: [...group.map(r => r.teamName)].sort(() => Math.random() - 0.5),
+          points: total,
+          pointsAhead,
+          prize: inPrizeBand ? `Vying for ${resultsPrizes[group[0].place - 1] || "a prize"}` : null,
+        });
+        steps.push({
+          type: "results-tb-combined",
+          tbQuestion: resultsTbQ?.questionText || "",
+          tbAnswer: resultsTbQ ? (
+            Array.isArray(resultsTbQ.answer) ? resultsTbQ.answer[0] : resultsTbQ.answer ||
+            resultsTbQ.answerText || resultsTbQ.correctAnswer || ""
+          ) : "",
+          tbNumber: resultsTbNumber,
+          tbTeamsAndGuesses: group.map(r => ({ teamName: r.teamName, guess: r.tbGuess })),
+          points: total,
+          pointsAhead,
+        });
+        // Then individual place reveals for each sub-place within the group
+        const subPlaces = [...new Set(group.map(r => r.place))].sort((a, b) => b - a);
+        for (const place of subPlaces) {
+          const atPlace = group.filter(r => r.place === place);
+          const prize = resultsPrizeCount > 0 && place <= resultsPrizeCount ? resultsPrizes[place - 1] || "" : null;
+          steps.push({
+            type: "results-place-reveal",
+            place: resultsOrdinal(place),
+            teams: atPlace.map(r => r.teamName),
+            isTied: atPlace.length > 1,
+            points: total,
+            pointsAhead,
+            prize,
+          });
+        }
+      } else {
+        // No tiebreaker within this group: single reveal step
+        const highestPlace = Math.min(...group.map(r => r.place));
+        const isTied = group.length > 1;
+        const prize = resultsPrizeCount > 0 && highestPlace <= resultsPrizeCount
+          ? (isTied ? `Vying for ${resultsPrizes[highestPlace - 1] || ""}` : resultsPrizes[highestPlace - 1] || "")
+          : null;
+        steps.push({
+          type: "results-place-reveal",
+          place: resultsOrdinal(highestPlace),
+          teams: group.map(r => r.teamName),
+          isTied,
+          points: total,
+          pointsAhead,
+          prize: prize || null,
+        });
+      }
+    }
+
+    return steps;
+  }, [resultsStandings, resultsPrizes, resultsPrizeCount, resultsTiebreakerWasUsed, resultsTbQ, resultsTbNumber]);
+
   // Rules items as nav prefix — full list or just phoneAway
   const navRulesPrefix = useMemo(
     () => RULES_ITEMS.map((item) => ({ type: "rules", ...item })),
@@ -1852,6 +2119,12 @@ export default function App() {
     const prefix = rulesStartedWithScript ? navRulesPrefix : phoneAwayPrefix;
     return [...prefix, ...navQuestionsMode];
   }, [rulesStartedWithScript, navQuestionsMode, navRulesPrefix, phoneAwayPrefix]);
+
+  // Answers mode list: questions + results reveal sequence
+  const navAnswersModeList = useMemo(
+    () => [...navQuestionList, ...resultsNavSequence],
+    [navQuestionList, resultsNavSequence],
+  );
 
   // Reset nav position when show or round changes
   useEffect(() => {
@@ -2006,6 +2279,60 @@ export default function App() {
     ],
   );
 
+  // Push a results-reveal step to the display
+  const pushResultsStep = useCallback((step) => {
+    if (!step) return;
+    if (step.type === "results-splash") {
+      sendToDisplay("results-splash", {});
+      return;
+    }
+    if (step.type === "results-scramble") {
+      // Randomize teams at push time
+      const scrambled = [...(step.teams || [])].sort(() => Math.random() - 0.5);
+      sendToDisplay("results", {
+        place: step.place || null,
+        teams: scrambled,
+        isTied: true,
+        points: step.points,
+        prize: step.prize || null,
+        pointsAhead: step.pointsAhead || null,
+      });
+      return;
+    }
+    if (step.type === "results-tb-combined") {
+      sendToDisplay("results-tb-combined", {
+        tbQuestion: step.tbQuestion,
+        tbAnswer: step.tbAnswer,
+        tbNumber: step.tbNumber,
+        tbTeamsAndGuesses: step.tbTeamsAndGuesses,
+      });
+      return;
+    }
+    if (step.type === "results-non-winners") {
+      sendToDisplay("results", {
+        place: step.place || null,
+        teams: step.teams,
+        isTied: step.isTied,
+        points: step.points,
+        prize: null,
+        pointsAhead: step.pointsAhead || null,
+      });
+      return;
+    }
+    if (step.type === "results-place-reveal") {
+      sendToDisplay("results", {
+        place: step.place,
+        teams: step.teams,
+        isTied: step.isTied,
+        points: step.points,
+        prize: step.prize || null,
+        pointsAhead: step.pointsAhead || null,
+      });
+      return;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Unified question-send function for QuestionsMode buttons — builds full payload and syncs nav cursor
   const pushDisplayQuestion = useCallback(
     (showQuestionId, stage, withImages) => {
@@ -2085,7 +2412,7 @@ export default function App() {
       navSyncReadyRef.current = true;
 
       // Sync nav cursor — use navWithRules so navIndex is offset past the rules prefix, consistent with navForward/navBackward
-      const list = navIsAnswerMode ? navQuestionList : navWithRules;
+      const list = navIsAnswerMode ? navAnswersModeList : navWithRules;
       const idx = list.findIndex(
         (i) => i.type === "question" && i.showQuestionId === showQuestionId,
       );
@@ -2098,7 +2425,7 @@ export default function App() {
     },
     [
       navFlatList,
-      navQuestionList,
+      navAnswersModeList,
       navWithRules,
       navIsAnswerMode,
       composedCachedState,
@@ -2123,8 +2450,8 @@ export default function App() {
         );
         if (found) {
           // Find index in the active list — use navWithRules so questions are offset past the rules prefix
-          const list = navIsAnswerMode ? navQuestionList : navWithRules;
-          const idx = list.indexOf(found) !== -1 ? list.indexOf(found) : navQuestionList.indexOf(found);
+          const list = navIsAnswerMode ? navAnswersModeList : navWithRules;
+          const idx = list.indexOf(found) !== -1 ? list.indexOf(found) : navAnswersModeList.indexOf(found);
           setNavIndex(idx >= 0 ? idx : 0);
           setNavStarted(true);
           if (navIsAnswerMode) {
@@ -2153,10 +2480,10 @@ export default function App() {
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [navIsAnswerMode, navFlatList, navQuestionList, navWithRules],
+    [navIsAnswerMode, navFlatList, navQuestionList, navAnswersModeList, navWithRules],
   );
 
-  const navActiveList = navIsAnswerMode ? navQuestionList : navWithRules;
+  const navActiveList = navIsAnswerMode ? navAnswersModeList : navWithRules;
 
   // Current nav item, enriched with notes/edit fields from navQuestionList
   const navCurrentItem = useMemo(() => {
@@ -2175,7 +2502,12 @@ export default function App() {
       setRulesStartedWithScript(scriptPanelOpen);
       setNavStarted(true);
       if (navIsAnswerMode) {
-        pushNavQuestion(navQuestionList[navIndex], 0, false);
+        const firstItem = navAnswersModeList[navIndex];
+        if (firstItem?.type === "question") {
+          pushNavQuestion(firstItem, 0, false);
+        } else if (firstItem) {
+          pushResultsStep(firstItem);
+        }
       } else {
         // navWithRules not yet updated with snapshot — compute prefix inline
         const prefix = scriptPanelOpen ? navRulesPrefix : phoneAwayPrefix;
@@ -2185,17 +2517,34 @@ export default function App() {
       return;
     }
     if (navIsAnswerMode) {
-      const currentQ = navQuestionList[navIndex];
-      if (!currentQ) return;
-      if (navAnswerStage < 2) {
-        const nextStage = navAnswerStage + 1;
-        setNavAnswerStage(nextStage);
-        pushNavQuestion(currentQ, nextStage, navImageVisible); // same question — preserve image state
-      } else if (navIndex < navQuestionList.length - 1) {
+      const currentItem = navAnswersModeList[navIndex];
+      if (!currentItem) return;
+      if (currentItem.type === "question") {
+        if (navAnswerStage < 2) {
+          const nextStage = navAnswerStage + 1;
+          setNavAnswerStage(nextStage);
+          pushNavQuestion(currentItem, nextStage, navImageVisible);
+        } else {
+          // Advance past this question to next item (could be another question or results step)
+          const nextIdx = navIndex + 1;
+          if (nextIdx < navAnswersModeList.length) {
+            const nextItem = navAnswersModeList[nextIdx];
+            setNavIndex(nextIdx);
+            setNavAnswerStage(0);
+            if (nextItem.type === "question") {
+              pushNavQuestion(nextItem, 0, false);
+            } else {
+              pushResultsStep(nextItem);
+            }
+          }
+        }
+      } else {
+        // Results step — just advance to the next step
         const nextIdx = navIndex + 1;
-        setNavIndex(nextIdx);
-        setNavAnswerStage(0);
-        pushNavQuestion(navQuestionList[nextIdx], 0, false); // new question — no image
+        if (nextIdx < navAnswersModeList.length) {
+          setNavIndex(nextIdx);
+          pushResultsStep(navAnswersModeList[nextIdx]);
+        }
       }
     } else {
       if (navIndex < navWithRules.length - 1) {
@@ -2213,26 +2562,49 @@ export default function App() {
     navQuestionsMode,
     navRulesPrefix,
     phoneAwayPrefix,
-    navQuestionList,
+    navAnswersModeList,
     pushNavItem,
     pushNavQuestion,
+    pushResultsStep,
     scriptPanelOpen,
   ]);
 
   const navBackward = useCallback(() => {
     navSyncReadyRef.current = true;
     if (navIsAnswerMode) {
-      const currentQ = navQuestionList[navIndex];
-      if (!currentQ) return;
-      if (navAnswerStage > 0) {
-        const prevStage = navAnswerStage - 1;
-        setNavAnswerStage(prevStage);
-        pushNavQuestion(currentQ, prevStage, navImageVisible); // same question — preserve image state
-      } else if (navIndex > 0) {
-        const prevIdx = navIndex - 1;
-        setNavIndex(prevIdx);
-        setNavAnswerStage(2);
-        pushNavQuestion(navQuestionList[prevIdx], 2, false); // new question — no image
+      const currentItem = navAnswersModeList[navIndex];
+      if (!currentItem) return;
+      if (currentItem.type === "question") {
+        if (navAnswerStage > 0) {
+          const prevStage = navAnswerStage - 1;
+          setNavAnswerStage(prevStage);
+          pushNavQuestion(currentItem, prevStage, navImageVisible);
+        } else if (navIndex > 0) {
+          const prevIdx = navIndex - 1;
+          const prevItem = navAnswersModeList[prevIdx];
+          setNavIndex(prevIdx);
+          if (prevItem?.type === "question") {
+            setNavAnswerStage(2);
+            pushNavQuestion(prevItem, 2, false);
+          } else {
+            setNavAnswerStage(0);
+            pushResultsStep(prevItem);
+          }
+        }
+      } else {
+        // Results step — go back to previous step
+        if (navIndex > 0) {
+          const prevIdx = navIndex - 1;
+          const prevItem = navAnswersModeList[prevIdx];
+          setNavIndex(prevIdx);
+          setNavAnswerStage(0);
+          if (prevItem?.type === "question") {
+            setNavAnswerStage(2);
+            pushNavQuestion(prevItem, 2, false);
+          } else {
+            pushResultsStep(prevItem);
+          }
+        }
       }
     } else {
       if (navIndex > 0) {
@@ -2246,9 +2618,10 @@ export default function App() {
     navIndex,
     navAnswerStage,
     navWithRules,
-    navQuestionList,
+    navAnswersModeList,
     pushNavItem,
     pushNavQuestion,
+    pushResultsStep,
   ]);
 
   const toggleNavMode = useCallback(() => {
@@ -2274,6 +2647,11 @@ export default function App() {
       if (item.type === "rules") return item.label || "Rule";
       if (item.type === "carousel") return "Visual carousel";
       if (item.type === "category") return item.categoryName || "Category";
+      if (item.type === "results-splash") return "Results splash";
+      if (item.type === "results-scramble") return `Scramble · ${item.place || ""}`;
+      if (item.type === "results-tb-combined") return "TB reveal";
+      if (item.type === "results-non-winners") return `Non-winners · ${item.points}pts`;
+      if (item.type === "results-place-reveal") return `${item.place} place`;
       const stageLabel = navIsAnswerMode
         ? ` · ${["question", "answer", "stats"][stage] ?? ""}`
         : "";
@@ -3131,7 +3509,9 @@ export default function App() {
                   const hasQuestionNotes = !!enrichedItem?.questionNotes;
                   const hasPronunciation = !!enrichedItem?.pronunciationGuide;
                   const hasAnswerNotes = !!enrichedItem?.answerNotes;
-                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null;
+                  const isTbCombinedStep = enrichedItem?.type === "results-tb-combined";
+                  const tbTeamsAndGuesses = isTbCombinedStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
+                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbCombinedStep;
 
                   const formatTime = (s) => {
                     if (!s || !isFinite(s)) return "--:--";
@@ -3205,6 +3585,31 @@ export default function App() {
                         <div style={rowStyle}>
                           <span style={labelStyle}>Ans. notes</span>
                           <span style={textStyle}>{enrichedItem.answerNotes}</span>
+                        </div>
+                      )}
+
+                      {isTbCombinedStep && tbTeamsAndGuesses.length > 0 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
+                          <div style={rowStyle}>
+                            <span style={labelStyle}>TB</span>
+                            <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
+                              {enrichedItem.tbQuestion || ""}
+                            </span>
+                          </div>
+                          {enrichedItem.tbAnswer && (
+                            <div style={rowStyle}>
+                              <span style={labelStyle}>Ans.</span>
+                              <span style={{ ...textStyle, color: colors.accent }}>{enrichedItem.tbAnswer} {enrichedItem.tbNumber !== null ? `(${enrichedItem.tbNumber})` : ""}</span>
+                            </div>
+                          )}
+                          {tbTeamsAndGuesses.map((tg, i) => (
+                            <div key={i} style={{ ...rowStyle, paddingLeft: "4.3rem" }}>
+                              <span style={{ ...textStyle, color: "#aaa", flex: 1 }}>{tg.teamName}</span>
+                              <span style={{ ...textStyle, color: "#fff", flexShrink: 0, marginLeft: ".5rem" }}>
+                                {tg.guess !== null && tg.guess !== undefined ? `guessed ${tg.guess}` : "no guess"}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       )}
 

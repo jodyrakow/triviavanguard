@@ -152,6 +152,12 @@ export default function DisplayMode() {
       {displayState.type === "results" && (
         <ResultsDisplay content={displayState.content} fontSize={fontSize} />
       )}
+      {displayState.type === "results-splash" && (
+        <ResultsSplashDisplay fontSize={fontSize} />
+      )}
+      {displayState.type === "results-tb-combined" && (
+        <ResultsTbCombinedDisplay content={displayState.content} fontSize={fontSize} />
+      )}
 
       {showGuide && <DesignGuideOverlay />}
 
@@ -901,7 +907,7 @@ function QuestionCarousel({
 function ResultsDisplay({ content, fontSize = 100 }) {
   if (!content) return null;
 
-  const { place, teams = [], prize, isTied, points } = content;
+  const { place, teams = [], prize, isTied, points, pointsAhead } = content;
   const scale = fontSize / 100;
 
   // 16:9 grid bands (based on 900px tall mock style)
@@ -976,16 +982,15 @@ function ResultsDisplay({ content, fontSize = 100 }) {
             boxSizing: "border-box",
           }}
         >
-          <div
-            style={{
-              fontSize: `${3.75 * scale}rem`,
-              fontFamily: tokens.font.body,
-              color: theme.dark,
-              fontWeight: 600,
-              lineHeight: 1.1,
-            }}
-          >
-            {points} {points === 1 ? "point" : "points"}
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "0.6em", flexWrap: "wrap" }}>
+            {pointsAhead != null && (
+              <span style={{ fontSize: `${2.4 * scale}rem`, fontFamily: tokens.font.body, color: theme.accent, fontStyle: "italic", fontWeight: 600, lineHeight: 1.1 }}>
+                {pointsAhead} {pointsAhead === 1 ? "point" : "points"} ahead
+              </span>
+            )}
+            <span style={{ fontSize: `${3.75 * scale}rem`, fontFamily: tokens.font.body, color: theme.dark, fontWeight: 600, lineHeight: 1.1 }}>
+              {points} {points === 1 ? "point" : "points"}
+            </span>
           </div>
         </div>
       )}
@@ -1065,5 +1070,109 @@ function ResultsDisplay({ content, fontSize = 100 }) {
         </div>
       )}
     </>
+  );
+}
+
+function ResultsSplashDisplay({ fontSize = 100 }) {
+  const scale = fontSize / 100;
+  return (
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", flexDirection: "column",
+      justifyContent: "center", alignItems: "center",
+      zIndex: 50,
+    }}>
+      <div style={{
+        fontSize: `${7 * scale}rem`,
+        fontFamily: tokens.font.display,
+        color: theme.accent,
+        fontWeight: 800,
+        textTransform: "uppercase",
+        letterSpacing: "0.2rem",
+        lineHeight: 1.05,
+        textAlign: "center",
+      }}>
+        Results
+      </div>
+    </div>
+  );
+}
+
+function ResultsTbCombinedDisplay({ content, fontSize = 100 }) {
+  if (!content) return null;
+  const { tbQuestion, tbAnswer, tbNumber, tbTeamsAndGuesses = [] } = content;
+  const scale = fontSize / 100;
+
+  return (
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", flexDirection: "column",
+      justifyContent: "center", alignItems: "center",
+      padding: "4vh 6vw",
+      boxSizing: "border-box",
+      zIndex: 50,
+      gap: "3vh",
+    }}>
+      {/* TB Question */}
+      {tbQuestion && (
+        <div style={{
+          fontSize: `${2.2 * scale}rem`,
+          fontFamily: tokens.font.body,
+          color: theme.dark,
+          fontWeight: 600,
+          textAlign: "center",
+          lineHeight: 1.3,
+        }}>
+          {tbQuestion}
+        </div>
+      )}
+      {/* TB Answer */}
+      {tbAnswer && (
+        <div style={{
+          fontSize: `${3 * scale}rem`,
+          fontFamily: tokens.font.display,
+          color: theme.accent,
+          fontWeight: 800,
+          textAlign: "center",
+        }}>
+          {tbAnswer}{tbNumber != null ? ` (${tbNumber})` : ""}
+        </div>
+      )}
+      {/* Teams and guesses */}
+      {tbTeamsAndGuesses.length > 0 && (
+        <div style={{
+          display: "flex", flexDirection: "column", gap: "1vh",
+          width: "100%", maxWidth: "80vw", alignItems: "center",
+        }}>
+          {tbTeamsAndGuesses.map((tg, i) => (
+            <div key={i} style={{
+              display: "flex", justifyContent: "space-between", alignItems: "baseline",
+              width: "100%", gap: "2vw",
+            }}>
+              <span style={{
+                fontSize: `${1.8 * scale}rem`,
+                fontFamily: tokens.font.body,
+                color: theme.dark,
+                fontWeight: 600,
+                flex: 1,
+                textAlign: "right",
+              }}>
+                {tg.teamName}
+              </span>
+              <span style={{
+                fontSize: `${1.6 * scale}rem`,
+                fontFamily: tokens.font.body,
+                color: theme.dark,
+                fontStyle: "italic",
+                flex: 1,
+                textAlign: "left",
+              }}>
+                {tg.guess != null ? `Triviots guessed ${tg.guess}` : "no guess"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
