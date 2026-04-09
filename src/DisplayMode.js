@@ -931,6 +931,7 @@ function ResultsDisplay({ content, fontSize = 100 }) {
   return (
     <>
       {/* PLACE */}
+      {place != null && (
       <div
         style={{
           position: "absolute",
@@ -960,9 +961,10 @@ function ResultsDisplay({ content, fontSize = 100 }) {
         >
           {isTied
             ? `TIED FOR ${place} place`
-            : `${place} place` || "".toUpperCase()}
+            : `${place} place`}
         </div>
       </div>
+      )}
 
       {/* POINTS */}
       {points != null && (
