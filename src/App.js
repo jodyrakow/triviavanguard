@@ -3273,7 +3273,7 @@ export default function App() {
                   onClick={() => setNavKeyboardEnabled(v => !v)}
                   title={navKeyboardEnabled ? "Disable keyboard arrow nav" : "Enable keyboard arrow nav"}
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", border: `1px solid ${navKeyboardEnabled ? colors.accent : "transparent"}`, background: navKeyboardEnabled ? colors.accent : "transparent" }}
-                >⌨️</Button>
+                >←→</Button>
               </div>
                 {/* Control bar — 2-row layout */}
                 {(() => {
