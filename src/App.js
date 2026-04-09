@@ -3519,9 +3519,9 @@ export default function App() {
                     if (catIdx !== -1) categoryNumber = catIdx + 1;
                   }
 
-                  const hasQuestionNotes = !!enrichedItem?.questionNotes;
-                  const hasPronunciation = !!enrichedItem?.pronunciationGuide;
-                  const hasAnswerNotes = !!enrichedItem?.answerNotes;
+                  const hasQuestionNotes = !!(enrichedItem?.questionNotes?.trim());
+                  const hasPronunciation = !!(enrichedItem?.pronunciationGuide?.trim());
+                  const hasAnswerNotes = !!(enrichedItem?.answerNotes?.trim());
                   const isTbCombinedStep = enrichedItem?.type === "results-tb-combined";
                   const tbTeamsAndGuesses = isTbCombinedStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
                   const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbCombinedStep;
