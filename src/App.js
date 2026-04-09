@@ -1771,6 +1771,7 @@ export default function App() {
           categoryName: (cat.categoryName || "").trim(),
           categoryDescription: cat.categoryDescription || "",
           isTiebreaker,
+          questionType: (cat.questionType || "").toLowerCase(),
           categoryAudio: Array.isArray(cat.categoryAudio)
             ? cat.categoryAudio.filter((a) => a?.url)
             : [],
@@ -2346,11 +2347,30 @@ export default function App() {
   );
 
   const navGoTo = useCallback(() => {
-    const input = navGoToInput.trim().toUpperCase();
+    const input = navGoToInput.trim();
     if (!input) return;
+
+    // Special keyword: "audio" — navigate to the audio category in Questions mode
+    if (input.toLowerCase() === "audio") {
+      const audioCategory = navQuestionsMode.find(
+        (item) => item.type === "category" && item.questionType === "audio",
+      );
+      if (audioCategory) {
+        const idx = navQuestionsMode.indexOf(audioCategory);
+        setNavIndex(idx);
+        setNavAnswerStage(0);
+        setNavStarted(true);
+        navSyncReadyRef.current = true;
+        pushNavItem(audioCategory);
+        setNavGoToInput("");
+      }
+      return;
+    }
+
+    const inputUpper = input.toUpperCase();
     // Search all questions (navQuestionList includes visual; navQuestionsMode does not)
     const found = navQuestionList.find(
-      (item) => String(item.questionNumber || "").toUpperCase() === input,
+      (item) => String(item.questionNumber || "").toUpperCase() === inputUpper,
     );
     if (!found) return;
     if (navIsAnswerMode) {
@@ -2364,7 +2384,7 @@ export default function App() {
       // For Questions mode, find the item in navQuestionsMode if it's there; otherwise use navFlatList item directly
       const qIdx = navQuestionsMode.indexOf(found);
       const idx = qIdx !== -1 ? qIdx : navQuestionsMode.findIndex(
-        (item) => item.type === "question" && String(item.questionNumber || "").toUpperCase() === input,
+        (item) => item.type === "question" && String(item.questionNumber || "").toUpperCase() === inputUpper,
       );
       setNavIndex(idx !== -1 ? idx : 0);
       setNavAnswerStage(0);
