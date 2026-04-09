@@ -2158,6 +2158,16 @@ export default function App() {
 
   const navActiveList = navIsAnswerMode ? navQuestionList : navWithRules;
 
+  // Current nav item, enriched with notes/edit fields from navQuestionList
+  const navCurrentItem = useMemo(() => {
+    const current = navActiveList[navIndex];
+    if (!current) return null;
+    if (current.type === "question") {
+      return navQuestionList.find(q => q.showQuestionId === current.showQuestionId) ?? current;
+    }
+    return current;
+  }, [navActiveList, navIndex, navQuestionList]);
+
   const navForward = useCallback(() => {
     navSyncReadyRef.current = true;
     if (!navStarted) {
@@ -2885,6 +2895,22 @@ export default function App() {
                   title="Toggle alignment guide"
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
                 >📐</Button>
+                <Button
+                  onClick={() => {
+                    if (navCurrentItem?.type !== "question") return;
+                    setStripEditDraft({
+                      question: navCurrentItem.questionText || "",
+                      notes: navCurrentItem.questionNotes || "",
+                      pronunciationGuide: navCurrentItem.pronunciationGuide || "",
+                      answer: navCurrentItem.answer || "",
+                      answerNotes: navCurrentItem.answerNotes || "",
+                    });
+                    setStripEditing(true);
+                  }}
+                  disabled={navCurrentItem?.type !== "question"}
+                  title={navCurrentItem?.type === "question" ? "Edit question" : "Navigate to a question to edit"}
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", opacity: navCurrentItem?.type !== "question" ? 0.35 : 1 }}
+                >✏️</Button>
               </div>
                 {/* Control bar — 2-row layout */}
                 {(() => {
@@ -3087,18 +3113,13 @@ export default function App() {
                   />
                 </div>
 
-                {/* Host info strip — always rendered so preview position doesn't jump */}
+                {/* Context panel — always rendered so preview position doesn't jump */}
                 {(() => {
-                  const currentItem = navActiveList[navIndex];
-                  const enrichedItem = currentItem?.type === "question"
-                    ? (navQuestionList.find(q => q.showQuestionId === currentItem.showQuestionId) ?? currentItem)
-                    : currentItem;
-
+                  const enrichedItem = navCurrentItem;
                   const hasAudio = currentNavAudio.length > 0;
                   const audioObj = currentNavAudio[navAudioIndex] || currentNavAudio[0];
                   const isCurrentAudio = hasAudio && !!audioObj && sharedAudioUrl === audioObj.url;
 
-                  // Category number within the Questions-mode list
                   let categoryNumber = null, totalCategories = 0;
                   if (enrichedItem?.type === "category") {
                     const catItems = navQuestionsMode.filter(i => i.type === "category");
@@ -3110,7 +3131,6 @@ export default function App() {
                   const hasQuestionNotes = !!enrichedItem?.questionNotes;
                   const hasPronunciation = !!enrichedItem?.pronunciationGuide;
                   const hasAnswerNotes = !!enrichedItem?.answerNotes;
-                  const isQuestion = enrichedItem?.type === "question";
                   const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null;
 
                   const formatTime = (s) => {
@@ -3140,198 +3160,93 @@ export default function App() {
                     lineHeight: 1.45,
                   };
                   const rowStyle = { display: "flex", gap: ".5rem", alignItems: "flex-start" };
-                  const inputStyle = {
-                    flex: 1,
-                    background: "#0e1620",
-                    border: "1px solid #2a3a4a",
-                    borderRadius: ".25rem",
-                    color: "#fff",
-                    fontFamily: tokens.font.body,
-                    fontSize: ".85rem",
-                    padding: ".2rem .4rem",
-                    resize: "vertical",
-                    minHeight: "1.8rem",
-                  };
-
-                  const enterEditMode = () => {
-                    setStripEditDraft({
-                      question: enrichedItem?.questionText || "",
-                      notes: enrichedItem?.questionNotes || "",
-                      pronunciationGuide: enrichedItem?.pronunciationGuide || "",
-                      answer: enrichedItem?.answer || "",
-                      answerNotes: enrichedItem?.answerNotes || "",
-                    });
-                    setStripEditing(true);
-                  };
-
-                  const saveEdits = () => {
-                    const sqid = enrichedItem?.showQuestionId;
-                    if (sqid) {
-                      editQuestionField(sqid, "question", stripEditDraft.question.trim());
-                      editQuestionField(sqid, "notes", stripEditDraft.notes.trim());
-                      editQuestionField(sqid, "pronunciationGuide", stripEditDraft.pronunciationGuide.trim());
-                      editQuestionField(sqid, "answer", stripEditDraft.answer.trim());
-                      editQuestionField(sqid, "answerNotes", stripEditDraft.answerNotes.trim());
-                    }
-                    setStripEditing(false);
-                  };
-
-                  const miniBtn = (label, onClick, accent = false) => (
-                    <button
-                      onClick={onClick}
-                      style={{
-                        fontSize: ".72rem",
-                        fontFamily: tokens.font.body,
-                        padding: ".15rem .4rem",
-                        borderRadius: ".25rem",
-                        border: `1px solid ${accent ? colors.accent : "#3a4a5a"}`,
-                        background: accent ? colors.accent : "transparent",
-                        color: "#fff",
-                        cursor: "pointer",
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
 
                   return (
                     <div style={{
                       background: "#182030",
                       borderTop: "1px solid #2a3a4a",
-                      minHeight: "2.8rem",
+                      padding: ".4rem .6rem",
                       display: "flex",
                       flexDirection: "column",
+                      gap: ".3rem",
+                      minHeight: "2.4rem",
+                      justifyContent: hasContent ? "flex-start" : "center",
                     }}>
-                      {/* Strip header row */}
-                      <div style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: ".2rem .6rem",
-                        borderBottom: "1px solid #1e2e3e",
-                      }}>
-                        <span style={{ fontSize: ".62rem", color: "#3a5060", letterSpacing: ".1em", textTransform: "uppercase", fontFamily: tokens.font.body }}>
-                          Host Notes
-                        </span>
-                        <div style={{ display: "flex", gap: ".3rem", alignItems: "center" }}>
-                          {stripEditing && miniBtn("Save", saveEdits, true)}
-                          {isQuestion && miniBtn(stripEditing ? "Cancel" : "✏", stripEditing ? () => setStripEditing(false) : enterEditMode)}
+                      {!hasContent && (
+                        <div style={{ ...textStyle, color: "#2e4050", textAlign: "center", fontSize: ".78rem", fontStyle: "italic" }}>
+                          no context
                         </div>
-                      </div>
+                      )}
 
-                      {/* Strip content */}
-                      <div style={{
-                        padding: ".35rem .6rem",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: ".3rem",
-                        flex: 1,
-                        justifyContent: !stripEditing && !hasContent ? "center" : "flex-start",
-                      }}>
+                      {categoryNumber !== null && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Cat</span>
+                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
+                            {categoryNumber} of {totalCategories}
+                          </span>
+                        </div>
+                      )}
 
-                        {stripEditing ? (
-                          /* Edit mode */
-                          <>
-                            {[
-                              { key: "question", label: "Q text" },
-                              { key: "notes", label: "Notes" },
-                              { key: "pronunciationGuide", label: "Pron." },
-                              { key: "answer", label: "Answer" },
-                              { key: "answerNotes", label: "Ans. notes" },
-                            ].map(({ key, label }) => (
-                              <div key={key} style={rowStyle}>
-                                <span style={labelStyle}>{label}</span>
-                                <textarea
-                                  value={stripEditDraft[key] || ""}
-                                  onChange={(e) => setStripEditDraft(d => ({ ...d, [key]: e.target.value }))}
-                                  rows={1}
-                                  style={inputStyle}
-                                />
-                              </div>
-                            ))}
-                          </>
-                        ) : (
-                          /* View mode */
-                          <>
-                            {!hasContent && (
-                              <div style={{ ...textStyle, color: "#2e4050", textAlign: "center", fontSize: ".78rem", fontStyle: "italic" }}>
-                                no host notes
-                              </div>
-                            )}
+                      {hasQuestionNotes && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Notes</span>
+                          <span style={textStyle}>{enrichedItem.questionNotes}</span>
+                        </div>
+                      )}
 
-                            {categoryNumber !== null && (
-                              <div style={rowStyle}>
-                                <span style={labelStyle}>Cat</span>
-                                <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
-                                  {categoryNumber} of {totalCategories}
-                                </span>
-                              </div>
-                            )}
+                      {hasPronunciation && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Pron.</span>
+                          <span style={{ ...textStyle, fontStyle: "italic" }}>{enrichedItem.pronunciationGuide}</span>
+                        </div>
+                      )}
 
-                            {hasQuestionNotes && (
-                              <div style={rowStyle}>
-                                <span style={labelStyle}>Notes</span>
-                                <span style={textStyle}>{enrichedItem.questionNotes}</span>
-                              </div>
-                            )}
+                      {hasAnswerNotes && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Ans. notes</span>
+                          <span style={textStyle}>{enrichedItem.answerNotes}</span>
+                        </div>
+                      )}
 
-                            {hasPronunciation && (
-                              <div style={rowStyle}>
-                                <span style={labelStyle}>Pron.</span>
-                                <span style={{ ...textStyle, fontStyle: "italic" }}>{enrichedItem.pronunciationGuide}</span>
-                              </div>
-                            )}
-
-                            {hasAnswerNotes && (
-                              <div style={rowStyle}>
-                                <span style={labelStyle}>Ans. notes</span>
-                                <span style={textStyle}>{enrichedItem.answerNotes}</span>
-                              </div>
-                            )}
-
-                            {hasAudio && audioObj && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: ".25rem" }}>
-                                <div style={{ display: "flex", gap: ".5rem", alignItems: "center" }}>
-                                  <span style={labelStyle}>Audio</span>
-                                  <span style={{ ...textStyle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                    {audioObj.filename || "audio file"}
-                                  </span>
-                                  <span style={{ ...textStyle, color: "#888", flexShrink: 0, fontSize: ".78rem" }}>
-                                    {isCurrentAudio && audioCurrentTime > 0
-                                      ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}`
-                                      : formatTime(audioDuration)}
-                                  </span>
-                                </div>
-                                <div
-                                  style={{
-                                    height: "5px",
-                                    background: "#2a3a4a",
-                                    borderRadius: "3px",
-                                    cursor: isCurrentAudio && audioDuration ? "pointer" : "default",
-                                    overflow: "hidden",
-                                  }}
-                                  onClick={(e) => {
-                                    if (!sharedAudioRef.current || !audioDuration) return;
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                                    sharedAudioRef.current.currentTime = ratio * audioDuration;
-                                  }}
-                                >
-                                  <div style={{
-                                    height: "100%",
-                                    width: isCurrentAudio && audioDuration
-                                      ? `${Math.min(100, (audioCurrentTime / audioDuration) * 100)}%`
-                                      : "0%",
-                                    background: colors.accent,
-                                    borderRadius: "3px",
-                                  }} />
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
+                      {hasAudio && audioObj && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: ".25rem" }}>
+                          <div style={{ display: "flex", gap: ".5rem", alignItems: "center" }}>
+                            <span style={labelStyle}>Audio</span>
+                            <span style={{ ...textStyle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {audioObj.filename || "audio file"}
+                            </span>
+                            <span style={{ ...textStyle, color: "#888", flexShrink: 0, fontSize: ".78rem" }}>
+                              {isCurrentAudio && audioCurrentTime > 0
+                                ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}`
+                                : formatTime(audioDuration)}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              height: "5px",
+                              background: "#2a3a4a",
+                              borderRadius: "3px",
+                              cursor: isCurrentAudio && audioDuration ? "pointer" : "default",
+                              overflow: "hidden",
+                            }}
+                            onClick={(e) => {
+                              if (!sharedAudioRef.current || !audioDuration) return;
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                              sharedAudioRef.current.currentTime = ratio * audioDuration;
+                            }}
+                          >
+                            <div style={{
+                              height: "100%",
+                              width: isCurrentAudio && audioDuration
+                                ? `${Math.min(100, (audioCurrentTime / audioDuration) * 100)}%`
+                                : "0%",
+                              background: colors.accent,
+                              borderRadius: "3px",
+                            }} />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
@@ -3341,6 +3256,71 @@ export default function App() {
           </div>
         )}
 
+
+      {/* Question Edit Modal */}
+      {stripEditing && navCurrentItem?.type === "question" && (() => {
+        const sqid = navCurrentItem.showQuestionId;
+        const saveEdits = () => {
+          editQuestionField(sqid, "question", stripEditDraft.question.trim());
+          editQuestionField(sqid, "notes", stripEditDraft.notes.trim());
+          editQuestionField(sqid, "pronunciationGuide", stripEditDraft.pronunciationGuide.trim());
+          editQuestionField(sqid, "answer", stripEditDraft.answer.trim());
+          editQuestionField(sqid, "answerNotes", stripEditDraft.answerNotes.trim());
+          setStripEditing(false);
+        };
+        const fieldStyle = {
+          width: "100%",
+          boxSizing: "border-box",
+          background: "#f7f7f7",
+          border: `1px solid ${colors.gray?.border || "#ddd"}`,
+          borderRadius: ".3rem",
+          fontFamily: tokens.font.body,
+          fontSize: ".9rem",
+          padding: ".35rem .5rem",
+          color: colors.dark,
+          resize: "vertical",
+        };
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
+            onClick={() => setStripEditing(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: "#fff", borderRadius: "10px", padding: "1.25rem 1.5rem", width: "min(520px, 100%)", display: "flex", flexDirection: "column", gap: ".75rem", boxShadow: "0 8px 32px rgba(0,0,0,0.25)" }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: ".25rem" }}>
+                <span style={{ fontWeight: 700, fontSize: "1rem", fontFamily: tokens.font.body, color: colors.dark }}>
+                  Edit Q{navCurrentItem.questionNumber} — {navCurrentItem.categoryName}
+                </span>
+                <button onClick={() => setStripEditing(false)} style={{ background: "none", border: "none", fontSize: "1.1rem", cursor: "pointer", color: "#888", lineHeight: 1 }}>✕</button>
+              </div>
+              {[
+                { key: "question", label: "Question text", rows: 3 },
+                { key: "notes", label: "Question notes", rows: 2 },
+                { key: "pronunciationGuide", label: "Pronunciation guide", rows: 1 },
+                { key: "answer", label: "Answer", rows: 1 },
+                { key: "answerNotes", label: "Answer notes", rows: 2 },
+              ].map(({ key, label, rows }) => (
+                <div key={key} style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
+                  <label style={{ fontSize: ".72rem", fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: colors.accent, fontFamily: tokens.font.body }}>{label}</label>
+                  <textarea
+                    value={stripEditDraft[key] || ""}
+                    onChange={(e) => setStripEditDraft(d => ({ ...d, [key]: e.target.value }))}
+                    rows={rows}
+                    style={fieldStyle}
+                    autoFocus={key === "question"}
+                  />
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: ".5rem", justifyContent: "flex-end", marginTop: ".25rem" }}>
+                <button onClick={() => setStripEditing(false)} style={{ fontFamily: tokens.font.body, fontSize: ".85rem", padding: ".4rem .9rem", borderRadius: ".35rem", border: `1px solid ${colors.gray?.border || "#ccc"}`, background: "transparent", cursor: "pointer", color: colors.dark }}>Cancel</button>
+                <button onClick={saveEdits} style={{ fontFamily: tokens.font.body, fontSize: ".85rem", padding: ".4rem .9rem", borderRadius: ".35rem", border: `1px solid ${colors.accent}`, background: colors.accent, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Answer Key Modal (app-level) */}
       {showAnswerKey && (
