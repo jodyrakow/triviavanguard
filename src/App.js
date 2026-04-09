@@ -1922,15 +1922,16 @@ export default function App() {
   );
 
   // Push an answers-mode question at a given stage (0=question, 1=answer, 2=stats)
+  // imageVisible: explicit override — pass navImageVisible when staying on same question, false when moving to a new one
   const pushNavQuestion = useCallback(
-    (item, stage) => {
+    (item, stage, imageVisible = false) => {
       if (!item) return;
       const payload = {
         questionNumber: item.questionNumber,
         questionText: item.questionText,
         categoryName: item.categoryName,
       };
-      if ((item.showImageByDefault || navImageVisible) && item.inlineImages?.length > 0) {
+      if ((item.showImageByDefault || imageVisible) && item.inlineImages?.length > 0) {
         payload.inlineImages = item.inlineImages;
         // Auto-reveal answer image overrides manual index; otherwise use current navImageIndex
         if (item.showImageByDefault && item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
@@ -2001,7 +2002,6 @@ export default function App() {
       pubPoints,
       poolPerQuestion,
       poolContribution,
-      navImageVisible,
       navImageIndex,
     ],
   );
@@ -2165,7 +2165,7 @@ export default function App() {
       setRulesStartedWithScript(scriptPanelOpen);
       setNavStarted(true);
       if (navIsAnswerMode) {
-        pushNavQuestion(navQuestionList[navIndex], 0);
+        pushNavQuestion(navQuestionList[navIndex], 0, false);
       } else {
         // navWithRules not yet updated with snapshot — compute prefix inline
         const prefix = scriptPanelOpen ? navRulesPrefix : phoneAwayPrefix;
@@ -2180,12 +2180,12 @@ export default function App() {
       if (navAnswerStage < 2) {
         const nextStage = navAnswerStage + 1;
         setNavAnswerStage(nextStage);
-        pushNavQuestion(currentQ, nextStage);
+        pushNavQuestion(currentQ, nextStage, navImageVisible); // same question — preserve image state
       } else if (navIndex < navQuestionList.length - 1) {
         const nextIdx = navIndex + 1;
         setNavIndex(nextIdx);
         setNavAnswerStage(0);
-        pushNavQuestion(navQuestionList[nextIdx], 0);
+        pushNavQuestion(navQuestionList[nextIdx], 0, false); // new question — no image
       }
     } else {
       if (navIndex < navWithRules.length - 1) {
@@ -2217,12 +2217,12 @@ export default function App() {
       if (navAnswerStage > 0) {
         const prevStage = navAnswerStage - 1;
         setNavAnswerStage(prevStage);
-        pushNavQuestion(currentQ, prevStage);
+        pushNavQuestion(currentQ, prevStage, navImageVisible); // same question — preserve image state
       } else if (navIndex > 0) {
         const prevIdx = navIndex - 1;
         setNavIndex(prevIdx);
         setNavAnswerStage(2);
-        pushNavQuestion(navQuestionList[prevIdx], 2);
+        pushNavQuestion(navQuestionList[prevIdx], 2, false); // new question — no image
       }
     } else {
       if (navIndex > 0) {
