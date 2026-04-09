@@ -1631,14 +1631,27 @@ export default function App() {
   }, [composedCachedState]);
   const resultsPrizeCount = resultsPrizes.length;
 
-  // Flatten all questions from all rounds (including tiebreakers)
+  // Flatten all scored questions from all rounds (mirrors ResultsMode.allQuestions)
+  // Only pulls from categories, not flat r.questions (which are host-added tiebreakers)
   const resultsAllQuestions = useMemo(() => {
     if (!showBundle?.rounds) return [];
     const qs = [];
     for (const r of showBundle.rounds) {
-      for (const q of r.questions || []) qs.push(q);
       for (const cat of r.categories || []) {
-        for (const q of cat.questions || []) qs.push(q);
+        for (const q of cat.questions || []) {
+          qs.push({
+            showQuestionId: q.showQuestionId || q.id,
+            questionType: q.questionType || null,
+            questionOrder: q.questionOrder,
+            sortOrder: Number(q.sortOrder ?? 9999),
+            bonusAvailable: !!q.bonusAvailable,
+            bonusValue: q.bonusValue ?? 0,
+            maxBonuses: q.maxBonuses ?? 0,
+            partialCreditAvailable: !!q.partialCreditAvailable,
+            numParts: typeof q.numParts === "number" ? q.numParts : 0,
+            pubPerQuestion: typeof q.pointsPerQuestion === "number" ? q.pointsPerQuestion : null,
+          });
+        }
       }
     }
     return qs;
@@ -1699,7 +1712,7 @@ export default function App() {
 
     const tbQId = resultsTbQ?.showQuestionId || resultsTbQ?.id;
     const scoringQuestions = tbQId
-      ? resultsAllQuestions.filter(q => (q.showQuestionId || q.id) !== tbQId)
+      ? resultsAllQuestions.filter(q => q.showQuestionId !== tbQId)
       : resultsAllQuestions;
 
     const scoringConfig = { mode: scoringMode, pubPoints: Number(pubPoints || 0), poolPerQuestion: Number(poolPerQuestion || 0), poolContribution: Number(poolContribution || 0), teamCount: teams.length };
@@ -1992,9 +2005,9 @@ export default function App() {
     [navFlatList],
   );
 
-  // Answers mode nav: all questions in order (visual included, no category/carousel items)
+  // Answers mode nav: all questions in order (visual included, no category/carousel items, no tiebreakers)
   const navQuestionList = useMemo(
-    () => navFlatList.filter((item) => item.type === "question"),
+    () => navFlatList.filter((item) => item.type === "question" && !item.isTiebreaker),
     [navFlatList],
   );
 
