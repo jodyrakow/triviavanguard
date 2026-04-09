@@ -296,6 +296,7 @@ export default function App() {
   const [navIndex, setNavIndex] = useState(0);
   const [navAnswerStage, setNavAnswerStage] = useState(0); // 0=question, 1=answer, 2=stats
   const [navStarted, setNavStarted] = useState(false); // true once first item has been sent via nav
+  const [navKeyboardEnabled, setNavKeyboardEnabled] = useState(false); // arrow key nav
   const [navImageVisible, setNavImageVisible] = useState(false); // true when image toggled on for current nav item
   const [navImageIndex, setNavImageIndex] = useState(0); // current image index when cycling
   const [navAudioIndex, setNavAudioIndex] = useState(0); // current audio index when cycling
@@ -2064,13 +2065,13 @@ export default function App() {
           tbAnswer: tbAnswerText,
           tbTeamsAndGuesses: group.map(r => ({ teamName: r.teamName, guess: r.tbGuess })),
         });
+        // After the TB reveal the crowd already knows the points, so go straight to team reveal
         const subPlaces = [...new Set(group.map(r => r.place))].sort((a, b) => b - a);
         for (const place of subPlaces) {
           const atPlace = group.filter(r => r.place === place);
           const subPlaceStr = resultsOrdinal(place);
           const subPrize = place <= resultsPrizeCount ? resultsPrizes[place - 1] || "" : null;
           const subIsTied = atPlace.length > 1;
-          steps.push({ type: "results-place-pts", place: subPlaceStr, points: total, isTied: subIsTied, prize: subPrize });
           steps.push({ type: "results-place-reveal", place: subPlaceStr, teams: atPlace.map(r => r.teamName), isTied: subIsTied, points: total, prize: subPrize });
         }
       } else {
@@ -2113,6 +2114,22 @@ export default function App() {
     setRulesStartedWithScript(false);
     navSyncReadyRef.current = false; // don't broadcast until host actively pushes again
   }, [showBundle, selectedRoundId]);
+
+  // Keyboard arrow nav (only when enabled)
+  useEffect(() => {
+    if (!navKeyboardEnabled) return;
+    const handler = (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navForward();
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navBackward();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [navKeyboardEnabled, navForward, navBackward]);
 
   // Broadcast nav state to co-hosts whenever it changes
   // Guards: skip if we're applying a remote sync, skip if host hasn't pushed anything yet
@@ -3377,6 +3394,18 @@ export default function App() {
                           />
                           {arrowBtn("←", navBackward, navActiveList.length === 0 || navAtStart, { width: "3rem" })}
                           {arrowBtn(navStarted ? "→" : "▶", navForward, navActiveList.length === 0 || navAtEnd, { width: "3rem" })}
+                          <button
+                            onClick={() => setNavKeyboardEnabled(v => !v)}
+                            title={navKeyboardEnabled ? "Disable keyboard arrow nav" : "Enable keyboard arrow nav"}
+                            style={{
+                              ...btnBase,
+                              width: "3rem",
+                              border: `1px solid ${navKeyboardEnabled ? colors.accent : "#555"}`,
+                              background: navKeyboardEnabled ? colors.accent : "transparent",
+                              color: "#fff",
+                              fontSize: ".85rem",
+                            }}
+                          >⌨</button>
                         </div>
                       </div>
 
