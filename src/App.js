@@ -3474,7 +3474,21 @@ export default function App() {
                   const hasAnswerNotes = !!(enrichedItem?.answerNotes?.trim());
                   const isTbStep = enrichedItem?.type === "results-tb-question" || enrichedItem?.type === "results-tb-answer";
                   const tbTeamsAndGuesses = isTbStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
-                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbStep;
+
+                  // Next place info: find the next results-place-pts or results-place-reveal step after current
+                  const isResultsPlaceStep = enrichedItem?.type === "results-place-pts" || enrichedItem?.type === "results-place-reveal";
+                  let nextPlaceInfo = null;
+                  if (isResultsPlaceStep) {
+                    for (let i = navIndex + 1; i < navAnswersModeList.length; i++) {
+                      const s = navAnswersModeList[i];
+                      if (s.type === "results-place-pts" || s.type === "results-place-reveal") {
+                        nextPlaceInfo = s;
+                        break;
+                      }
+                    }
+                  }
+
+                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep;
 
                   const formatTime = (s) => {
                     if (!s || !isFinite(s)) return "--:--";
@@ -3530,6 +3544,24 @@ export default function App() {
                         </div>
                       )}
 
+                      {isResultsPlaceStep && enrichedItem && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Now</span>
+                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
+                            {enrichedItem.place} · {enrichedItem.points} {enrichedItem.points === 1 ? "pt" : "pts"}
+                          </span>
+                        </div>
+                      )}
+                      {nextPlaceInfo && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Next</span>
+                          <span style={{ ...textStyle, color: colors.accent }}>
+                            {nextPlaceInfo.place} · {nextPlaceInfo.points} pts
+                            {enrichedItem?.points != null ? ` (+${nextPlaceInfo.points - enrichedItem.points})` : ""}
+                          </span>
+                        </div>
+                      )}
+
                       {hasQuestionNotes && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Notes</span>
@@ -3562,7 +3594,7 @@ export default function App() {
                           {enrichedItem.tbAnswer && (
                             <div style={rowStyle}>
                               <span style={labelStyle}>Ans.</span>
-                              <span style={{ ...textStyle, color: colors.accent }}>{enrichedItem.tbAnswer} {enrichedItem.tbNumber !== null ? `(${enrichedItem.tbNumber})` : ""}</span>
+                              <span style={{ ...textStyle, color: colors.accent }}>{enrichedItem.tbAnswer}</span>
                             </div>
                           )}
                           {tbTeamsAndGuesses.map((tg, i) => (
