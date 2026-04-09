@@ -307,6 +307,8 @@ export default function App() {
   const [sharedAudioPlaying, setSharedAudioPlaying] = useState(false);
   const [audioCurrentTime, setAudioCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(null);
+  const [stripEditing, setStripEditing] = useState(false);
+  const [stripEditDraft, setStripEditDraft] = useState({});
 
   // Preview width: panel content width + panel padding (.7rem * 2 ≈ 22px at 16px base)
   const previewW = { S: 460, M: 580, L: 720, XL: 940 }[panelSize];
@@ -1644,8 +1646,8 @@ export default function App() {
               ...(edit.question !== undefined && {
                 questionText: edit.question,
               }),
-              ...(edit.questionNotes !== undefined && {
-                questionNotes: edit.questionNotes,
+              ...((edit.notes !== undefined || edit.questionNotes !== undefined) && {
+                questionNotes: edit.notes ?? edit.questionNotes,
               }),
               ...(edit.pronunciationGuide !== undefined && {
                 questionPronunciationGuide: edit.pronunciationGuide,
@@ -1928,13 +1930,13 @@ export default function App() {
         questionText: item.questionText,
         categoryName: item.categoryName,
       };
-      if (item.showImageByDefault && item.inlineImages?.length > 0) {
+      if ((item.showImageByDefault || navImageVisible) && item.inlineImages?.length > 0) {
         payload.inlineImages = item.inlineImages;
-        // Auto-reveal answer image: image 0 for question, image 1 for answer/stats
-        if (item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
+        // Auto-reveal answer image overrides manual index; otherwise use current navImageIndex
+        if (item.showImageByDefault && item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
           payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
         } else {
-          payload.currentInlineImageIndex = 0;
+          payload.currentInlineImageIndex = navImageIndex;
         }
       }
       if (stage >= 1) {
@@ -1999,6 +2001,8 @@ export default function App() {
       pubPoints,
       poolPerQuestion,
       poolContribution,
+      navImageVisible,
+      navImageIndex,
     ],
   );
 
@@ -2415,6 +2419,8 @@ export default function App() {
     setNavImageVisible(false);
     setNavImageIndex(0);
     setNavAudioIndex(0);
+    setStripEditing(false);
+    setStripEditDraft({});
   }, [navIndex, navIsAnswerMode]);
 
   const navNextLabel = useMemo(() => {
@@ -3104,6 +3110,7 @@ export default function App() {
                   const hasQuestionNotes = !!enrichedItem?.questionNotes;
                   const hasPronunciation = !!enrichedItem?.pronunciationGuide;
                   const hasAnswerNotes = !!enrichedItem?.answerNotes;
+                  const isQuestion = enrichedItem?.type === "question";
                   const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null;
 
                   const formatTime = (s) => {
@@ -3114,110 +3121,217 @@ export default function App() {
                   };
 
                   const labelStyle = {
-                    fontSize: ".65rem",
+                    fontSize: ".72rem",
                     fontWeight: 700,
-                    letterSpacing: ".06em",
+                    letterSpacing: ".05em",
                     textTransform: "uppercase",
                     color: colors.accent,
                     fontFamily: tokens.font.body,
                     flexShrink: 0,
                     lineHeight: 1.5,
                     paddingTop: "1px",
+                    width: "3.8rem",
+                    textAlign: "right",
                   };
                   const textStyle = {
-                    fontSize: ".78rem",
+                    fontSize: ".85rem",
                     color: "#ddd",
                     fontFamily: tokens.font.body,
                     lineHeight: 1.45,
                   };
-                  const rowStyle = { display: "flex", gap: ".4rem", alignItems: "flex-start" };
+                  const rowStyle = { display: "flex", gap: ".5rem", alignItems: "flex-start" };
+                  const inputStyle = {
+                    flex: 1,
+                    background: "#0e1620",
+                    border: "1px solid #2a3a4a",
+                    borderRadius: ".25rem",
+                    color: "#fff",
+                    fontFamily: tokens.font.body,
+                    fontSize: ".85rem",
+                    padding: ".2rem .4rem",
+                    resize: "vertical",
+                    minHeight: "1.8rem",
+                  };
+
+                  const enterEditMode = () => {
+                    setStripEditDraft({
+                      question: enrichedItem?.questionText || "",
+                      notes: enrichedItem?.questionNotes || "",
+                      pronunciationGuide: enrichedItem?.pronunciationGuide || "",
+                      answer: enrichedItem?.answer || "",
+                      answerNotes: enrichedItem?.answerNotes || "",
+                    });
+                    setStripEditing(true);
+                  };
+
+                  const saveEdits = () => {
+                    const sqid = enrichedItem?.showQuestionId;
+                    if (sqid) {
+                      editQuestionField(sqid, "question", stripEditDraft.question.trim());
+                      editQuestionField(sqid, "notes", stripEditDraft.notes.trim());
+                      editQuestionField(sqid, "pronunciationGuide", stripEditDraft.pronunciationGuide.trim());
+                      editQuestionField(sqid, "answer", stripEditDraft.answer.trim());
+                      editQuestionField(sqid, "answerNotes", stripEditDraft.answerNotes.trim());
+                    }
+                    setStripEditing(false);
+                  };
+
+                  const miniBtn = (label, onClick, accent = false) => (
+                    <button
+                      onClick={onClick}
+                      style={{
+                        fontSize: ".72rem",
+                        fontFamily: tokens.font.body,
+                        padding: ".15rem .4rem",
+                        borderRadius: ".25rem",
+                        border: `1px solid ${accent ? colors.accent : "#3a4a5a"}`,
+                        background: accent ? colors.accent : "transparent",
+                        color: "#fff",
+                        cursor: "pointer",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
 
                   return (
                     <div style={{
                       background: "#182030",
                       borderTop: "1px solid #2a3a4a",
-                      padding: ".4rem .6rem",
-                      minHeight: "2.4rem",
+                      minHeight: "2.8rem",
                       display: "flex",
                       flexDirection: "column",
-                      gap: ".3rem",
-                      justifyContent: hasContent ? "flex-start" : "center",
                     }}>
-                      {!hasContent && (
-                        <div style={{ ...textStyle, color: "#3a4a5a", textAlign: "center", fontSize: ".72rem", fontStyle: "italic" }}>
-                          no host notes
+                      {/* Strip header row */}
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: ".2rem .6rem",
+                        borderBottom: "1px solid #1e2e3e",
+                      }}>
+                        <span style={{ fontSize: ".62rem", color: "#3a5060", letterSpacing: ".1em", textTransform: "uppercase", fontFamily: tokens.font.body }}>
+                          Host Notes
+                        </span>
+                        <div style={{ display: "flex", gap: ".3rem", alignItems: "center" }}>
+                          {stripEditing && miniBtn("Save", saveEdits, true)}
+                          {isQuestion && miniBtn(stripEditing ? "Cancel" : "✏", stripEditing ? () => setStripEditing(false) : enterEditMode)}
                         </div>
-                      )}
+                      </div>
 
-                      {categoryNumber !== null && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>Cat</span>
-                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
-                            {categoryNumber} of {totalCategories}
-                          </span>
-                        </div>
-                      )}
+                      {/* Strip content */}
+                      <div style={{
+                        padding: ".35rem .6rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: ".3rem",
+                        flex: 1,
+                        justifyContent: !stripEditing && !hasContent ? "center" : "flex-start",
+                      }}>
 
-                      {hasQuestionNotes && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>Notes</span>
-                          <span style={textStyle}>{enrichedItem.questionNotes}</span>
-                        </div>
-                      )}
+                        {stripEditing ? (
+                          /* Edit mode */
+                          <>
+                            {[
+                              { key: "question", label: "Q text" },
+                              { key: "notes", label: "Notes" },
+                              { key: "pronunciationGuide", label: "Pron." },
+                              { key: "answer", label: "Answer" },
+                              { key: "answerNotes", label: "Ans. notes" },
+                            ].map(({ key, label }) => (
+                              <div key={key} style={rowStyle}>
+                                <span style={labelStyle}>{label}</span>
+                                <textarea
+                                  value={stripEditDraft[key] || ""}
+                                  onChange={(e) => setStripEditDraft(d => ({ ...d, [key]: e.target.value }))}
+                                  rows={1}
+                                  style={inputStyle}
+                                />
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          /* View mode */
+                          <>
+                            {!hasContent && (
+                              <div style={{ ...textStyle, color: "#2e4050", textAlign: "center", fontSize: ".78rem", fontStyle: "italic" }}>
+                                no host notes
+                              </div>
+                            )}
 
-                      {hasPronunciation && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>Pron.</span>
-                          <span style={{ ...textStyle, fontStyle: "italic" }}>{enrichedItem.pronunciationGuide}</span>
-                        </div>
-                      )}
+                            {categoryNumber !== null && (
+                              <div style={rowStyle}>
+                                <span style={labelStyle}>Cat</span>
+                                <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
+                                  {categoryNumber} of {totalCategories}
+                                </span>
+                              </div>
+                            )}
 
-                      {hasAnswerNotes && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>Ans.</span>
-                          <span style={textStyle}>{enrichedItem.answerNotes}</span>
-                        </div>
-                      )}
+                            {hasQuestionNotes && (
+                              <div style={rowStyle}>
+                                <span style={labelStyle}>Notes</span>
+                                <span style={textStyle}>{enrichedItem.questionNotes}</span>
+                              </div>
+                            )}
 
-                      {hasAudio && audioObj && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
-                          <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
-                            <span style={labelStyle}>Audio</span>
-                            <span style={{ ...textStyle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {audioObj.filename || "audio file"}
-                            </span>
-                            <span style={{ ...textStyle, color: "#888", flexShrink: 0, fontSize: ".72rem" }}>
-                              {isCurrentAudio && audioCurrentTime > 0
-                                ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}`
-                                : formatTime(audioDuration)}
-                            </span>
-                          </div>
-                          <div
-                            style={{
-                              height: "5px",
-                              background: "#2a3a4a",
-                              borderRadius: "3px",
-                              cursor: isCurrentAudio && audioDuration ? "pointer" : "default",
-                              overflow: "hidden",
-                            }}
-                            onClick={(e) => {
-                              if (!sharedAudioRef.current || !audioDuration) return;
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                              sharedAudioRef.current.currentTime = ratio * audioDuration;
-                            }}
-                          >
-                            <div style={{
-                              height: "100%",
-                              width: isCurrentAudio && audioDuration
-                                ? `${Math.min(100, (audioCurrentTime / audioDuration) * 100)}%`
-                                : "0%",
-                              background: colors.accent,
-                              borderRadius: "3px",
-                            }} />
-                          </div>
-                        </div>
-                      )}
+                            {hasPronunciation && (
+                              <div style={rowStyle}>
+                                <span style={labelStyle}>Pron.</span>
+                                <span style={{ ...textStyle, fontStyle: "italic" }}>{enrichedItem.pronunciationGuide}</span>
+                              </div>
+                            )}
+
+                            {hasAnswerNotes && (
+                              <div style={rowStyle}>
+                                <span style={labelStyle}>Ans. notes</span>
+                                <span style={textStyle}>{enrichedItem.answerNotes}</span>
+                              </div>
+                            )}
+
+                            {hasAudio && audioObj && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: ".25rem" }}>
+                                <div style={{ display: "flex", gap: ".5rem", alignItems: "center" }}>
+                                  <span style={labelStyle}>Audio</span>
+                                  <span style={{ ...textStyle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {audioObj.filename || "audio file"}
+                                  </span>
+                                  <span style={{ ...textStyle, color: "#888", flexShrink: 0, fontSize: ".78rem" }}>
+                                    {isCurrentAudio && audioCurrentTime > 0
+                                      ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}`
+                                      : formatTime(audioDuration)}
+                                  </span>
+                                </div>
+                                <div
+                                  style={{
+                                    height: "5px",
+                                    background: "#2a3a4a",
+                                    borderRadius: "3px",
+                                    cursor: isCurrentAudio && audioDuration ? "pointer" : "default",
+                                    overflow: "hidden",
+                                  }}
+                                  onClick={(e) => {
+                                    if (!sharedAudioRef.current || !audioDuration) return;
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                                    sharedAudioRef.current.currentTime = ratio * audioDuration;
+                                  }}
+                                >
+                                  <div style={{
+                                    height: "100%",
+                                    width: isCurrentAudio && audioDuration
+                                      ? `${Math.min(100, (audioCurrentTime / audioDuration) * 100)}%`
+                                      : "0%",
+                                    background: colors.accent,
+                                    borderRadius: "3px",
+                                  }} />
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
