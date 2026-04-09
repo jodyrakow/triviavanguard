@@ -3269,6 +3269,11 @@ export default function App() {
                   title={navCurrentItem?.type === "question" ? "Edit question" : "Navigate to a question to edit"}
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", opacity: navCurrentItem?.type !== "question" ? 0.35 : 1 }}
                 >✏️</Button>
+                <Button
+                  onClick={() => setNavKeyboardEnabled(v => !v)}
+                  title={navKeyboardEnabled ? "Disable keyboard arrow nav" : "Enable keyboard arrow nav"}
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", border: `1px solid ${navKeyboardEnabled ? colors.accent : "transparent"}`, background: navKeyboardEnabled ? colors.accent : "transparent" }}
+                >⌨️</Button>
               </div>
                 {/* Control bar — 2-row layout */}
                 {(() => {
@@ -3394,18 +3399,6 @@ export default function App() {
                           />
                           {arrowBtn("←", navBackward, navActiveList.length === 0 || navAtStart, { width: "3rem" })}
                           {arrowBtn(navStarted ? "→" : "▶", navForward, navActiveList.length === 0 || navAtEnd, { width: "3rem" })}
-                          <button
-                            onClick={() => setNavKeyboardEnabled(v => !v)}
-                            title={navKeyboardEnabled ? "Disable keyboard arrow nav" : "Enable keyboard arrow nav"}
-                            style={{
-                              ...btnBase,
-                              width: "3rem",
-                              border: `1px solid ${navKeyboardEnabled ? colors.accent : "#555"}`,
-                              background: navKeyboardEnabled ? colors.accent : "transparent",
-                              color: "#fff",
-                              fontSize: ".85rem",
-                            }}
-                          >⌨</button>
                         </div>
                       </div>
 
