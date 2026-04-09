@@ -2049,20 +2049,25 @@ export default function App() {
       const anyTbBroken = group.some(r => r._tbGroupBroken);
 
       if (anyTbBroken && resultsTiebreakerWasUsed) {
-        // Scramble, then TB Q+A, then individual sub-place reveals (each as pts then teams)
+        // Scramble, then TB question, then TB answer, then individual sub-place reveals
+        const tbAnswerText = resultsTbQ ? (
+          Array.isArray(resultsTbQ.answer) ? resultsTbQ.answer[0] : (resultsTbQ.answer || resultsTbQ.answerText || resultsTbQ.correctAnswer || "")
+        ) : "";
         steps.push({
           type: "results-scramble",
+          place: placeStr,
           teams: [...group.map(r => r.teamName)].sort(() => Math.random() - 0.5),
           points: total,
-          prize: inPrizeBand ? `Vying for ${resultsPrizes[group[0].place - 1] || "a prize"}` : null,
+          prize: inPrizeBand ? `Vying for ${resultsPrizes[highestPlace - 1] || "a prize"}` : null,
         });
         steps.push({
-          type: "results-tb-combined",
+          type: "results-tb-question",
           tbQuestion: resultsTbQ?.questionText || "",
-          tbAnswer: resultsTbQ ? (
-            Array.isArray(resultsTbQ.answer) ? resultsTbQ.answer[0] : (resultsTbQ.answer || resultsTbQ.answerText || resultsTbQ.correctAnswer || "")
-          ) : "",
-          tbNumber: resultsTbNumber,
+        });
+        steps.push({
+          type: "results-tb-answer",
+          tbQuestion: resultsTbQ?.questionText || "",
+          tbAnswer: tbAnswerText,
           tbTeamsAndGuesses: group.map(r => ({ teamName: r.teamName, guess: r.tbGuess })),
         });
         const subPlaces = [...new Set(group.map(r => r.place))].sort((a, b) => b - a);
@@ -2272,14 +2277,17 @@ export default function App() {
     }
     if (step.type === "results-scramble") {
       const scrambled = [...(step.teams || [])].sort(() => Math.random() - 0.5);
-      sendToDisplay("results", { place: null, teams: scrambled, isTied: true, points: step.points, prize: step.prize || null });
+      sendToDisplay("results", { place: step.place, teams: scrambled, isTied: true, points: step.points, prize: step.prize || null });
       return;
     }
-    if (step.type === "results-tb-combined") {
-      sendToDisplay("results-tb-combined", {
+    if (step.type === "results-tb-question") {
+      sendToDisplay("results-tb-question", { tbQuestion: step.tbQuestion });
+      return;
+    }
+    if (step.type === "results-tb-answer") {
+      sendToDisplay("results-tb-answer", {
         tbQuestion: step.tbQuestion,
         tbAnswer: step.tbAnswer,
-        tbNumber: step.tbNumber,
         tbTeamsAndGuesses: step.tbTeamsAndGuesses,
       });
       return;
@@ -2613,7 +2621,8 @@ export default function App() {
       if (item.type === "category") return item.categoryName || "Category";
       if (item.type === "results-splash") return "Results splash";
       if (item.type === "results-scramble") return "Scramble";
-      if (item.type === "results-tb-combined") return "TB reveal";
+      if (item.type === "results-tb-question") return "TB question";
+      if (item.type === "results-tb-answer") return "TB answer";
       if (item.type === "results-place-pts") return `${item.place} · pts`;
       if (item.type === "results-place-reveal") return `${item.place} · teams`;
       const stageLabel = navIsAnswerMode
@@ -3473,9 +3482,9 @@ export default function App() {
                   const hasQuestionNotes = !!(enrichedItem?.questionNotes?.trim());
                   const hasPronunciation = !!(enrichedItem?.pronunciationGuide?.trim());
                   const hasAnswerNotes = !!(enrichedItem?.answerNotes?.trim());
-                  const isTbCombinedStep = enrichedItem?.type === "results-tb-combined";
-                  const tbTeamsAndGuesses = isTbCombinedStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
-                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbCombinedStep;
+                  const isTbAnswerStep = enrichedItem?.type === "results-tb-answer";
+                  const tbTeamsAndGuesses = isTbAnswerStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
+                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbAnswerStep;
 
                   const formatTime = (s) => {
                     if (!s || !isFinite(s)) return "--:--";
@@ -3552,7 +3561,7 @@ export default function App() {
                         </div>
                       )}
 
-                      {isTbCombinedStep && tbTeamsAndGuesses.length > 0 && (
+                      {isTbAnswerStep && tbTeamsAndGuesses.length > 0 && (
                         <div style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
                           <div style={rowStyle}>
                             <span style={labelStyle}>TB</span>
