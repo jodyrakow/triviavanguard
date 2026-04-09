@@ -384,8 +384,8 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
 
   return (
     <>
-      {/* Category bar at top - gray bar behind logo */}
-      {categoryName && (
+      {/* Category bar at top - gray bar behind logo — hidden for tiebreaker questions */}
+      {categoryName && questionNumber !== "TB" && (
         <div
           style={{
             position: "absolute",
