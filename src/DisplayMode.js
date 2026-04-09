@@ -907,7 +907,7 @@ function QuestionCarousel({
 function ResultsDisplay({ content, fontSize = 100 }) {
   if (!content) return null;
 
-  const { place, teams = [], prize, isTied, points, pointsAhead } = content;
+  const { place, teams = [], prize, isTied, points } = content;
   const scale = fontSize / 100;
 
   // 16:9 grid bands (based on 900px tall mock style)
@@ -982,15 +982,16 @@ function ResultsDisplay({ content, fontSize = 100 }) {
             boxSizing: "border-box",
           }}
         >
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "0.6em", flexWrap: "wrap" }}>
-            {pointsAhead != null && (
-              <span style={{ fontSize: `${2.4 * scale}rem`, fontFamily: tokens.font.body, color: theme.accent, fontStyle: "italic", fontWeight: 600, lineHeight: 1.1 }}>
-                {pointsAhead} {pointsAhead === 1 ? "point" : "points"} ahead
-              </span>
-            )}
-            <span style={{ fontSize: `${3.75 * scale}rem`, fontFamily: tokens.font.body, color: theme.dark, fontWeight: 600, lineHeight: 1.1 }}>
-              {points} {points === 1 ? "point" : "points"}
-            </span>
+          <div
+            style={{
+              fontSize: `${3.75 * scale}rem`,
+              fontFamily: tokens.font.body,
+              color: theme.dark,
+              fontWeight: 600,
+              lineHeight: 1.1,
+            }}
+          >
+            {points} {points === 1 ? "point" : "points"}
           </div>
         </div>
       )}

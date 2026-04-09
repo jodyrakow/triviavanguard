@@ -2011,8 +2011,10 @@ export default function App() {
     [navFlatList],
   );
 
-  // Build the ordered results-reveal nav sequence from last place to first
-  // Each step has type: "results-splash" | "results-scramble" | "results-tb-combined" | "results-non-winners" | "results-place-reveal"
+  // Build the ordered results-reveal nav sequence from last place to first.
+  // Each place reveal is TWO steps: place+points first (no teams), then teams added.
+  // Step types: "results-splash" | "results-scramble" | "results-tb-combined" |
+  //             "results-place-pts" (place+pts, no teams) | "results-place-reveal" (place+pts+teams)
   const resultsNavSequence = useMemo(() => {
     const steps = [];
     if (!resultsStandings.length) return steps;
@@ -2020,39 +2022,26 @@ export default function App() {
     // Step 1: splash screen
     steps.push({ type: "results-splash" });
 
-    // Build total-groups from last to first (for the reveal sequence)
-    // Unique total values, sorted ascending (last → first)
+    // Unique total values, sorted ascending (last place → first place)
     const uniqueTotals = [...new Set(resultsStandings.map(r => r.total))].sort((a, b) => a - b);
 
-    // Compute pointsAhead for each total — how many points they are ahead of the next group below them
-    // (i.e., the gap to the group with the next-lower total)
-    const pointsAheadByTotal = new Map();
-    for (let i = 1; i < uniqueTotals.length; i++) {
-      pointsAheadByTotal.set(uniqueTotals[i], uniqueTotals[i] - uniqueTotals[i - 1]);
-    }
-
-    // Collect which totals are prize-band totals (at least one team with place <= prizeCount)
+    // Collect which totals are prize-band totals
     const prizeBandTotals = new Set(
       resultsStandings.filter(r => resultsPrizeCount > 0 && r.place <= resultsPrizeCount).map(r => r.total)
     );
 
     for (const total of uniqueTotals) {
       const group = resultsStandings.filter(r => r.total === total);
-      const pointsAhead = pointsAheadByTotal.get(total) ?? null;
       const inPrizeBand = prizeBandTotals.has(total);
+      const highestPlace = Math.min(...group.map(r => r.place));
+      const placeStr = resultsOrdinal(highestPlace);
 
-      // Are all of these teams outside the prize band?
       const allOutsidePrizeBand = group.every(r => !resultsPrizeCount || r.place > resultsPrizeCount);
 
-      if (allOutsidePrizeBand && group.length > 0) {
-        // Non-winners: single reveal with all teams (no prize)
-        steps.push({
-          type: "results-non-winners",
-          teams: group.map(r => r.teamName),
-          points: total,
-          pointsAhead,
-          isTied: group.length > 1,
-        });
+      if (allOutsidePrizeBand) {
+        // Non-winners: place+pts step then teams step
+        steps.push({ type: "results-place-pts", place: placeStr, points: total, isTied: group.length > 1, prize: null });
+        steps.push({ type: "results-place-reveal", place: placeStr, teams: group.map(r => r.teamName), isTied: group.length > 1, points: total, prize: null });
         continue;
       }
 
@@ -2060,57 +2049,39 @@ export default function App() {
       const anyTbBroken = group.some(r => r._tbGroupBroken);
 
       if (anyTbBroken && resultsTiebreakerWasUsed) {
-        // Tiebreaker was used: scramble step followed by combined TB Q+A step, then individual reveal
+        // Scramble, then TB Q+A, then individual sub-place reveals (each as pts then teams)
         steps.push({
           type: "results-scramble",
           teams: [...group.map(r => r.teamName)].sort(() => Math.random() - 0.5),
           points: total,
-          pointsAhead,
           prize: inPrizeBand ? `Vying for ${resultsPrizes[group[0].place - 1] || "a prize"}` : null,
         });
         steps.push({
           type: "results-tb-combined",
           tbQuestion: resultsTbQ?.questionText || "",
           tbAnswer: resultsTbQ ? (
-            Array.isArray(resultsTbQ.answer) ? resultsTbQ.answer[0] : resultsTbQ.answer ||
-            resultsTbQ.answerText || resultsTbQ.correctAnswer || ""
+            Array.isArray(resultsTbQ.answer) ? resultsTbQ.answer[0] : (resultsTbQ.answer || resultsTbQ.answerText || resultsTbQ.correctAnswer || "")
           ) : "",
           tbNumber: resultsTbNumber,
           tbTeamsAndGuesses: group.map(r => ({ teamName: r.teamName, guess: r.tbGuess })),
-          points: total,
-          pointsAhead,
         });
-        // Then individual place reveals for each sub-place within the group
         const subPlaces = [...new Set(group.map(r => r.place))].sort((a, b) => b - a);
         for (const place of subPlaces) {
           const atPlace = group.filter(r => r.place === place);
+          const subPlaceStr = resultsOrdinal(place);
           const prize = resultsPrizeCount > 0 && place <= resultsPrizeCount ? resultsPrizes[place - 1] || "" : null;
-          steps.push({
-            type: "results-place-reveal",
-            place: resultsOrdinal(place),
-            teams: atPlace.map(r => r.teamName),
-            isTied: atPlace.length > 1,
-            points: total,
-            pointsAhead,
-            prize,
-          });
+          const isTied = atPlace.length > 1;
+          steps.push({ type: "results-place-pts", place: subPlaceStr, points: total, isTied, prize });
+          steps.push({ type: "results-place-reveal", place: subPlaceStr, teams: atPlace.map(r => r.teamName), isTied, points: total, prize });
         }
       } else {
-        // No tiebreaker within this group: single reveal step
-        const highestPlace = Math.min(...group.map(r => r.place));
+        // No tiebreaker: place+pts step then teams step
         const isTied = group.length > 1;
         const prize = resultsPrizeCount > 0 && highestPlace <= resultsPrizeCount
           ? (isTied ? `Vying for ${resultsPrizes[highestPlace - 1] || ""}` : resultsPrizes[highestPlace - 1] || "")
           : null;
-        steps.push({
-          type: "results-place-reveal",
-          place: resultsOrdinal(highestPlace),
-          teams: group.map(r => r.teamName),
-          isTied,
-          points: total,
-          pointsAhead,
-          prize: prize || null,
-        });
+        steps.push({ type: "results-place-pts", place: placeStr, points: total, isTied, prize: prize || null });
+        steps.push({ type: "results-place-reveal", place: placeStr, teams: group.map(r => r.teamName), isTied, points: total, prize: prize || null });
       }
     }
 
@@ -2300,16 +2271,8 @@ export default function App() {
       return;
     }
     if (step.type === "results-scramble") {
-      // Randomize teams at push time
       const scrambled = [...(step.teams || [])].sort(() => Math.random() - 0.5);
-      sendToDisplay("results", {
-        place: step.place || null,
-        teams: scrambled,
-        isTied: true,
-        points: step.points,
-        prize: step.prize || null,
-        pointsAhead: step.pointsAhead || null,
-      });
+      sendToDisplay("results", { place: null, teams: scrambled, isTied: true, points: step.points, prize: step.prize || null });
       return;
     }
     if (step.type === "results-tb-combined") {
@@ -2321,26 +2284,14 @@ export default function App() {
       });
       return;
     }
-    if (step.type === "results-non-winners") {
-      sendToDisplay("results", {
-        place: step.place || null,
-        teams: step.teams,
-        isTied: step.isTied,
-        points: step.points,
-        prize: null,
-        pointsAhead: step.pointsAhead || null,
-      });
+    if (step.type === "results-place-pts") {
+      // Place + points only — no team names yet
+      sendToDisplay("results", { place: step.place, teams: null, isTied: step.isTied, points: step.points, prize: step.prize || null });
       return;
     }
     if (step.type === "results-place-reveal") {
-      sendToDisplay("results", {
-        place: step.place,
-        teams: step.teams,
-        isTied: step.isTied,
-        points: step.points,
-        prize: step.prize || null,
-        pointsAhead: step.pointsAhead || null,
-      });
+      // Place + points + team names
+      sendToDisplay("results", { place: step.place, teams: step.teams, isTied: step.isTied, points: step.points, prize: step.prize || null });
       return;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2661,10 +2612,10 @@ export default function App() {
       if (item.type === "carousel") return "Visual carousel";
       if (item.type === "category") return item.categoryName || "Category";
       if (item.type === "results-splash") return "Results splash";
-      if (item.type === "results-scramble") return `Scramble · ${item.place || ""}`;
+      if (item.type === "results-scramble") return "Scramble";
       if (item.type === "results-tb-combined") return "TB reveal";
-      if (item.type === "results-non-winners") return `Non-winners · ${item.points}pts`;
-      if (item.type === "results-place-reveal") return `${item.place} place`;
+      if (item.type === "results-place-pts") return `${item.place} · pts`;
+      if (item.type === "results-place-reveal") return `${item.place} · teams`;
       const stageLabel = navIsAnswerMode
         ? ` · ${["question", "answer", "stats"][stage] ?? ""}`
         : "";
