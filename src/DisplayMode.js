@@ -287,6 +287,46 @@ function CategoryDisplay({ content, fontSize = 100 }) {
   );
 }
 
+// Renders each name on its own line, all at the same font size — sized so the longest name fits one line.
+function AutoFitLines({ names, maxRem = 4.75, minRem = 1.5, style = {} }) {
+  const containerRef = React.useRef(null);
+  const [fontRem, setFontRem] = React.useState(maxRem);
+
+  React.useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const spans = Array.from(container.querySelectorAll("span"));
+    if (!spans.length) return;
+
+    let size = maxRem;
+    const measure = () => {
+      spans.forEach(s => { s.style.fontSize = `${size}rem`; });
+      return spans.some(s => s.scrollWidth > container.clientWidth);
+    };
+
+    while (size > minRem && measure()) {
+      size = Math.max(minRem, size - 0.05);
+    }
+    measure();
+    setFontRem(size);
+  }, [names, maxRem, minRem]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", ...style }}
+    >
+      {names.map((name, i) => (
+        <span
+          key={i}
+          style={{ fontSize: `${fontRem}rem`, whiteSpace: "nowrap", lineHeight: 1.2 }}
+          dangerouslySetInnerHTML={{ __html: String(name).replace(/</g, "&lt;").replace(/>/g, "&gt;") }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function AutoFitText({ html, maxRem = 2.8, minRem = 1.6, style = {} }) {
   const containerRef = React.useRef(null);
   const textRef = React.useRef(null);
@@ -926,11 +966,6 @@ function ResultsDisplay({ content, fontSize = 100 }) {
   const TOP_TEAMS = `calc(${H_TOP} + ${H_PLACE} + ${H_POINTS})`;
   const TOP_PRIZE = `calc(${H_TOP} + ${H_PLACE} + ${H_POINTS} + ${H_TEAMS})`;
 
-  // Build HTML for teams with line breaks; escape < >
-  const teamsHtml = (teams || [])
-    .map((t) => String(t).replace(/</g, "&lt;").replace(/>/g, "&gt;"))
-    .join("<br/>");
-
   return (
     <>
       {/* PLACE */}
@@ -1001,7 +1036,7 @@ function ResultsDisplay({ content, fontSize = 100 }) {
         </div>
       )}
 
-      {/* TEAM NAMES (AUTO-FIT inside fixed box) */}
+      {/* TEAM NAMES — each on its own line, all same font size */}
       {teams && teams.length > 0 && (
         <div
           style={{
@@ -1013,34 +1048,21 @@ function ResultsDisplay({ content, fontSize = 100 }) {
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            textAlign: "center",
             zIndex: 50,
             padding: "0 6vw",
             boxSizing: "border-box",
           }}
         >
-          <div
+          <AutoFitLines
+            names={teams}
+            maxRem={4.75 * scale}
+            minRem={1.5 * scale}
             style={{
-              width: "90vw",
-              height: "100%",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
+              color: theme.dark,
+              fontFamily: tokens.font.body,
+              fontWeight: 700,
             }}
-          >
-            <AutoFitText
-              html={teamsHtml}
-              maxRem={4.75 * scale}
-              minRem={1.5 * scale}
-              style={{
-                color: theme.dark,
-                fontFamily: tokens.font.body,
-                fontWeight: 700,
-                lineHeight: 1.15,
-                textAlign: "center",
-              }}
-            />
-          </div>
+          />
         </div>
       )}
 

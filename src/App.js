@@ -2025,7 +2025,9 @@ export default function App() {
     // Unique total values, sorted ascending (last place → first place)
     const uniqueTotals = [...new Set(resultsStandings.map(r => r.total))].sort((a, b) => a - b);
 
-    const isFinalRound = resultsPrizeCount > 0;
+    const roundNums = (showBundle?.rounds || []).map(r => Number(r.round));
+    const maxRound = roundNums.length ? Math.max(...roundNums) : 0;
+    const isFinalRound = resultsPrizeCount > 0 && Number(selectedRoundId) === maxRound;
 
     for (const total of uniqueTotals) {
       const group = resultsStandings.filter(r => r.total === total);
@@ -2079,7 +2081,7 @@ export default function App() {
     }
 
     return steps;
-  }, [resultsStandings, resultsPrizes, resultsPrizeCount, resultsTiebreakerWasUsed, resultsTbQ, resultsTbNumber]);
+  }, [resultsStandings, resultsPrizes, resultsPrizeCount, resultsTiebreakerWasUsed, resultsTbQ, resultsTbNumber, showBundle, selectedRoundId]);
 
   // Rules items as nav prefix — full list or just phoneAway
   const navRulesPrefix = useMemo(
