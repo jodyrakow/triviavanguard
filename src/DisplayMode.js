@@ -1119,6 +1119,16 @@ function ResultsTbDisplay({ content, showAnswer = false, fontSize = 100 }) {
       zIndex: 50,
       gap: "3vh",
     }}>
+      <div style={{
+        fontSize: `${1.4 * scale}rem`,
+        fontFamily: tokens.font.display,
+        color: theme.accent,
+        fontWeight: 800,
+        textTransform: "uppercase",
+        letterSpacing: "0.12rem",
+      }}>
+        Tiebreaker
+      </div>
       {tbQuestion && (
         <div style={{
           fontSize: `${2.2 * scale}rem`,

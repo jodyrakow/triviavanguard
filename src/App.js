@@ -2063,6 +2063,7 @@ export default function App() {
         steps.push({
           type: "results-tb-question",
           tbQuestion: resultsTbQ?.questionText || "",
+          tbTeamsAndGuesses: group.map(r => ({ teamName: r.teamName, guess: r.tbGuess })),
         });
         steps.push({
           type: "results-tb-answer",
@@ -2109,10 +2110,10 @@ export default function App() {
     return [...prefix, ...navQuestionsMode];
   }, [rulesStartedWithScript, navQuestionsMode, navRulesPrefix, phoneAwayPrefix]);
 
-  // Answers mode list: questions + results reveal sequence
+  // Answers mode list: questions + results reveal sequence (only in final round when prizes are configured)
   const navAnswersModeList = useMemo(
-    () => [...navQuestionList, ...resultsNavSequence],
-    [navQuestionList, resultsNavSequence],
+    () => resultsPrizeCount > 0 ? [...navQuestionList, ...resultsNavSequence] : navQuestionList,
+    [navQuestionList, resultsNavSequence, resultsPrizeCount],
   );
 
   // Reset nav position when show or round changes
@@ -3482,9 +3483,9 @@ export default function App() {
                   const hasQuestionNotes = !!(enrichedItem?.questionNotes?.trim());
                   const hasPronunciation = !!(enrichedItem?.pronunciationGuide?.trim());
                   const hasAnswerNotes = !!(enrichedItem?.answerNotes?.trim());
-                  const isTbAnswerStep = enrichedItem?.type === "results-tb-answer";
-                  const tbTeamsAndGuesses = isTbAnswerStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
-                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbAnswerStep;
+                  const isTbStep = enrichedItem?.type === "results-tb-question" || enrichedItem?.type === "results-tb-answer";
+                  const tbTeamsAndGuesses = isTbStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
+                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbStep;
 
                   const formatTime = (s) => {
                     if (!s || !isFinite(s)) return "--:--";
@@ -3561,7 +3562,7 @@ export default function App() {
                         </div>
                       )}
 
-                      {isTbAnswerStep && tbTeamsAndGuesses.length > 0 && (
+                      {isTbStep && tbTeamsAndGuesses.length > 0 && (
                         <div style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
                           <div style={rowStyle}>
                             <span style={labelStyle}>TB</span>
