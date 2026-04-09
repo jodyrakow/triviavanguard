@@ -2115,22 +2115,6 @@ export default function App() {
     navSyncReadyRef.current = false; // don't broadcast until host actively pushes again
   }, [showBundle, selectedRoundId]);
 
-  // Keyboard arrow nav (only when enabled)
-  useEffect(() => {
-    if (!navKeyboardEnabled) return;
-    const handler = (e) => {
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-        e.preventDefault();
-        navForward();
-      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-        e.preventDefault();
-        navBackward();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [navKeyboardEnabled, navForward, navBackward]);
-
   // Broadcast nav state to co-hosts whenever it changes
   // Guards: skip if we're applying a remote sync, skip if host hasn't pushed anything yet
   useEffect(() => {
@@ -2602,6 +2586,22 @@ export default function App() {
     pushNavQuestion,
     pushResultsStep,
   ]);
+
+  // Keyboard arrow nav (only when enabled) — placed after navForward/navBackward are defined
+  useEffect(() => {
+    if (!navKeyboardEnabled) return;
+    const handler = (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navForward();
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navBackward();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [navKeyboardEnabled, navForward, navBackward]);
 
   const toggleNavMode = useCallback(() => {
     setNavIsAnswerMode((prev) => !prev);
