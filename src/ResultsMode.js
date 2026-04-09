@@ -1686,11 +1686,20 @@ export default function ResultsMode({
                                   ordinal(highestPlaceInTie);
 
                                 // Check if there are "unlucky" teams (tied but outside prize band)
-                                const unluckyTeams = isTiedByScore
+                                // Only meaningful when the tie group straddles the prize band boundary
+                                // (i.e., some members won a prize and some didn't). If the whole group
+                                // is outside the band, they're uniformly non-winners — no button needed.
+                                const winnersInGroup = isTiedByScore
                                   ? allTiedByScore.filter(
-                                      (t) => t.place > prizeCount,
+                                      (t) => t.place <= prizeCount,
                                     )
                                   : [];
+                                const unluckyTeams =
+                                  winnersInGroup.length > 0
+                                    ? allTiedByScore.filter(
+                                        (t) => t.place > prizeCount,
+                                      )
+                                    : [];
 
                                 return (
                                   <div

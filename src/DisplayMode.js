@@ -637,14 +637,17 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
                   <span key={level.partialCount}>
                     {i > 0 && " · "}
                     <span style={{ color: theme.accent, fontWeight: 700 }}>
-                      {level.pointsPerTeam}
+                      {level.teamCount}
                     </span>
-                    {" pts"}
+                    {" " + (level.teamCount === 1 ? "team" : "teams")}
                     <span style={{ opacity: 0.7 }}>
-                      {" "}
-                      ({level.partialCount === level.numParts
+                      {" ("}
+                      {level.partialCount === level.numParts
                         ? "full"
-                        : `${level.partialCount}/${level.numParts}`})
+                        : `${level.partialCount}/${level.numParts}`}
+                      {" · "}
+                      {level.pointsPerTeam}
+                      {" pts)"}
                     </span>
                   </span>
                 ))
