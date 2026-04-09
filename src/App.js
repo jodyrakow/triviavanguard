@@ -2080,8 +2080,8 @@ export default function App() {
       sendToDisplay("question", payload);
       navSyncReadyRef.current = true;
 
-      // Sync nav cursor — use navQuestionsMode (not navFlatList) so navIndex stays consistent with navForward/navBackward
-      const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
+      // Sync nav cursor — use navWithRules so navIndex is offset past the rules prefix, consistent with navForward/navBackward
+      const list = navIsAnswerMode ? navQuestionList : navWithRules;
       const idx = list.findIndex(
         (i) => i.type === "question" && i.showQuestionId === showQuestionId,
       );
@@ -2095,6 +2095,7 @@ export default function App() {
     [
       navFlatList,
       navQuestionList,
+      navWithRules,
       navIsAnswerMode,
       composedCachedState,
       scoringMode,
@@ -2366,8 +2367,8 @@ export default function App() {
         (item) => item.type === "category" && item.questionType === "audio",
       );
       if (audioCategory) {
-        const idx = navQuestionsMode.indexOf(audioCategory);
-        setNavIndex(idx);
+        const idx = navWithRules.indexOf(audioCategory);
+        setNavIndex(idx !== -1 ? idx : 0);
         setNavAnswerStage(0);
         setNavStarted(true);
         navSyncReadyRef.current = true;
@@ -2391,9 +2392,9 @@ export default function App() {
       navSyncReadyRef.current = true;
       pushNavQuestion(found, 0);
     } else {
-      // For Questions mode, find the item in navQuestionsMode if it's there; otherwise use navFlatList item directly
-      const qIdx = navQuestionsMode.indexOf(found);
-      const idx = qIdx !== -1 ? qIdx : navQuestionsMode.findIndex(
+      // For Questions mode, find the item in navWithRules so navIndex is offset past the rules prefix
+      const qIdx = navWithRules.indexOf(found);
+      const idx = qIdx !== -1 ? qIdx : navWithRules.findIndex(
         (item) => item.type === "question" && String(item.questionNumber || "").toUpperCase() === inputUpper,
       );
       setNavIndex(idx !== -1 ? idx : 0);
@@ -2403,7 +2404,7 @@ export default function App() {
       pushNavItem(found);
     }
     setNavGoToInput("");
-  }, [navGoToInput, navIsAnswerMode, navQuestionList, navQuestionsMode, pushNavQuestion, pushNavItem]);
+  }, [navGoToInput, navIsAnswerMode, navQuestionList, navQuestionsMode, navWithRules, pushNavQuestion, pushNavItem]);
 
   // Stop audio and reset image/audio toggles when nav position changes
   useEffect(() => {
