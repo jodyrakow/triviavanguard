@@ -305,6 +305,8 @@ export default function App() {
   const sharedAudioRef = useRef(null);
   const [sharedAudioUrl, setSharedAudioUrl] = useState("");
   const [sharedAudioPlaying, setSharedAudioPlaying] = useState(false);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(null);
 
   // Preview width: panel content width + panel padding (.7rem * 2 ≈ 22px at 16px base)
   const previewW = { S: 460, M: 580, L: 720, XL: 940 }[panelSize];
@@ -1801,6 +1803,9 @@ export default function App() {
           inlineImages: Array.isArray(q.questionImages)
             ? q.questionImages.map((img) => ({ url: img.url }))
             : [],
+          questionNotes: q.questionNotes || "",
+          pronunciationGuide: q.questionPronunciationGuide || "",
+          answerNotes: q.answerNotes || "",
           questionAudio: Array.isArray(q.questionAudio)
             ? q.questionAudio.filter((a) => a?.url)
             : [],
@@ -2284,10 +2289,15 @@ export default function App() {
     audio.onpause = () => setSharedAudioPlaying(false);
     audio.onended = () => {
       setSharedAudioPlaying(false);
+      setAudioCurrentTime(0);
     };
+    audio.ontimeupdate = () => setAudioCurrentTime(audio.currentTime);
+    audio.ondurationchange = () => setAudioDuration(isFinite(audio.duration) ? audio.duration : null);
     sharedAudioRef.current = audio;
     setSharedAudioUrl(url);
     setSharedAudioPlaying(false);
+    setAudioCurrentTime(0);
+    setAudioDuration(null);
     audio.play();
   }, []);
 
@@ -3069,6 +3079,147 @@ export default function App() {
                     }}
                   />
                 </div>
+
+                {/* Host info strip — always rendered so preview position doesn't jump */}
+                {(() => {
+                  const currentItem = navActiveList[navIndex];
+                  const enrichedItem = currentItem?.type === "question"
+                    ? (navQuestionList.find(q => q.showQuestionId === currentItem.showQuestionId) ?? currentItem)
+                    : currentItem;
+
+                  const hasAudio = currentNavAudio.length > 0;
+                  const audioObj = currentNavAudio[navAudioIndex] || currentNavAudio[0];
+                  const isCurrentAudio = hasAudio && !!audioObj && sharedAudioUrl === audioObj.url;
+
+                  // Category number within the Questions-mode list
+                  let categoryNumber = null, totalCategories = 0;
+                  if (enrichedItem?.type === "category") {
+                    const catItems = navQuestionsMode.filter(i => i.type === "category");
+                    totalCategories = catItems.length;
+                    const catIdx = catItems.indexOf(enrichedItem);
+                    if (catIdx !== -1) categoryNumber = catIdx + 1;
+                  }
+
+                  const hasQuestionNotes = !!enrichedItem?.questionNotes;
+                  const hasPronunciation = !!enrichedItem?.pronunciationGuide;
+                  const hasAnswerNotes = !!enrichedItem?.answerNotes;
+                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null;
+
+                  const formatTime = (s) => {
+                    if (!s || !isFinite(s)) return "--:--";
+                    const m = Math.floor(s / 60);
+                    const sec = Math.floor(s % 60);
+                    return `${m}:${sec.toString().padStart(2, "0")}`;
+                  };
+
+                  const labelStyle = {
+                    fontSize: ".65rem",
+                    fontWeight: 700,
+                    letterSpacing: ".06em",
+                    textTransform: "uppercase",
+                    color: colors.accent,
+                    fontFamily: tokens.font.body,
+                    flexShrink: 0,
+                    lineHeight: 1.5,
+                    paddingTop: "1px",
+                  };
+                  const textStyle = {
+                    fontSize: ".78rem",
+                    color: "#ddd",
+                    fontFamily: tokens.font.body,
+                    lineHeight: 1.45,
+                  };
+                  const rowStyle = { display: "flex", gap: ".4rem", alignItems: "flex-start" };
+
+                  return (
+                    <div style={{
+                      background: "#182030",
+                      borderTop: "1px solid #2a3a4a",
+                      padding: ".4rem .6rem",
+                      minHeight: "2.4rem",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: ".3rem",
+                      justifyContent: hasContent ? "flex-start" : "center",
+                    }}>
+                      {!hasContent && (
+                        <div style={{ ...textStyle, color: "#3a4a5a", textAlign: "center", fontSize: ".72rem", fontStyle: "italic" }}>
+                          no host notes
+                        </div>
+                      )}
+
+                      {categoryNumber !== null && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Cat</span>
+                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
+                            {categoryNumber} of {totalCategories}
+                          </span>
+                        </div>
+                      )}
+
+                      {hasQuestionNotes && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Notes</span>
+                          <span style={textStyle}>{enrichedItem.questionNotes}</span>
+                        </div>
+                      )}
+
+                      {hasPronunciation && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Pron.</span>
+                          <span style={{ ...textStyle, fontStyle: "italic" }}>{enrichedItem.pronunciationGuide}</span>
+                        </div>
+                      )}
+
+                      {hasAnswerNotes && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Ans.</span>
+                          <span style={textStyle}>{enrichedItem.answerNotes}</span>
+                        </div>
+                      )}
+
+                      {hasAudio && audioObj && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
+                          <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
+                            <span style={labelStyle}>Audio</span>
+                            <span style={{ ...textStyle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {audioObj.filename || "audio file"}
+                            </span>
+                            <span style={{ ...textStyle, color: "#888", flexShrink: 0, fontSize: ".72rem" }}>
+                              {isCurrentAudio && audioCurrentTime > 0
+                                ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}`
+                                : formatTime(audioDuration)}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              height: "5px",
+                              background: "#2a3a4a",
+                              borderRadius: "3px",
+                              cursor: isCurrentAudio && audioDuration ? "pointer" : "default",
+                              overflow: "hidden",
+                            }}
+                            onClick={(e) => {
+                              if (!sharedAudioRef.current || !audioDuration) return;
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                              sharedAudioRef.current.currentTime = ratio * audioDuration;
+                            }}
+                          >
+                            <div style={{
+                              height: "100%",
+                              width: isCurrentAudio && audioDuration
+                                ? `${Math.min(100, (audioCurrentTime / audioDuration) * 100)}%`
+                                : "0%",
+                              background: colors.accent,
+                              borderRadius: "3px",
+                            }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </>)}
               </div>
             </Draggable>
