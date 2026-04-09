@@ -3368,7 +3368,7 @@ export default function App() {
                   );
                   const navAtStart = navIsAnswerMode ? navIndex === 0 && navAnswerStage === 0 : navIndex === 0;
                   const navAtEnd = navStarted && (navIsAnswerMode
-                    ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2
+                    ? navIndex >= navAnswersModeList.length - 1 && (navAnswersModeList[navIndex]?.type !== "question" || navAnswerStage >= 2)
                     : navIndex >= navWithRules.length - 1);
                   return (
                     <div style={{ background: colors.dark, display: "flex", gap: ".4rem", padding: ".35rem .5rem", alignItems: "stretch" }}>
