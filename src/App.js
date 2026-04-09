@@ -2025,28 +2025,19 @@ export default function App() {
     // Unique total values, sorted ascending (last place → first place)
     const uniqueTotals = [...new Set(resultsStandings.map(r => r.total))].sort((a, b) => a - b);
 
-    // Collect which totals are prize-band totals
-    const prizeBandTotals = new Set(
-      resultsStandings.filter(r => resultsPrizeCount > 0 && r.place <= resultsPrizeCount).map(r => r.total)
-    );
+    const isFinalRound = resultsPrizeCount > 0;
 
     for (const total of uniqueTotals) {
       const group = resultsStandings.filter(r => r.total === total);
-      const inPrizeBand = prizeBandTotals.has(total);
       const highestPlace = Math.min(...group.map(r => r.place));
       const placeStr = resultsOrdinal(highestPlace);
+      const isTied = group.length > 1;
+      const prize = isFinalRound && highestPlace <= resultsPrizeCount
+        ? (isTied ? `Vying for ${resultsPrizes[highestPlace - 1] || ""}` : resultsPrizes[highestPlace - 1] || "")
+        : null;
 
-      const allOutsidePrizeBand = group.every(r => !resultsPrizeCount || r.place > resultsPrizeCount);
-
-      if (allOutsidePrizeBand) {
-        // Non-winners: place+pts step then teams step
-        steps.push({ type: "results-place-pts", place: placeStr, points: total, isTied: group.length > 1, prize: null });
-        steps.push({ type: "results-place-reveal", place: placeStr, teams: group.map(r => r.teamName), isTied: group.length > 1, points: total, prize: null });
-        continue;
-      }
-
-      // Prize band — check if tiebreaker was used within this total group
-      const anyTbBroken = group.some(r => r._tbGroupBroken);
+      // In final round, check if tiebreaker was used within this total group
+      const anyTbBroken = isFinalRound && group.some(r => r._tbGroupBroken);
 
       if (anyTbBroken && resultsTiebreakerWasUsed) {
         // Scramble, then TB question, then TB answer, then individual sub-place reveals
@@ -2058,7 +2049,7 @@ export default function App() {
           place: placeStr,
           teams: [...group.map(r => r.teamName)].sort(() => Math.random() - 0.5),
           points: total,
-          prize: inPrizeBand ? `Vying for ${resultsPrizes[highestPlace - 1] || "a prize"}` : null,
+          prize: prize,
         });
         steps.push({
           type: "results-tb-question",
@@ -2075,17 +2066,13 @@ export default function App() {
         for (const place of subPlaces) {
           const atPlace = group.filter(r => r.place === place);
           const subPlaceStr = resultsOrdinal(place);
-          const prize = resultsPrizeCount > 0 && place <= resultsPrizeCount ? resultsPrizes[place - 1] || "" : null;
-          const isTied = atPlace.length > 1;
-          steps.push({ type: "results-place-pts", place: subPlaceStr, points: total, isTied, prize });
-          steps.push({ type: "results-place-reveal", place: subPlaceStr, teams: atPlace.map(r => r.teamName), isTied, points: total, prize });
+          const subPrize = place <= resultsPrizeCount ? resultsPrizes[place - 1] || "" : null;
+          const subIsTied = atPlace.length > 1;
+          steps.push({ type: "results-place-pts", place: subPlaceStr, points: total, isTied: subIsTied, prize: subPrize });
+          steps.push({ type: "results-place-reveal", place: subPlaceStr, teams: atPlace.map(r => r.teamName), isTied: subIsTied, points: total, prize: subPrize });
         }
       } else {
-        // No tiebreaker: place+pts step then teams step
-        const isTied = group.length > 1;
-        const prize = resultsPrizeCount > 0 && highestPlace <= resultsPrizeCount
-          ? (isTied ? `Vying for ${resultsPrizes[highestPlace - 1] || ""}` : resultsPrizes[highestPlace - 1] || "")
-          : null;
+        // Simple two-step reveal: place+pts, then teams
         steps.push({ type: "results-place-pts", place: placeStr, points: total, isTied, prize: prize || null });
         steps.push({ type: "results-place-reveal", place: placeStr, teams: group.map(r => r.teamName), isTied, points: total, prize: prize || null });
       }
@@ -2110,10 +2097,10 @@ export default function App() {
     return [...prefix, ...navQuestionsMode];
   }, [rulesStartedWithScript, navQuestionsMode, navRulesPrefix, phoneAwayPrefix]);
 
-  // Answers mode list: questions + results reveal sequence (only in final round when prizes are configured)
+  // Answers mode list: questions + results reveal sequence
   const navAnswersModeList = useMemo(
-    () => resultsPrizeCount > 0 ? [...navQuestionList, ...resultsNavSequence] : navQuestionList,
-    [navQuestionList, resultsNavSequence, resultsPrizeCount],
+    () => [...navQuestionList, ...resultsNavSequence],
+    [navQuestionList, resultsNavSequence],
   );
 
   // Reset nav position when show or round changes
