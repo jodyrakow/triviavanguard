@@ -7,6 +7,7 @@ import React, {
   useCallback,
 } from "react";
 import axios from "axios";
+import { marked } from "marked";
 import "./App.css";
 import "react-h5-audio-player/lib/styles.css";
 import Draggable from "react-draggable";
@@ -1979,6 +1980,7 @@ export default function App() {
           categoryName: (cat.categoryName || "").trim(),
           categoryDescription: cat.categoryDescription || "",
           isTiebreaker,
+          superSecret: !!cat.superSecret,
           questionType: (cat.questionType || "").toLowerCase(),
           categoryAudio: Array.isArray(cat.categoryAudio)
             ? cat.categoryAudio.filter((a) => a?.url)
@@ -1999,6 +2001,7 @@ export default function App() {
           questionText: q.questionText || "",
           answer: q.answer || "",
           categoryName: (cat.categoryName || "").trim(),
+          superSecret: !!cat.superSecret,
           bonusAvailable: !!q.bonusAvailable,
           bonusValue: q.bonusValue || null,
           maxBonuses: q.maxBonuses || null,
@@ -2667,7 +2670,8 @@ export default function App() {
       if (item.type === "rules") return item.label || "Rule";
       if (item.type === "carousel") return "Visual carousel";
       if (item.type === "category") {
-        const catItems = list.filter(i => i.type === "category");
+        if (item.isTiebreaker) return "Tiebreaker";
+        const catItems = list.filter(i => i.type === "category" && !i.isTiebreaker);
         const catIdx = catItems.indexOf(item);
         return catIdx !== -1 ? `Cat ${catIdx + 1}` : (item.categoryName || "Category");
       }
@@ -3564,7 +3568,7 @@ export default function App() {
 
                   let categoryNumber = null, totalCategories = 0;
                   if (enrichedItem?.type === "category") {
-                    const catItems = navQuestionsMode.filter(i => i.type === "category");
+                    const catItems = navQuestionsMode.filter(i => i.type === "category" && !i.isTiebreaker);
                     totalCategories = catItems.length;
                     const catIdx = catItems.indexOf(enrichedItem);
                     if (catIdx !== -1) categoryNumber = catIdx + 1;
@@ -3599,7 +3603,7 @@ export default function App() {
                     }
                   }
 
-                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null;
+                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
 
                   const formatTime = (s) => {
                     if (!s || !isFinite(s)) return "--:--";
@@ -3652,6 +3656,11 @@ export default function App() {
                           <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
                             {categoryNumber} of {totalCategories}
                           </span>
+                          {enrichedItem?.superSecret && (
+                            <span style={{ fontSize: ".7rem", color: colors.accent, fontWeight: 700, fontStyle: "italic", letterSpacing: ".03em", alignSelf: "center" }}>
+                              Super Secret
+                            </span>
+                          )}
                         </div>
                       )}
 
@@ -3680,24 +3689,31 @@ export default function App() {
                         </div>
                       )}
 
+                      {enrichedItem?.type === "question" && enrichedItem?.superSecret && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Cat</span>
+                          <span style={{ ...textStyle, color: colors.accent, fontWeight: 700, fontStyle: "italic" }}>Super Secret</span>
+                        </div>
+                      )}
+
                       {hasQuestionNotes && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Notes</span>
-                          <span style={textStyle}>{enrichedItem.questionNotes}</span>
+                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parse(enrichedItem.questionNotes) }} />
                         </div>
                       )}
 
                       {hasPronunciation && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Pron.</span>
-                          <span style={{ ...textStyle, fontStyle: "italic" }}>{enrichedItem.pronunciationGuide}</span>
+                          <span style={{ ...textStyle, fontStyle: "italic" }} dangerouslySetInnerHTML={{ __html: marked.parse(enrichedItem.pronunciationGuide) }} />
                         </div>
                       )}
 
                       {hasAnswerNotes && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Ans. notes</span>
-                          <span style={textStyle}>{enrichedItem.answerNotes}</span>
+                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parse(enrichedItem.answerNotes) }} />
                         </div>
                       )}
 

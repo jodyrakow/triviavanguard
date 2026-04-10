@@ -207,11 +207,17 @@ export default function Sidebar({
       }
     }
 
-    // Calculate questions per spoken category (most common size)
-    const questionsPerSpokenCategory =
-      spokenCategorySizes.length > 0
-        ? Math.round(spokenQuestionCount / spokenCategoryCount)
-        : 0;
+    // Calculate questions per spoken category (mode — most common size)
+    const questionsPerSpokenCategory = (() => {
+      if (spokenCategorySizes.length === 0) return 0;
+      const freq = {};
+      let best = spokenCategorySizes[0], bestCount = 0;
+      for (const n of spokenCategorySizes) {
+        freq[n] = (freq[n] || 0) + 1;
+        if (freq[n] > bestCount) { best = n; bestCount = freq[n]; }
+      }
+      return best;
+    })();
 
     // --- Intro ---
     const triviaType = isTipsy ? "tipsy team trivia" : "team trivia";
