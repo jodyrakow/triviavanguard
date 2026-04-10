@@ -2469,6 +2469,8 @@ export default function App() {
   // Wrapper around sendToDisplay that also syncs the nav cursor position
   const sendToDisplayWithNavSync = useCallback(
     (type, data) => {
+      navPassiveRef.current = false;
+      setNavIsFollowing(false);
       sendToDisplay(type, data);
       if (type === "question" && data?.questionNumber !== undefined) {
         // Always search navQuestionList (includes visual questions) to find the item
@@ -2809,6 +2811,8 @@ export default function App() {
   const navGoTo = useCallback(() => {
     const input = navGoToInput.trim();
     if (!input) return;
+    navPassiveRef.current = false;
+    setNavIsFollowing(false);
 
     // Special keyword: "audio" — navigate to the audio category in Questions mode
     if (input.toLowerCase() === "audio") {
