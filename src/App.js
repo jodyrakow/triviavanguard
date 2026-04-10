@@ -3716,7 +3716,7 @@ export default function App() {
                         </div>
                       )}
 
-                      {enrichedItem?.superSecret && (
+                      {enrichedItem?.type === "category" && enrichedItem?.superSecret && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>🔎</span>
                           <span style={{ ...textStyle, color: "#ddd" }}>
