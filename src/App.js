@@ -470,7 +470,11 @@ export default function App() {
     // When this host closes or reloads their tab, send standby so the display
     // doesn't linger on stale content for the next session.
     const handleUnload = () => {
-      ch.send({ type: "broadcast", event: "display_update", payload: { type: "standby", content: null } });
+      // Only wipe the display if this host was actively controlling it.
+      // A co-host who was only following should not wipe Host A's display on refresh/close.
+      if (navSyncReadyRef.current) {
+        ch.send({ type: "broadcast", event: "display_update", payload: { type: "standby", content: null } });
+      }
     };
     window.addEventListener("beforeunload", handleUnload);
 
