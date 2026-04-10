@@ -1152,27 +1152,29 @@ function ResultsTbDisplay({ content, showAnswer = false, fontSize = 100 }) {
         Tiebreaker
       </div>
       {tbQuestion && (
-        <div style={{
-          fontSize: `${2.2 * scale}rem`,
-          fontFamily: tokens.font.body,
-          color: theme.dark,
-          fontWeight: 600,
-          textAlign: "center",
-          lineHeight: 1.3,
-        }}>
-          {tbQuestion}
-        </div>
+        <div
+          style={{
+            fontSize: `${2.2 * scale}rem`,
+            fontFamily: tokens.font.body,
+            color: theme.dark,
+            fontWeight: 600,
+            textAlign: "center",
+            lineHeight: 1.3,
+          }}
+          dangerouslySetInnerHTML={{ __html: marked.parseInline(tbQuestion) }}
+        />
       )}
       {showAnswer && tbAnswer && (
-        <div style={{
-          fontSize: `${3 * scale}rem`,
-          fontFamily: tokens.font.display,
-          color: theme.accent,
-          fontWeight: 800,
-          textAlign: "center",
-        }}>
-          {tbAnswer}
-        </div>
+        <div
+          style={{
+            fontSize: `${3 * scale}rem`,
+            fontFamily: tokens.font.display,
+            color: theme.accent,
+            fontWeight: 800,
+            textAlign: "center",
+          }}
+          dangerouslySetInnerHTML={{ __html: marked.parseInline(tbAnswer) }}
+        />
       )}
     </div>
   );

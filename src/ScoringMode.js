@@ -1792,8 +1792,9 @@ export default function ScoringMode({
                 >
                   <input
                     type="number"
-                    value={t.showBonus ?? 0}
-                    onChange={(e) =>
+                    key={t.showBonus ?? 0}
+                    defaultValue={t.showBonus ?? 0}
+                    onBlur={(e) =>
                       updateShowBonus(t.showTeamId, e.target.value)
                     }
                     onKeyDown={onEnterBlur}

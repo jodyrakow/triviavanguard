@@ -301,6 +301,8 @@ export default function App() {
   const [navImageIndex, setNavImageIndex] = useState(0); // current image index when cycling
   const [navAudioIndex, setNavAudioIndex] = useState(0); // current audio index when cycling
   const [navGoToInput, setNavGoToInput] = useState(""); // "go to" input value
+  const [navIsFollowing, setNavIsFollowing] = useState(false); // true when nav position came from another host
+  const [remoteAudioStatus, setRemoteAudioStatus] = useState(null); // { playing, hostName } from another host
   const [previewMinimized, setPreviewMinimized] = useState(false); // hide iframe, keep controls visible
   const [panelSize, setPanelSize] = useState("M"); // S=460px, M=580px, L=720px, XL=940px panel width
   const sharedAudioRef = useRef(null);
@@ -344,6 +346,8 @@ export default function App() {
   const previewIframeRef = useRef(null);
   const navSyncFromRemoteRef = useRef(false); // true while applying a remote navSync, to prevent re-broadcast
   const navSyncReadyRef = useRef(false); // true once this host has actively pushed content
+  const navPassiveRef = useRef(false); // true when nav position came from another host (don't push to display)
+  const isRefreshingBundleRef = useRef(false); // true when refreshBundle() triggered showBundle change
 
   // On mount: check localStorage for saved host identity, verify against Supabase
   useEffect(() => {
@@ -619,7 +623,8 @@ export default function App() {
         };
 
         if (exists && settings) {
-          // Supabase has settings - use them (show was previously opened)
+          // Supabase has settings - use them, but always override scoring config from Airtable
+          // since Airtable is the authoritative source for scoring type/points
           console.log(
             "🔵 SUPABASE SETTINGS: Found existing settings, applying",
             settings,
@@ -628,7 +633,18 @@ export default function App() {
             "🔵 SUPABASE SETTINGS: prizes value =",
             JSON.stringify(settings.prizes),
           );
-          applySettings(settings);
+          const config = showBundle?.config || {};
+          const mergedSettings = { ...settings };
+          if (config.scoringMode) {
+            const mode = config.scoringMode.toLowerCase().replace(/[\s()]/g, "");
+            if (mode === "pub") mergedSettings.scoring_mode = "pub";
+            else if (mode === "pooledadaptive" || mode === "adaptive") mergedSettings.scoring_mode = "pooled-adaptive";
+            else if (mode === "pooled" || mode === "pooledstatic") mergedSettings.scoring_mode = "pooled";
+          }
+          if (typeof config.pubPoints === "number") mergedSettings.pub_points = config.pubPoints;
+          if (typeof config.poolPerQuestion === "number") mergedSettings.pool_per_question = config.poolPerQuestion;
+          if (typeof config.poolContribution === "number") mergedSettings.pool_contribution = config.poolContribution;
+          applySettings(mergedSettings);
           supabaseSettingsLoadedRef.current.applied = true;
         } else {
           // No Supabase settings - create from Airtable config
@@ -1094,12 +1110,24 @@ export default function App() {
       } = data || {};
       if (!showId || showId !== currentShowIdRef.current) return;
       navSyncFromRemoteRef.current = true;
+      navPassiveRef.current = true; // nav position came from another host — don't push to display
+      setNavIsFollowing(true);
       setNavIsAnswerMode(mode);
       setNavIndex(idx);
       setNavAnswerStage(stage);
       setNavStarted(started);
       // Reset after React flushes state + effects, not synchronously
       Promise.resolve().then(() => { navSyncFromRemoteRef.current = false; });
+    });
+
+    // AUDIO STATUS from another host
+    ch.on("broadcast", { event: "audioStatus" }, (msg) => {
+      const data = msg?.payload ?? msg;
+      const { playing, hostName: remoteHost } = data || {};
+      // Only show if it's a different host
+      if (remoteHost && remoteHost !== hostName) {
+        setRemoteAudioStatus(playing ? { playing: true, hostName: remoteHost } : null);
+      }
     });
 
     // TIEBREAKER ADDED
@@ -1343,6 +1371,7 @@ export default function App() {
         params: { showId: selectedShowId },
       });
       const bundle = res.data || null;
+      isRefreshingBundleRef.current = true;
       setShowBundle(bundle);
       setBundleLoading(false);
     } catch (e) {
@@ -2106,13 +2135,18 @@ export default function App() {
     [navQuestionList, resultsNavSequence],
   );
 
-  // Reset nav position when show or round changes
+  // Reset nav position when show or round changes (but NOT on bundle refresh)
   useEffect(() => {
+    if (isRefreshingBundleRef.current) {
+      isRefreshingBundleRef.current = false;
+      return; // bundle refresh — keep nav position and display as-is
+    }
     setNavIndex(0);
     setNavAnswerStage(0);
     setNavStarted(false);
     setRulesStartedWithScript(false);
     navSyncReadyRef.current = false; // don't broadcast until host actively pushes again
+    navPassiveRef.current = false;
   }, [showBundle, selectedRoundId]);
 
   // Broadcast nav state to co-hosts whenever it changes
@@ -2134,6 +2168,7 @@ export default function App() {
   const pushNavItem = useCallback(
     (item) => {
       if (!item) return;
+      if (navPassiveRef.current) return; // following another host — don't push
       if (item.type === "rules") {
         sendToDisplay("message", { text: item.text, fontSize: item.fontSize || 119 });
         return;
@@ -2179,6 +2214,7 @@ export default function App() {
   const pushNavQuestion = useCallback(
     (item, stage, imageVisible = false) => {
       if (!item) return;
+      if (navPassiveRef.current) return; // following another host — don't push
       const payload = {
         questionNumber: item.questionNumber,
         questionText: item.questionText,
@@ -2262,6 +2298,7 @@ export default function App() {
   // Push a results-reveal step to the display
   const pushResultsStep = useCallback((step) => {
     if (!step) return;
+    if (navPassiveRef.current) return; // following another host — don't push
     if (step.type === "results-splash") {
       sendToDisplay("results-splash", {});
       return;
@@ -2460,6 +2497,8 @@ export default function App() {
 
   const navForward = useCallback(() => {
     navSyncReadyRef.current = true;
+    navPassiveRef.current = false;
+    setNavIsFollowing(false);
     if (!navStarted) {
       // First press: snapshot whether script is open, then send first item
       setRulesStartedWithScript(scriptPanelOpen);
@@ -2534,6 +2573,8 @@ export default function App() {
 
   const navBackward = useCallback(() => {
     navSyncReadyRef.current = true;
+    navPassiveRef.current = false;
+    setNavIsFollowing(false);
     if (navIsAnswerMode) {
       const currentItem = navAnswersModeList[navIndex];
       if (!currentItem) return;
@@ -2625,7 +2666,11 @@ export default function App() {
       if (!item) return "—";
       if (item.type === "rules") return item.label || "Rule";
       if (item.type === "carousel") return "Visual carousel";
-      if (item.type === "category") return item.categoryName || "Category";
+      if (item.type === "category") {
+        const catItems = list.filter(i => i.type === "category");
+        const catIdx = catItems.indexOf(item);
+        return catIdx !== -1 ? `Cat ${catIdx + 1}` : (item.categoryName || "Category");
+      }
       if (item.type === "results-splash") return "Results splash";
       if (item.type === "results-scramble") return "Scramble";
       if (item.type === "results-tb-question") return "TB question";
@@ -2658,11 +2703,12 @@ export default function App() {
       sharedAudioRef.current.pause();
     }
     const audio = new Audio(url);
-    audio.onplay = () => setSharedAudioPlaying(true);
-    audio.onpause = () => setSharedAudioPlaying(false);
+    audio.onplay = () => { setSharedAudioPlaying(true); window.tvSend?.("audioStatus", { playing: true, url, hostName }); };
+    audio.onpause = () => { setSharedAudioPlaying(false); window.tvSend?.("audioStatus", { playing: false, url, hostName }); };
     audio.onended = () => {
       setSharedAudioPlaying(false);
       setAudioCurrentTime(0);
+      window.tvSend?.("audioStatus", { playing: false, url, hostName });
     };
     audio.ontimeupdate = () => setAudioCurrentTime(audio.currentTime);
     audio.ondurationchange = () => setAudioDuration(isFinite(audio.duration) ? audio.duration : null);
@@ -2672,7 +2718,7 @@ export default function App() {
     setAudioCurrentTime(0);
     setAudioDuration(null);
     audio.play();
-  }, []);
+  }, [hostName]);
 
   const toggleAudio = useCallback(() => {
     const a = sharedAudioRef.current;
@@ -2790,6 +2836,27 @@ export default function App() {
     setStripEditing(false);
     setStripEditDraft({});
   }, [navIndex, navIsAnswerMode]);
+
+  // Re-push to display when the current question's text is edited live
+  const prevLivePushIdRef = useRef(null);
+  const prevLivePushTextRef = useRef(null);
+  useEffect(() => {
+    const id = navCurrentItem?.showQuestionId;
+    const text = navCurrentItem?.questionText;
+    if (id === prevLivePushIdRef.current && text !== prevLivePushTextRef.current) {
+      // Same question, text changed — re-push if we're the active host
+      if (navStarted && navSyncReadyRef.current && !navPassiveRef.current && navCurrentItem?.type === "question") {
+        if (navIsAnswerMode) {
+          pushNavQuestion(navCurrentItem, navAnswerStage, navImageVisible);
+        } else {
+          pushNavItem(navCurrentItem);
+        }
+      }
+    }
+    prevLivePushIdRef.current = id ?? null;
+    prevLivePushTextRef.current = text ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navCurrentItem?.questionText, navCurrentItem?.showQuestionId]);
 
   const navNextLabel = useMemo(() => {
     if (navIsAnswerMode) {
@@ -3272,7 +3339,7 @@ export default function App() {
                 <Button
                   onClick={() => setNavKeyboardEnabled(v => !v)}
                   title={navKeyboardEnabled ? "Disable keyboard arrow nav" : "Enable keyboard arrow nav"}
-                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", border: `1px solid ${navKeyboardEnabled ? colors.accent : "transparent"}`, background: navKeyboardEnabled ? colors.accent : "transparent" }}
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", ...(navKeyboardEnabled && { background: colors.accent }) }}
                 >←→</Button>
               </div>
                 {/* Control bar — 2-row layout */}
@@ -3359,6 +3426,11 @@ export default function App() {
                           {navStarted && navNextLabel && (
                             <div style={{ fontSize: ".72rem", color: "#888", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center" }}>
                               next: {navNextLabel}
+                            </div>
+                          )}
+                          {navIsFollowing && (
+                            <div style={{ fontSize: ".68rem", color: colors.accent, fontFamily: tokens.font.body, fontStyle: "italic", textAlign: "center" }}>
+                              following
                             </div>
                           )}
                         </div>
@@ -3476,6 +3548,13 @@ export default function App() {
                   />
                 </div>
 
+                {/* Remote audio status — shown when another host is playing audio */}
+                {remoteAudioStatus?.playing && (
+                  <div style={{ background: "#1a2a1a", borderTop: "1px solid #2a4a2a", padding: ".25rem .6rem", fontSize: ".75rem", color: "#7fc97f", fontFamily: tokens.font.body, fontStyle: "italic" }}>
+                    {remoteAudioStatus.hostName} is playing audio
+                  </div>
+                )}
+
                 {/* Context panel — always rendered so preview position doesn't jump */}
                 {(() => {
                   const enrichedItem = navCurrentItem;
@@ -3495,6 +3574,16 @@ export default function App() {
                   const hasPronunciation = !!(enrichedItem?.pronunciationGuide?.trim());
                   const hasAnswerNotes = !!(enrichedItem?.answerNotes?.trim());
                   const isTbStep = enrichedItem?.type === "results-tb-question" || enrichedItem?.type === "results-tb-answer";
+
+                  // Solo: exactly one team answered correctly
+                  let soloTeamName = null;
+                  if (enrichedItem?.type === "question" && enrichedItem.showQuestionId) {
+                    const sqid = enrichedItem.showQuestionId;
+                    const grid = composedCachedState?.grid || {};
+                    const teams = composedCachedState?.teams || [];
+                    const correctTeams = teams.filter(t => grid[t.showTeamId]?.[sqid]?.isCorrect === true);
+                    if (correctTeams.length === 1) soloTeamName = correctTeams[0].teamName || correctTeams[0].name || null;
+                  }
                   const tbTeamsAndGuesses = isTbStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
 
                   // Next place info: find the next results-place-pts or results-place-reveal step after current
@@ -3510,7 +3599,7 @@ export default function App() {
                     }
                   }
 
-                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep;
+                  const hasContent = hasQuestionNotes || hasPronunciation || hasAnswerNotes || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null;
 
                   const formatTime = (s) => {
                     if (!s || !isFinite(s)) return "--:--";
@@ -3581,6 +3670,13 @@ export default function App() {
                             {nextPlaceInfo.place} · {nextPlaceInfo.points} pts
                             {enrichedItem?.points != null ? ` (+${nextPlaceInfo.points - enrichedItem.points})` : ""}
                           </span>
+                        </div>
+                      )}
+
+                      {soloTeamName && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Solo</span>
+                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>{soloTeamName}</span>
                         </div>
                       )}
 
