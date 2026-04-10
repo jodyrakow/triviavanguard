@@ -94,6 +94,8 @@ export default function App() {
   useEffect(() => {
     currentShowIdRef.current = selectedShowId;
   }, [selectedShowId]);
+  const showBundleRef = useRef(null); // mirrors showBundle state for use in mount-time broadcast handlers
+  useEffect(() => { showBundleRef.current = showBundle; }, [showBundle]);
 
   // Scoring cache across mode switches
   const [scoringCache, setScoringCache] = useState({});
@@ -438,6 +440,9 @@ export default function App() {
   // Keep display broadcast channel in sync with venueShowId
   useEffect(() => {
     if (!supabase || !venueShowId) return;
+
+    // Clear stale payload when venue changes — a new display window should get standby, not old content
+    lastSentPayloadRef.current = null;
 
     // Clean up previous channel
     if (displayBroadcastRef.current) {
@@ -1106,6 +1111,7 @@ export default function App() {
       setTimeout(() => {
         const state = navStateForSyncRef.current;
         if (!state || !navSyncReadyRef.current) return; // only respond if we've actively pushed content
+        if (!showBundleRef.current) return; // don't respond if our bundle isn't loaded yet
         window.tvSend?.("navSync", state);
       }, 200);
     });
@@ -1121,15 +1127,13 @@ export default function App() {
         navStarted: started,
       } = data || {};
       if (!showId || showId !== currentShowIdRef.current) return;
-      navSyncFromRemoteRef.current = true;
+      navSyncFromRemoteRef.current = true; // cleared in the navSync broadcast effect after it runs
       navPassiveRef.current = true; // nav position came from another host — don't push to display
       setNavIsFollowing(true);
       setNavIsAnswerMode(mode);
       setNavIndex(idx);
       setNavAnswerStage(stage);
       setNavStarted(started);
-      // Reset after React flushes state + effects, not synchronously
-      Promise.resolve().then(() => { navSyncFromRemoteRef.current = false; });
     });
 
     // AUDIO STATUS from another host
@@ -2182,7 +2186,11 @@ export default function App() {
       navAnswerStage,
       navStarted,
     };
-    if (navSyncFromRemoteRef.current) return;
+    if (navSyncFromRemoteRef.current) {
+      // Clear the flag here, after the effect has run, to avoid a re-broadcast race
+      navSyncFromRemoteRef.current = false;
+      return;
+    }
     if (!navSyncReadyRef.current) return;
     if (!window.tvSend || !window._tvReady) return;
     window.tvSend("navSync", {
@@ -2367,6 +2375,7 @@ export default function App() {
   // Unified question-send function for QuestionsMode buttons — builds full payload and syncs nav cursor
   const pushDisplayQuestion = useCallback(
     (showQuestionId, stage, withImages) => {
+      if (navPassiveRef.current) return; // following another host — don't push
       const item = navFlatList.find(
         (i) => i.type === "question" && i.showQuestionId === showQuestionId,
       );
@@ -2683,6 +2692,8 @@ export default function App() {
     setNavAnswerStage(0);
     setNavStarted(false);
     setRulesStartedWithScript(false);
+    navPassiveRef.current = false;
+    setNavIsFollowing(false);
   }, []);
 
   const resetNav = useCallback(() => {
@@ -3338,7 +3349,7 @@ export default function App() {
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
                 >📺</Button>
                 <Button
-                  onClick={() => { sendToDisplay("closeQuestionCarousel", null); sendToDisplay("standby", null); setCarouselActive(false); }}
+                  onClick={() => { sendToDisplay("closeQuestionCarousel", null); sendToDisplay("standby", null); setCarouselActive(false); navPassiveRef.current = false; setNavIsFollowing(false); }}
                   title="Clear the display (standby screen)"
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
                 >🧹</Button>
