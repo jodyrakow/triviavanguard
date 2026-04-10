@@ -3716,10 +3716,13 @@ export default function App() {
                         </div>
                       )}
 
-                      {enrichedItem?.type === "question" && enrichedItem?.superSecret && (
+                      {enrichedItem?.superSecret && (
                         <div style={rowStyle}>
-                          <span style={labelStyle}>Cat</span>
-                          <span style={{ ...textStyle, color: colors.accent, fontWeight: 700, fontStyle: "italic" }}>Super Secret</span>
+                          <span style={labelStyle}>🔎</span>
+                          <span style={{ ...textStyle, color: "#ddd" }}>
+                            <strong style={{ color: colors.accent }}>This is the Super Secret category of the week!</strong>{" "}
+                            If you follow us on Facebook, you'll see a post at the start of each week letting you know where around central Minnesota you can find us that week. That post also tells you the super secret category for the week, so that you can study up before the contest to have a leg up on the competition!
+                          </span>
                         </div>
                       )}
 
