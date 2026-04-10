@@ -2168,6 +2168,7 @@ export default function App() {
     setRulesStartedWithScript(false);
     navSyncReadyRef.current = false; // don't broadcast until host actively pushes again
     navPassiveRef.current = false;
+    lastSentPayloadRef.current = null; // clear stale display state from previous show
   }, [showBundle, selectedRoundId]);
 
   // Broadcast nav state to co-hosts whenever it changes
