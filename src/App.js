@@ -1102,9 +1102,12 @@ export default function App() {
 
     // REQUEST NAV SYNC — a newly joined host is asking for current nav state
     ch.on("broadcast", { event: "requestNavSync" }, () => {
-      const state = navStateForSyncRef.current;
-      if (!state || !navSyncReadyRef.current) return; // only respond if we've actively pushed content
-      window.tvSend?.("navSync", state);
+      // Small delay so the requester is fully subscribed before the response arrives
+      setTimeout(() => {
+        const state = navStateForSyncRef.current;
+        if (!state || !navSyncReadyRef.current) return; // only respond if we've actively pushed content
+        window.tvSend?.("navSync", state);
+      }, 200);
     });
 
     // NAV SYNC — keeps all co-hosts' control panels in sync
@@ -1191,8 +1194,13 @@ export default function App() {
             ch.send({ type: "broadcast", event, payload }),
           );
         }
-        // Ask any active host to send their current nav state
-        ch.send({ type: "broadcast", event: "requestNavSync", payload: {} });
+        // Ask any active host to send their current nav state.
+        // Retry a few times — broadcast is fire-and-forget and the first send
+        // may arrive before other hosts' handlers are ready.
+        const sendRequest = () => ch.send({ type: "broadcast", event: "requestNavSync", payload: {} });
+        sendRequest();
+        setTimeout(sendRequest, 600);
+        setTimeout(sendRequest, 1800);
       }
     });
 
