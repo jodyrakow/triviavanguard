@@ -349,6 +349,7 @@ export default function App() {
   const navSyncReadyRef = useRef(false); // true once this host has actively pushed content
   const navPassiveRef = useRef(false); // true when nav position came from another host (don't push to display)
   const isRefreshingBundleRef = useRef(false); // true when refreshBundle() triggered showBundle change
+  const navStateForSyncRef = useRef(null); // latest nav state snapshot for responding to requestNavSync
 
   // On mount: check localStorage for saved host identity, verify against Supabase
   useEffect(() => {
@@ -1099,6 +1100,13 @@ export default function App() {
       });
     });
 
+    // REQUEST NAV SYNC — a newly joined host is asking for current nav state
+    ch.on("broadcast", { event: "requestNavSync" }, () => {
+      const state = navStateForSyncRef.current;
+      if (!state || !navSyncReadyRef.current) return; // only respond if we've actively pushed content
+      window.tvSend?.("navSync", state);
+    });
+
     // NAV SYNC — keeps all co-hosts' control panels in sync
     ch.on("broadcast", { event: "navSync" }, (msg) => {
       const data = msg?.payload ?? msg;
@@ -1183,6 +1191,8 @@ export default function App() {
             ch.send({ type: "broadcast", event, payload }),
           );
         }
+        // Ask any active host to send their current nav state
+        ch.send({ type: "broadcast", event: "requestNavSync", payload: {} });
       }
     });
 
@@ -2155,6 +2165,14 @@ export default function App() {
   // Broadcast nav state to co-hosts whenever it changes
   // Guards: skip if we're applying a remote sync, skip if host hasn't pushed anything yet
   useEffect(() => {
+    // Keep ref up to date so requestNavSync handler can respond with current state
+    navStateForSyncRef.current = {
+      showId: currentShowIdRef.current,
+      navIsAnswerMode,
+      navIndex,
+      navAnswerStage,
+      navStarted,
+    };
     if (navSyncFromRemoteRef.current) return;
     if (!navSyncReadyRef.current) return;
     if (!window.tvSend || !window._tvReady) return;
