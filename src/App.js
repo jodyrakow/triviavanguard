@@ -2220,6 +2220,7 @@ export default function App() {
         sendToDisplay("category", {
           categoryName: item.categoryName,
           categoryDescription: item.categoryDescription,
+          superSecret: !!item.superSecret,
         });
       } else if (item.type === "question") {
         const payload = {
@@ -3725,21 +3726,21 @@ export default function App() {
                       {hasQuestionNotes && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Notes</span>
-                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parse(enrichedItem.questionNotes) }} />
+                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.questionNotes) }} />
                         </div>
                       )}
 
                       {hasPronunciation && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Pron.</span>
-                          <span style={{ ...textStyle, fontStyle: "italic" }} dangerouslySetInnerHTML={{ __html: marked.parse(enrichedItem.pronunciationGuide) }} />
+                          <span style={{ ...textStyle, fontStyle: "italic" }} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.pronunciationGuide) }} />
                         </div>
                       )}
 
                       {hasAnswerNotes && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Ans. notes</span>
-                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parse(enrichedItem.answerNotes) }} />
+                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.answerNotes) }} />
                         </div>
                       )}
 

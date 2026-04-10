@@ -227,7 +227,7 @@ function StandbyScreen() {
 }
 
 function CategoryDisplay({ content, fontSize = 100 }) {
-  const { categoryName, categoryDescription } = content || {};
+  const { categoryName, categoryDescription, superSecret } = content || {};
   const scale = fontSize / 100;
 
   return (
@@ -249,6 +249,22 @@ function CategoryDisplay({ content, fontSize = 100 }) {
     >
       {/* Spacer to push content down ~1/4–1/3 of screen */}
       <div style={{ height: "33vh" }} />
+
+      {/* Super Secret label */}
+      {superSecret && (
+        <div style={{
+          fontSize: `${1.4 * scale}rem`,
+          fontFamily: tokens.font.display,
+          color: theme.accent,
+          fontWeight: 800,
+          textTransform: "uppercase",
+          letterSpacing: "0.12rem",
+          marginBottom: "1.5vh",
+          opacity: 0.75,
+        }}>
+          Super Secret Category
+        </div>
+      )}
 
       {/* Category name */}
       {categoryName && (
