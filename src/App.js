@@ -464,6 +464,11 @@ export default function App() {
     ch.subscribe((status) => {
       if (status === "SUBSCRIBED") {
         displayBroadcastRef.current = ch;
+        // If this is a fresh MC session (no prior payload), clear any stale content
+        // left on the display from a previous show/session
+        if (!lastSentPayloadRef.current) {
+          ch.send({ type: "broadcast", event: "display_update", payload: { type: "standby", content: null } });
+        }
       }
     });
 
