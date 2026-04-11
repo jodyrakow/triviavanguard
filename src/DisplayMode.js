@@ -9,6 +9,11 @@ export default function DisplayMode() {
   const params = new URLSearchParams(window.location.search);
   const urlVenueShowId = params.get("venueShowId");
 
+  // venue_id: strip trailing ":YYYY-MM-DD" date suffix so all hosts resolve to the same display_state row
+  const urlVenueId = urlVenueShowId
+    ? urlVenueShowId.replace(/:\d{4}-\d{2}-\d{2}$/, "")
+    : null;
+
   const [displayState, setDisplayState] = useState({ type: "standby", content: null });
   const [fontSize, setFontSize] = useState(190); // percentage
   const [inlineImageIndex, setInlineImageIndex] = useState(0); // Current inline image index
@@ -27,67 +32,78 @@ export default function DisplayMode() {
     document.title = "TriviaVanguard display";
   }, []);
 
-  // Keep a ref to current displayState so the broadcast handler can respond with it without stale closures
-  const displayStateRef = React.useRef(displayState);
-  useEffect(() => { displayStateRef.current = displayState; }, [displayState]);
+  const handleMessage = ({ type, content }) => {
+    console.log("[DisplayMode] Received update:", type, content);
+    if (type === "fontSize") {
+      setFontSize(content.size);
+    } else if (type === "toggleGuide") {
+      setShowGuide((v) => !v);
+    } else if (type === "setGuide") {
+      setShowGuide(!!content?.show);
+    } else if (type === "questionCarousel") {
+      setQuestionCarousel(content);
+    } else if (type === "closeQuestionCarousel") {
+      setQuestionCarousel(null);
+    } else if (type === "updateInlineImageIndex") {
+      setInlineImageIndex(content.currentIndex || 0);
+    } else {
+      setDisplayState({ type, content });
+      if (type === "question" && content?.currentInlineImageIndex != null) {
+        setInlineImageIndex(content.currentInlineImageIndex);
+      }
+    }
+  };
 
-  // Listen for display updates via Supabase Realtime broadcast
+  // On mount: load current display state from Supabase (the one source of truth)
+  useEffect(() => {
+    if (!urlVenueId) return;
+    fetch(`/.netlify/functions/supaLoadDisplayState?venueId=${encodeURIComponent(urlVenueId)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.state?.type) {
+          handleMessage(data.state);
+        }
+      })
+      .catch((err) => console.error("[DisplayMode] Failed to load display state:", err));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlVenueId]);
+
+  // Subscribe to Supabase Realtime on display_state table for persistent state changes
+  useEffect(() => {
+    if (!supabase || !urlVenueId) return;
+
+    const realtimeCh = supabase
+      .channel(`display_state:${urlVenueId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "display_state",
+          filter: `venue_id=eq.${urlVenueId}`,
+        },
+        (payload) => {
+          const state = payload.new?.state;
+          if (state?.type) handleMessage(state);
+        },
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(realtimeCh);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlVenueId]);
+
+  // Subscribe to broadcast channel for ephemeral signals (fontSize, guide toggle, image index)
+  // and for instant display updates (broadcast arrives before the Realtime DB event)
   useEffect(() => {
     if (!supabase || !urlVenueShowId) return;
 
-    const handleMessage = ({ type, content }) => {
-      console.log("[DisplayMode] Received update:", type, content);
-
-      if (type === "fontSize") {
-        setFontSize(content.size);
-      } else if (type === "toggleGuide") {
-        setShowGuide((v) => !v);
-      } else if (type === "setGuide") {
-        setShowGuide(!!content?.show);
-      } else if (type === "questionCarousel") {
-        setQuestionCarousel(content);
-      } else if (type === "closeQuestionCarousel") {
-        setQuestionCarousel(null);
-      } else if (type === "updateInlineImageIndex") {
-        setInlineImageIndex(content.currentIndex || 0);
-      } else {
-        setDisplayState({ type, content });
-        if (type === "question" && content?.currentInlineImageIndex != null) {
-          setInlineImageIndex(content.currentInlineImageIndex);
-        }
-      }
-    };
-
-    // Subscribe to broadcast channel for display commands
     const broadcastCh = supabase
       .channel(`tv:display:${urlVenueShowId}`)
       .on("broadcast", { event: "display_update" }, (msg) => {
         handleMessage(msg.payload || {});
       })
-      .on("broadcast", { event: "request_state" }, () => {
-        // Another display/preview is asking what's currently showing — respond after a short delay
-        // so any in-flight display_update broadcasts arrive first and win
-        setTimeout(() => {
-          const current = displayStateRef.current;
-          if (current && current.type !== "standby") {
-            broadcastCh.send({
-              type: "broadcast",
-              event: "display_update",
-              payload: { type: current.type, content: current.content },
-            });
-          }
-        }, 300);
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          // Ask any existing display window what it's currently showing
-          broadcastCh.send({
-            type: "broadcast",
-            event: "request_state",
-            payload: {},
-          });
-        }
-      });
+      .subscribe();
 
     // Join shared presence channel — viewers are invisible (no track)
     let presenceCh = null;

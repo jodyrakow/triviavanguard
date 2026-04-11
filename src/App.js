@@ -304,7 +304,7 @@ export default function App() {
   const [navImageIndex, setNavImageIndex] = useState(0); // current image index when cycling
   const [navAudioIndex, setNavAudioIndex] = useState(0); // current audio index when cycling
   const [navGoToInput, setNavGoToInput] = useState(""); // "go to" input value
-  const [navIsFollowing, setNavIsFollowing] = useState(false); // true when nav position came from another host
+  const [liveDisplayState, setLiveDisplayState] = useState(null); // what's currently on the display (from Supabase)
   const [remoteAudioStatus, setRemoteAudioStatus] = useState(null); // { playing, hostName } from another host
   const [previewMinimized, setPreviewMinimized] = useState(false); // hide iframe, keep controls visible
   const [panelSize, setPanelSize] = useState("M"); // S=460px, M=580px, L=720px, XL=940px panel width
@@ -335,6 +335,14 @@ export default function App() {
   const [venueShowId, setVenueShowId] = useState(() => localStorage.getItem("tv_venueShowId") || null);
   const [venueName, setVenueName] = useState(() => localStorage.getItem("tv_venueName") || null);
 
+  // venueId: stable per-location key used as primary key in display_state table.
+  // Strips the trailing ":YYYY-MM-DD" date suffix so co-hosts sharing the same venue
+  // always resolve to the same row regardless of when they entered it.
+  // Examples: "loc123:2025-04-10" → "loc123", "custom:testing:2025-04-10" → "custom:testing"
+  const venueId = venueShowId
+    ? venueShowId.replace(/:\d{4}-\d{2}-\d{2}$/, "")
+    : null;
+
   // Active displays detected via Supabase Presence on "tv:displays"
   const [activeDisplays, setActiveDisplays] = useState([]);
 
@@ -347,11 +355,7 @@ export default function App() {
   // Supabase channel for broadcasting to the display window
   const displayBroadcastRef = useRef(null);
   const previewIframeRef = useRef(null);
-  const navSyncFromRemoteRef = useRef(false); // true while applying a remote navSync, to prevent re-broadcast
-  const navSyncReadyRef = useRef(false); // true once this host has actively pushed content
-  const navPassiveRef = useRef(false); // true when nav position came from another host (don't push to display)
   const isRefreshingBundleRef = useRef(false); // true when refreshBundle() triggered showBundle change
-  const navStateForSyncRef = useRef(null); // latest nav state snapshot for responding to requestNavSync
 
   // On mount: check localStorage for saved host identity, verify against Supabase
   useEffect(() => {
@@ -434,33 +438,18 @@ export default function App() {
     }
   }, [passwordInput]);
 
-  // Track last meaningful display payload so late-joining displays can catch up
-  const lastSentPayloadRef = React.useRef(null);
-
   // Keep display broadcast channel in sync with venueShowId
   useEffect(() => {
     if (!supabase || !venueShowId) return;
 
-    // Clear stale payload when venue changes — a new display window should get standby, not old content
-    lastSentPayloadRef.current = null;
-
-    // Clean up previous channel
+    // Keep a broadcast channel for non-persistent signals (fontSize, toggleGuide, updateInlineImageIndex)
+    // that don't need to survive reconnects and shouldn't be stored in display_state.
     if (displayBroadcastRef.current) {
       supabase.removeChannel(displayBroadcastRef.current);
       displayBroadcastRef.current = null;
     }
 
-    const ch = supabase.channel(`tv:display:${venueShowId}`)
-      .on("broadcast", { event: "request_state" }, () => {
-        // A display just loaded and is requesting the last known state — respond directly on ch
-        if (lastSentPayloadRef.current) {
-          ch.send({
-            type: "broadcast",
-            event: "display_update",
-            payload: lastSentPayloadRef.current,
-          });
-        }
-      });
+    const ch = supabase.channel(`tv:display:${venueShowId}`);
     ch.subscribe((status) => {
       if (status === "SUBSCRIBED") {
         displayBroadcastRef.current = ch;
@@ -472,6 +461,33 @@ export default function App() {
       displayBroadcastRef.current = null;
     };
   }, [venueShowId]);
+
+  // Subscribe to display_state changes from Supabase — all hosts see what's on the display
+  // (same pattern as scoring_cells: write → Supabase → Realtime → all Mission Controls update)
+  useEffect(() => {
+    setLiveDisplayState(null);
+    if (!supabase || !venueId) return;
+
+    // Load current state on mount
+    fetch(`/.netlify/functions/supaLoadDisplayState?venueId=${encodeURIComponent(venueId)}`)
+      .then((r) => r.json())
+      .then((data) => { if (data.state?.type) setLiveDisplayState(data.state); })
+      .catch(() => {});
+
+    // Subscribe to Realtime changes
+    const ch = supabase
+      .channel(`app_display_state:${venueId}`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "display_state",
+        filter: `venue_id=eq.${venueId}`,
+      }, (payload) => {
+        const state = payload.new?.state;
+        if (state?.type) setLiveDisplayState(state);
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(ch);
+  }, [venueId]);
 
   // Update preview iframe src imperatively when venue changes, to avoid reload on unrelated re-renders
   useEffect(() => {
@@ -495,56 +511,51 @@ export default function App() {
     return () => supabase.removeChannel(ch);
   }, []);
 
-  // Send message to display window via Supabase Realtime broadcast
+  // Ephemeral types — sent via broadcast only, not persisted to Supabase
+  const EPHEMERAL_DISPLAY_TYPES = new Set(["toggleGuide", "setGuide", "fontSize", "updateInlineImageIndex"]);
+
+  // Send a display update.
+  // Persistent types (question, category, results, standby, etc.) are upserted to Supabase display_state
+  // AND broadcast so the display window updates instantly without waiting for the Realtime event.
+  // Ephemeral types (fontSize, guide toggle, image index) are broadcast only.
   const sendToDisplay = (type, data) => {
-    if (!displayBroadcastRef.current) return;
-    console.log("[sendToDisplay]", type, data);
     const payload = { type, content: data };
-    displayBroadcastRef.current.send({
-      type: "broadcast",
-      event: "display_update",
-      payload,
-    });
-    // Remember last meaningful state so late-joining displays can catch up
-    if (type !== "standby" && type !== "toggleGuide" && type !== "setGuide" && type !== "fontSize") {
-      lastSentPayloadRef.current = payload;
+
+    // Update local live display state immediately (like scoring_cells optimistic update)
+    if (!EPHEMERAL_DISPLAY_TYPES.has(type)) {
+      setLiveDisplayState(payload);
+    }
+
+    // Always broadcast for instant update to display window
+    if (displayBroadcastRef.current) {
+      displayBroadcastRef.current.send({
+        type: "broadcast",
+        event: "display_update",
+        payload,
+      });
+    }
+
+    // Persist to Supabase for non-ephemeral types so any joining host/display gets current state
+    if (!EPHEMERAL_DISPLAY_TYPES.has(type) && venueId) {
+      fetch("/.netlify/functions/supaUpsertDisplayState", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ venueId, venueName, state: payload }),
+      }).catch((err) => console.error("[sendToDisplay] Supabase upsert failed:", err));
     }
   };
 
-  // Open a display window for the given venueShowId — skips if one is already open
+  // Open a display window — display will load its own state from Supabase on mount
   const openDisplayWindow = useCallback((vid) => {
     const alreadyOpen = activeDisplays.some((d) => d.venueShowId === vid);
     if (alreadyOpen) {
-      // Display already open — re-send last known state so it catches up
-      if (lastSentPayloadRef.current && displayBroadcastRef.current) {
-        setTimeout(() => {
-          if (displayBroadcastRef.current && lastSentPayloadRef.current) {
-            displayBroadcastRef.current.send({
-              type: "broadcast",
-              event: "display_update",
-              payload: lastSentPayloadRef.current,
-            });
-          }
-        }, 1500);
-      }
+      // Bring existing window to front if possible; display has its own Supabase subscription
       return;
     }
     const name = localStorage.getItem("tv_venueName") || "";
     const url = `${window.location.origin}?display&venueShowId=${vid}&venueName=${encodeURIComponent(name)}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}`;
     const win = window.open(url, `display:${vid}`, "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no");
     if (win) win.focus();
-    // After the new window has had time to subscribe, push the last known state
-    if (lastSentPayloadRef.current) {
-      setTimeout(() => {
-        if (displayBroadcastRef.current && lastSentPayloadRef.current) {
-          displayBroadcastRef.current.send({
-            type: "broadcast",
-            event: "display_update",
-            payload: lastSentPayloadRef.current,
-          });
-        }
-      }, 3000);
-    }
   }, [activeDisplays, hostId, hostName]);
 
   // Select a venue — sets channel, persists, opens controls + display window
@@ -1105,37 +1116,6 @@ export default function App() {
       });
     });
 
-    // REQUEST NAV SYNC — a newly joined host is asking for current nav state
-    ch.on("broadcast", { event: "requestNavSync" }, () => {
-      // Small delay so the requester is fully subscribed before the response arrives
-      setTimeout(() => {
-        const state = navStateForSyncRef.current;
-        if (!state || !navSyncReadyRef.current) return; // only respond if we've actively pushed content
-        if (!showBundleRef.current) return; // don't respond if our bundle isn't loaded yet
-        window.tvSend?.("navSync", state);
-      }, 200);
-    });
-
-    // NAV SYNC — keeps all co-hosts' control panels in sync
-    ch.on("broadcast", { event: "navSync" }, (msg) => {
-      const data = msg?.payload ?? msg;
-      const {
-        showId,
-        navIsAnswerMode: mode,
-        navIndex: idx,
-        navAnswerStage: stage,
-        navStarted: started,
-      } = data || {};
-      if (!showId || showId !== currentShowIdRef.current) return;
-      navSyncFromRemoteRef.current = true; // cleared in the navSync broadcast effect after it runs
-      navPassiveRef.current = true; // nav position came from another host — don't push to display
-      setNavIsFollowing(true);
-      setNavIsAnswerMode(mode);
-      setNavIndex(idx);
-      setNavAnswerStage(stage);
-      setNavStarted(started);
-    });
-
     // AUDIO STATUS from another host
     ch.on("broadcast", { event: "audioStatus" }, (msg) => {
       const data = msg?.payload ?? msg;
@@ -1198,13 +1178,6 @@ export default function App() {
             ch.send({ type: "broadcast", event, payload }),
           );
         }
-        // Ask any active host to send their current nav state.
-        // Retry a few times — broadcast is fire-and-forget and the first send
-        // may arrive before other hosts' handlers are ready.
-        const sendRequest = () => ch.send({ type: "broadcast", event: "requestNavSync", payload: {} });
-        sendRequest();
-        setTimeout(sendRequest, 600);
-        setTimeout(sendRequest, 1800);
       }
     });
 
@@ -2154,10 +2127,25 @@ export default function App() {
     return [...prefix, ...navQuestionsMode];
   }, [rulesStartedWithScript, navQuestionsMode, navRulesPrefix, phoneAwayPrefix]);
 
-  // Answers mode list: questions + results reveal sequence
+  // When the tiebreaker was NOT used to break a tie, insert it between the last regular
+  // question and the results sequence so the host can reveal it as a standalone bonus round.
+  // The normal stage logic (0=question, 1=answer) handles the two-step reveal;
+  // stage 2 (stats) is already skipped for tiebreaker items in pushNavQuestion.
+  const navTiebreakerSteps = useMemo(() => {
+    if (!resultsTbQ || resultsTiebreakerWasUsed) return [];
+    const roundNums = (showBundle?.rounds || []).map(r => Number(r.round));
+    const maxRound = roundNums.length ? Math.max(...roundNums) : 0;
+    const isFinalRound = resultsPrizeCount > 0 && Number(selectedRoundId) === maxRound;
+    if (!isFinalRound) return [];
+    const tbItem = navFlatList.find(i => i.type === "question" && i.isTiebreaker);
+    if (!tbItem) return [];
+    return [tbItem];
+  }, [resultsTbQ, resultsTiebreakerWasUsed, showBundle, resultsPrizeCount, selectedRoundId, navFlatList]);
+
+  // Answers mode list: questions + optional tiebreaker reveal + results sequence
   const navAnswersModeList = useMemo(
-    () => [...navQuestionList, ...resultsNavSequence],
-    [navQuestionList, resultsNavSequence],
+    () => [...navQuestionList, ...navTiebreakerSteps, ...resultsNavSequence],
+    [navQuestionList, navTiebreakerSteps, resultsNavSequence],
   );
 
   // Reset nav position when show or round changes (but NOT on bundle refresh)
@@ -2170,43 +2158,12 @@ export default function App() {
     setNavAnswerStage(0);
     setNavStarted(false);
     setRulesStartedWithScript(false);
-    navSyncReadyRef.current = false; // don't broadcast until host actively pushes again
-    navPassiveRef.current = false;
-    lastSentPayloadRef.current = null; // clear stale display state from previous show
   }, [showBundle, selectedRoundId]);
-
-  // Broadcast nav state to co-hosts whenever it changes
-  // Guards: skip if we're applying a remote sync, skip if host hasn't pushed anything yet
-  useEffect(() => {
-    // Keep ref up to date so requestNavSync handler can respond with current state
-    navStateForSyncRef.current = {
-      showId: currentShowIdRef.current,
-      navIsAnswerMode,
-      navIndex,
-      navAnswerStage,
-      navStarted,
-    };
-    if (navSyncFromRemoteRef.current) {
-      // Clear the flag here, after the effect has run, to avoid a re-broadcast race
-      navSyncFromRemoteRef.current = false;
-      return;
-    }
-    if (!navSyncReadyRef.current) return;
-    if (!window.tvSend || !window._tvReady) return;
-    window.tvSend("navSync", {
-      showId: currentShowIdRef.current,
-      navIsAnswerMode,
-      navIndex,
-      navAnswerStage,
-      navStarted,
-    });
-  }, [navIsAnswerMode, navIndex, navAnswerStage, navStarted]);
 
   // Push a questions-mode item to the display
   const pushNavItem = useCallback(
     (item) => {
       if (!item) return;
-      if (navPassiveRef.current) return; // following another host — don't push
       if (item.type === "rules") {
         sendToDisplay("message", { text: item.text, fontSize: item.fontSize || 119 });
         return;
@@ -2253,7 +2210,6 @@ export default function App() {
   const pushNavQuestion = useCallback(
     (item, stage, imageVisible = false) => {
       if (!item) return;
-      if (navPassiveRef.current) return; // following another host — don't push
       const payload = {
         questionNumber: item.questionNumber,
         questionText: item.questionText,
@@ -2337,7 +2293,6 @@ export default function App() {
   // Push a results-reveal step to the display
   const pushResultsStep = useCallback((step) => {
     if (!step) return;
-    if (navPassiveRef.current) return; // following another host — don't push
     if (step.type === "results-splash") {
       sendToDisplay("results-splash", {});
       return;
@@ -2375,7 +2330,6 @@ export default function App() {
   // Unified question-send function for QuestionsMode buttons — builds full payload and syncs nav cursor
   const pushDisplayQuestion = useCallback(
     (showQuestionId, stage, withImages) => {
-      if (navPassiveRef.current) return; // following another host — don't push
       const item = navFlatList.find(
         (i) => i.type === "question" && i.showQuestionId === showQuestionId,
       );
@@ -2449,7 +2403,6 @@ export default function App() {
       }
 
       sendToDisplay("question", payload);
-      navSyncReadyRef.current = true;
 
       // Sync nav cursor — use navWithRules so navIndex is offset past the rules prefix, consistent with navForward/navBackward
       const list = navIsAnswerMode ? navAnswersModeList : navWithRules;
@@ -2479,10 +2432,8 @@ export default function App() {
   // Wrapper around sendToDisplay that also syncs the nav cursor position
   const sendToDisplayWithNavSync = useCallback(
     (type, data) => {
-      navPassiveRef.current = false;
-      setNavIsFollowing(false);
       sendToDisplay(type, data);
-      if (type === "question" && data?.questionNumber !== undefined) {
+      if (type === "question" && data?.questionNumber !== undefined) { // eslint-disable-line
         // Always search navQuestionList (includes visual questions) to find the item
         const found = navQuestionList.find(
           (item) =>
@@ -2527,7 +2478,7 @@ export default function App() {
 
   const navActiveList = navIsAnswerMode ? navAnswersModeList : navWithRules;
 
-  // Current nav item, enriched with notes/edit fields from navQuestionList
+  // Current nav item (this host's local cursor) — used for nav label, audio, live re-push
   const navCurrentItem = useMemo(() => {
     const current = navActiveList[navIndex];
     if (!current) return null;
@@ -2537,10 +2488,29 @@ export default function App() {
     return current;
   }, [navActiveList, navIndex, navQuestionList]);
 
+  // Context panel item — derived from what's actually on the display (Supabase display_state).
+  // All hosts see the same context panel regardless of their local nav cursor position.
+  const contextPanelItem = useMemo(() => {
+    if (!liveDisplayState) return null;
+    const { type, content } = liveDisplayState;
+    if (type === "question") {
+      return navFlatList.find(
+        (item) =>
+          item.type === "question" &&
+          item.questionNumber === content?.questionNumber &&
+          item.categoryName === content?.categoryName,
+      ) ?? null;
+    }
+    if (type === "category") {
+      return navFlatList.find(
+        (item) =>
+          item.type === "category" && item.categoryName === content?.categoryName,
+      ) ?? null;
+    }
+    return null;
+  }, [liveDisplayState, navFlatList]);
+
   const navForward = useCallback(() => {
-    navSyncReadyRef.current = true;
-    navPassiveRef.current = false;
-    setNavIsFollowing(false);
     if (!navStarted) {
       // First press: snapshot whether script is open, then send first item
       setRulesStartedWithScript(scriptPanelOpen);
@@ -2564,7 +2534,8 @@ export default function App() {
       const currentItem = navAnswersModeList[navIndex];
       if (!currentItem) return;
       if (currentItem.type === "question") {
-        if (navAnswerStage < 2) {
+        const maxStage = currentItem.isTiebreaker ? 1 : 2;
+        if (navAnswerStage < maxStage) {
           const nextStage = navAnswerStage + 1;
           setNavAnswerStage(nextStage);
           pushNavQuestion(currentItem, nextStage, navImageVisible);
@@ -2614,9 +2585,6 @@ export default function App() {
   ]);
 
   const navBackward = useCallback(() => {
-    navSyncReadyRef.current = true;
-    navPassiveRef.current = false;
-    setNavIsFollowing(false);
     if (navIsAnswerMode) {
       const currentItem = navAnswersModeList[navIndex];
       if (!currentItem) return;
@@ -2630,8 +2598,9 @@ export default function App() {
           const prevItem = navAnswersModeList[prevIdx];
           setNavIndex(prevIdx);
           if (prevItem?.type === "question") {
-            setNavAnswerStage(2);
-            pushNavQuestion(prevItem, 2, false);
+            const prevMaxStage = prevItem.isTiebreaker ? 1 : 2;
+            setNavAnswerStage(prevMaxStage);
+            pushNavQuestion(prevItem, prevMaxStage, false);
           } else {
             setNavAnswerStage(0);
             pushResultsStep(prevItem);
@@ -2645,8 +2614,9 @@ export default function App() {
           setNavIndex(prevIdx);
           setNavAnswerStage(0);
           if (prevItem?.type === "question") {
-            setNavAnswerStage(2);
-            pushNavQuestion(prevItem, 2, false);
+            const prevMaxStage = prevItem.isTiebreaker ? 1 : 2;
+            setNavAnswerStage(prevMaxStage);
+            pushNavQuestion(prevItem, prevMaxStage, false);
           } else {
             pushResultsStep(prevItem);
           }
@@ -2692,8 +2662,6 @@ export default function App() {
     setNavAnswerStage(0);
     setNavStarted(false);
     setRulesStartedWithScript(false);
-    navPassiveRef.current = false;
-    setNavIsFollowing(false);
   }, []);
 
   const resetNav = useCallback(() => {
@@ -2823,8 +2791,6 @@ export default function App() {
   const navGoTo = useCallback(() => {
     const input = navGoToInput.trim();
     if (!input) return;
-    navPassiveRef.current = false;
-    setNavIsFollowing(false);
 
     // Special keyword: "audio" — navigate to the audio category in Questions mode
     if (input.toLowerCase() === "audio") {
@@ -2836,7 +2802,6 @@ export default function App() {
         setNavIndex(idx !== -1 ? idx : 0);
         setNavAnswerStage(0);
         setNavStarted(true);
-        navSyncReadyRef.current = true;
         pushNavItem(audioCategory);
         setNavGoToInput("");
       }
@@ -2854,7 +2819,6 @@ export default function App() {
       setNavIndex(idx);
       setNavAnswerStage(0);
       setNavStarted(true);
-      navSyncReadyRef.current = true;
       pushNavQuestion(found, 0);
     } else {
       // For Questions mode, find the item in navWithRules so navIndex is offset past the rules prefix
@@ -2865,7 +2829,6 @@ export default function App() {
       setNavIndex(idx !== -1 ? idx : 0);
       setNavAnswerStage(0);
       setNavStarted(true);
-      navSyncReadyRef.current = true;
       pushNavItem(found);
     }
     setNavGoToInput("");
@@ -2892,7 +2855,7 @@ export default function App() {
     const text = navCurrentItem?.questionText;
     if (id === prevLivePushIdRef.current && text !== prevLivePushTextRef.current) {
       // Same question, text changed — re-push if we're the active host
-      if (navStarted && navSyncReadyRef.current && !navPassiveRef.current && navCurrentItem?.type === "question") {
+      if (navStarted && navCurrentItem?.type === "question") {
         if (navIsAnswerMode) {
           pushNavQuestion(navCurrentItem, navAnswerStage, navImageVisible);
         } else {
@@ -3349,7 +3312,7 @@ export default function App() {
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
                 >📺</Button>
                 <Button
-                  onClick={() => { sendToDisplay("closeQuestionCarousel", null); sendToDisplay("standby", null); setCarouselActive(false); navPassiveRef.current = false; setNavIsFollowing(false); }}
+                  onClick={() => { sendToDisplay("closeQuestionCarousel", null); sendToDisplay("standby", null); setCarouselActive(false); }}
                   title="Clear the display (standby screen)"
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
                 >🧹</Button>
@@ -3473,11 +3436,6 @@ export default function App() {
                           {navStarted && navNextLabel && (
                             <div style={{ fontSize: ".72rem", color: "#888", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center" }}>
                               next: {navNextLabel}
-                            </div>
-                          )}
-                          {navIsFollowing && (
-                            <div style={{ fontSize: ".68rem", color: colors.accent, fontFamily: tokens.font.body, fontStyle: "italic", textAlign: "center" }}>
-                              following
                             </div>
                           )}
                         </div>
@@ -3604,7 +3562,7 @@ export default function App() {
 
                 {/* Context panel — always rendered so preview position doesn't jump */}
                 {(() => {
-                  const enrichedItem = navCurrentItem;
+                  const enrichedItem = contextPanelItem;
                   const hasAudio = currentNavAudio.length > 0;
                   const audioObj = currentNavAudio[navAudioIndex] || currentNavAudio[0];
                   const isCurrentAudio = hasAudio && !!audioObj && sharedAudioUrl === audioObj.url;
