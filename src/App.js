@@ -3627,7 +3627,7 @@ export default function App() {
                     textAlign: "right",
                   };
                   const textStyle = {
-                    fontSize: ".85rem",
+                    fontSize: "1rem",
                     color: "#ddd",
                     fontFamily: tokens.font.body,
                     lineHeight: 1.45,
