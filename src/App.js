@@ -617,6 +617,7 @@ export default function App() {
   useEffect(() => {
     if (!selectedShowId) return;
     if (!showBundle) return; // Wait for Airtable bundle to load first
+    if (showBundle.config?.showId !== selectedShowId) return; // Bundle hasn't caught up to selected show yet
     if (supabaseSettingsLoadedRef.current?.showId === selectedShowId) return;
 
     const loadOrCreateSettings = async () => {
@@ -2148,6 +2149,21 @@ export default function App() {
     [navQuestionList, navTiebreakerSteps, resultsNavSequence],
   );
 
+  // Grid of categories + questions for Mission Control direct navigation
+  const navGrid = useMemo(() => {
+    const rows = [];
+    let currentRow = null;
+    for (const item of navFlatList) {
+      if (item.type === "category" || item.type === "carousel") {
+        currentRow = { catItem: item, questions: [] };
+        rows.push(currentRow);
+      } else if (item.type === "question" && currentRow) {
+        currentRow.questions.push(item);
+      }
+    }
+    return rows;
+  }, [navFlatList]);
+
   // Reset nav position when show or round changes (but NOT on bundle refresh)
   useEffect(() => {
     if (isRefreshingBundleRef.current) {
@@ -2697,6 +2713,49 @@ export default function App() {
     },
     [navIsAnswerMode],
   );
+
+  // Grid click handlers
+  const handleGridCategoryClick = useCallback((catItem) => {
+    if (!catItem) return;
+    const idx = navWithRules.indexOf(catItem);
+    setNavIndex(idx >= 0 ? idx : 0);
+    setNavStarted(true);
+    // pushNavItem handles both category and carousel types
+    if (catItem.type === "carousel") {
+      sendToDisplay("questionCarousel", { questions: catItem.visualQuestions, currentIndex: 0, autoCycle: true });
+    } else {
+      sendToDisplay("category", { categoryName: catItem.categoryName, categoryDescription: catItem.categoryDescription, superSecret: !!catItem.superSecret });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navWithRules]);
+
+  const handleGridQuestionClick = useCallback((item) => {
+    if (!item) return;
+    const isCurrent = navCurrentItem?.type === "question" && navCurrentItem.showQuestionId === item.showQuestionId;
+    if (navIsAnswerMode && isCurrent) {
+      // Cycle through stages for current question (wrap at max)
+      const maxStage = item.isTiebreaker ? 1 : 2;
+      const nextStage = navAnswerStage < maxStage ? navAnswerStage + 1 : 0;
+      setNavAnswerStage(nextStage);
+      const idx = navAnswersModeList.findIndex(i => i.type === "question" && i.showQuestionId === item.showQuestionId);
+      if (idx >= 0) setNavIndex(idx);
+      pushNavQuestion(item, nextStage, navImageVisible);
+    } else {
+      // Jump to this question at stage 0
+      const list = navIsAnswerMode ? navAnswersModeList : navWithRules;
+      const idx = list.findIndex(i => i.type === "question" && i.showQuestionId === item.showQuestionId);
+      setNavIndex(idx >= 0 ? idx : 0);
+      setNavAnswerStage(0);
+      setNavStarted(true);
+      const payload = { questionNumber: item.questionNumber, questionText: item.questionText, categoryName: item.categoryName };
+      if (item.showImageByDefault && item.inlineImages?.length > 0) {
+        payload.inlineImages = item.inlineImages;
+        payload.currentInlineImageIndex = 0;
+      }
+      sendToDisplay("question", payload);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navCurrentItem, navIsAnswerMode, navAnswerStage, navWithRules, navAnswersModeList, pushNavQuestion, navImageVisible]);
 
   const navCurrentLabel = useMemo(() => {
     if (navActiveList.length === 0) return "No show";
@@ -3352,6 +3411,137 @@ export default function App() {
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", ...(navKeyboardEnabled && { background: colors.accent }) }}
                 >←→</Button>
               </div>
+
+              {/* Mission Control question grid */}
+              {navGrid.length > 0 && (
+                <div style={{
+                  borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}`,
+                  background: colors.dark,
+                  display: "flex",
+                  maxHeight: "12rem",
+                }}>
+                  {/* Q/A mode buttons — left sidebar, spans full grid height */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: ".25rem", padding: ".3rem .5rem", flexShrink: 0 }}>
+                    {[
+                      { label: "Questions", isActive: !navIsAnswerMode },
+                      { label: "Answers", isActive: navIsAnswerMode },
+                    ].map(({ label, isActive }) => (
+                      <button
+                        key={label}
+                        onClick={isActive ? undefined : toggleNavMode}
+                        disabled={navActiveList.length === 0 || isActive}
+                        style={{
+                          flex: 1,
+                          fontSize: ".75rem",
+                          fontFamily: tokens.font.body,
+                          padding: ".2rem .4rem",
+                          borderRadius: ".35rem",
+                          border: `1px solid ${colors.accent}`,
+                          background: isActive ? colors.accent : "transparent",
+                          color: "#fff",
+                          fontWeight: isActive ? 700 : 400,
+                          opacity: navActiveList.length === 0 ? 0.4 : 1,
+                          cursor: isActive ? "default" : "pointer",
+                          width: "5rem",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Scrollable grid rows */}
+                  <div style={{ flex: 1, overflowY: "auto", padding: ".3rem .5rem .3rem 0", display: "flex", flexDirection: "column", gap: ".25rem" }}>
+                  {(() => {
+                    let spokenCatCount = 0;
+                    return navGrid.map((row, rowIdx) => {
+                    const catItem = row.catItem;
+                    const isCatActive = navCurrentItem === catItem ||
+                      (navCurrentItem?.type === "carousel" && catItem?.type === "carousel" && navCurrentItem?.categoryName === catItem?.categoryName);
+                    let catLabel;
+                    if (catItem.type === "carousel") {
+                      catLabel = "Visual";
+                    } else if (catItem.isTiebreaker) {
+                      catLabel = "TB";
+                    } else if (catItem.questionType === "audio") {
+                      catLabel = "Audio";
+                    } else {
+                      spokenCatCount++;
+                      catLabel = `Cat ${spokenCatCount}`;
+                    }
+                    const rawName = catItem.categoryName || catLabel;
+                    const plainName = rawName
+                      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+                      .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+                      .replace(/\*\*([^*]+)\*\*/g, "$1")
+                      .replace(/\*([^*]+)\*/g, "$1")
+                      .replace(/__([^_]+)__/g, "$1")
+                      .replace(/_([^_]+)_/g, "$1")
+                      .replace(/`([^`]+)`/g, "$1")
+                      .replace(/#+\s*/g, "")
+                      .trim();
+                    return (
+                      <div key={rowIdx} style={{ display: "flex", flexWrap: "wrap", gap: ".25rem", alignItems: "center" }}>
+                        {/* Category button */}
+                        <button
+                          onClick={() => handleGridCategoryClick(catItem)}
+                          title={plainName}
+                          style={{
+                            fontSize: ".72rem",
+                            fontFamily: tokens.font.body,
+                            padding: ".2rem 0",
+                            borderRadius: ".35rem",
+                            border: `1px solid ${colors.accent}`,
+                            background: isCatActive ? colors.accent : "transparent",
+                            color: "#fff",
+                            fontWeight: isCatActive ? 700 : 400,
+                            cursor: "pointer",
+                            width: "4rem",
+                            flexShrink: 0,
+                            textAlign: "center",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {catLabel}
+                        </button>
+                        {/* Question buttons */}
+                        {row.questions.map((q, qIdx) => {
+                          const isQActive = navCurrentItem?.type === "question" && navCurrentItem.showQuestionId === q.showQuestionId;
+                          const stageLabel = isQActive && navIsAnswerMode
+                            ? (navAnswerStage === 0 ? "" : navAnswerStage === 1 ? "·A" : "·S")
+                            : "";
+                          return (
+                            <button
+                              key={q.showQuestionId || qIdx}
+                              onClick={() => handleGridQuestionClick(q)}
+                              title={q.questionText || `Q${q.questionNumber}`}
+                              style={{
+                                fontSize: ".72rem",
+                                fontFamily: tokens.font.body,
+                                padding: ".2rem .35rem",
+                                borderRadius: ".35rem",
+                                border: "1px solid #888",
+                                background: isQActive ? colors.accent : "transparent",
+                                color: "#fff",
+                                fontWeight: isQActive ? 700 : 400,
+                                cursor: "pointer",
+                                minWidth: "1.6rem",
+                                textAlign: "center",
+                              }}
+                            >
+                              {q.questionNumber}{stageLabel}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  });
+                  })()}
+                  </div>
+                </div>
+              )}
+
                 {/* Control bar — 2-row layout */}
                 {(() => {
                   // Use navQuestionList for item lookup so visual questions (filtered out of navQuestionsMode) are found
@@ -3377,27 +3567,6 @@ export default function App() {
                     minWidth: "1.8rem",
                     textAlign: "center",
                   };
-                  const modeBtn = (label, isActive, onClick) => (
-                    <button
-                      key={label}
-                      onClick={isActive ? undefined : onClick}
-                      disabled={navActiveList.length === 0 || isActive}
-                      style={{
-                        ...btnBase,
-                        border: `1px solid ${colors.accent}`,
-                        background: isActive ? colors.accent : "transparent",
-                        color: "#fff",
-                        fontWeight: isActive ? 700 : 400,
-                        opacity: navActiveList.length === 0 ? 0.4 : 1,
-                        cursor: isActive ? "default" : "pointer",
-                        fontSize: ".75rem",
-                        padding: ".2rem .4rem",
-                        width: "5rem",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
                   const arrowBtn = (label, onClick, disabled, extraStyle = {}) => (
                     <button
                       onClick={disabled ? undefined : onClick}
@@ -3421,59 +3590,33 @@ export default function App() {
                     : navIndex >= navWithRules.length - 1);
                   return (
                     <div style={{ background: colors.dark, display: "flex", gap: ".4rem", padding: ".35rem .5rem", alignItems: "stretch" }}>
-                      {/* Left column: mode toggles */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: ".25rem", justifyContent: "space-between" }}>
-                        {modeBtn("Questions", !navIsAnswerMode, toggleNavMode)}
-                        {modeBtn("Answers", navIsAnswerMode, toggleNavMode)}
-                      </div>
 
-                      {/* Center column: info box only — full height, text centered */}
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-                        <div style={{ background: "#fff", borderRadius: ".5rem", padding: ".3rem .6rem", minWidth: 0, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                          <div style={{ fontWeight: 700, fontSize: ".85rem", color: colors.dark, fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center" }}>
-                            {navStarted ? navCurrentLabel : `▶ ${navCurrentLabel}`}
-                          </div>
-                          {navStarted && navNextLabel && (
-                            <div style={{ fontSize: ".72rem", color: "#888", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center" }}>
-                              next: {navNextLabel}
-                            </div>
-                          )}
+                      {/* White now-playing panel — tall, spans full control bar height */}
+                      <div style={{ flex: 1, background: "#fff", borderRadius: ".5rem", padding: ".3rem .6rem", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                        <div style={{ fontWeight: 700, fontSize: ".85rem", color: colors.dark, fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center", width: "100%" }}>
+                          {navStarted ? navCurrentLabel : `▶ ${navCurrentLabel}`}
                         </div>
+                        {navStarted && navNextLabel && (
+                          <div style={{ fontSize: ".72rem", color: "#888", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center", width: "100%" }}>
+                            next: {navNextLabel}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Timer+nav section: two rows; "go to" label floats left with nothing above it */}
+                      {/* Timer + arrows column: timer on top, arrows below */}
                       <div style={{ display: "flex", flexDirection: "column", gap: ".25rem" }}>
-                        {/* Row 1: indent by "go to" label width so Reset sits above the input */}
-                        <div style={{ display: "flex", alignItems: "center", gap: ".25rem", paddingLeft: "2.75rem" }}>
+                        {/* Timer row: Reset left, countdown center, Start right */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: ".25rem" }}>
                           <button onClick={handleReset} style={{ ...btnBase, width: "3rem" }}>Reset</button>
-                          <span style={{ width: "3rem", textAlign: "center", fontSize: "1rem", fontWeight: "bold", fontFamily: tokens.font.body, color: timerRunning ? colors.accent : "#fff" }}>
+                          <span style={{ textAlign: "center", fontSize: "1rem", fontWeight: "bold", fontFamily: tokens.font.body, color: timerRunning ? colors.accent : "#fff" }}>
                             {timeLeft !== null ? `${timeLeft}s` : "--"}
                           </span>
                           <button onClick={handleStartPause} style={{ ...btnBase, width: "3rem", border: `1px solid ${colors.accent}`, background: colors.accent }}>
                             {timerRunning ? "Pause" : "Start"}
                           </button>
                         </div>
-                        {/* Row 2: "go to" floats left (nothing above it), input aligns under Reset */}
-                        <div style={{ display: "flex", alignItems: "center", gap: ".25rem" }}>
-                          <span style={{ width: "2.5rem", flexShrink: 0, fontSize: ".72rem", color: "#aaa", fontFamily: tokens.font.body, textAlign: "right" }}>go to</span>
-                          <input
-                            value={navGoToInput}
-                            onChange={(e) => setNavGoToInput(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") navGoTo(); }}
-                            placeholder="#"
-                            style={{
-                              width: "3rem",
-                              boxSizing: "border-box",
-                              flexShrink: 0,
-                              fontSize: ".8rem",
-                              padding: ".2rem .35rem",
-                              borderRadius: ".3rem",
-                              border: "1px solid #555",
-                              background: "rgba(255,255,255,0.1)",
-                              color: "#fff",
-                              fontFamily: tokens.font.body,
-                            }}
-                          />
+                        {/* Nav arrows row: ← left, → right, same width as timer row */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           {arrowBtn("←", navBackward, navActiveList.length === 0 || navAtStart, { width: "3rem" })}
                           {arrowBtn(navStarted ? "→" : "▶", navForward, navActiveList.length === 0 || navAtEnd, { width: "3rem" })}
                         </div>
