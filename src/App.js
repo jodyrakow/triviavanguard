@@ -1,26 +1,31 @@
 // App.js
-import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import axios from "axios";
+import { marked } from "marked";
 import "./App.css";
 import "react-h5-audio-player/lib/styles.css";
 import Draggable from "react-draggable";
 import QuestionsMode from "./QuestionsMode";
-import SharedAudioPlayer from "./SharedAudioPlayer";
 import ScoringMode from "./ScoringMode";
 import ResultsMode from "./ResultsMode";
-import Sidebar from "./Sidebar";
+import { RULES_ITEMS, PHONE_AWAY_ITEM } from "./rulesItems";
 import SidebarMenu from "./SidebarMenu";
 import AnswerKeyPanel from "./AnswerKeyPanel";
 import logo from "./trivia-logo.png";
 import {
-  ButtonTab,
   ButtonPrimary,
   colors,
   tokens,
   ui,
   Button,
 } from "./styles/index.js";
-import { computeAutoEarned, computeBonusBreakdown } from "./scoring/compute.js";
+import { computeAutoEarned, computeBonusBreakdown, computePartialBreakdown, buildCorrectCountMap, buildTeamTotals, computePlaces } from "./scoring/compute.js";
 import { supabase } from "./supabaseClient.js";
 export { supabase };
 
@@ -52,7 +57,9 @@ const PASSWORD_KEY = "showPasswordAuthorized";
 
 export default function App() {
   // Password protection state
-  const [passwordAuthorized, setPasswordAuthorized] = useState(() => !!sessionStorage.getItem(PASSWORD_KEY));
+  const [passwordAuthorized, setPasswordAuthorized] = useState(
+    () => !!sessionStorage.getItem(PASSWORD_KEY),
+  );
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState("");
 
@@ -68,12 +75,20 @@ export default function App() {
   const [visibleImages, setVisibleImages] = useState({});
   const questionRefs = useRef({});
   const [visibleCategoryImages, setVisibleCategoryImages] = useState({});
-  const [activeMode, setActiveMode] = useState("show");
   const [currentImageIndex, setCurrentImageIndex] = useState({});
   const [carouselActive, setCarouselActive] = useState(false);
   const timerRef = useRef(null);
-  const displayControlsRef = useRef(null);
-  const previewPanelRef = useRef(null);
+
+  // Floating mode panels
+  const [questionsOpen, setQuestionsOpen] = useState(false);
+  const [scoringOpen, setScoringOpen] = useState(false);
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const [questionsPos, setQuestionsPos] = useState(() => { try { const s=localStorage.getItem("tv_questionsPos"); return s?JSON.parse(s):{x:80,y:100}; } catch { return {x:80,y:100}; } });
+  const [scoringPos, setScoringPos] = useState(() => { try { const s=localStorage.getItem("tv_scoringPos"); return s?JSON.parse(s):{x:120,y:120}; } catch { return {x:120,y:120}; } });
+  const [resultsPos, setResultsPos] = useState(() => { try { const s=localStorage.getItem("tv_resultsPos"); return s?JSON.parse(s):{x:160,y:140}; } catch { return {x:160,y:140}; } });
+  const questionsRef = useRef(null);
+  const scoringRef = useRef(null);
+  const resultsRef = useRef(null);
 
   const [rtStatus, setRtStatus] = useState("INIT"); // ✅ moved inside
 
@@ -86,6 +101,8 @@ export default function App() {
   useEffect(() => {
     currentShowIdRef.current = selectedShowId;
   }, [selectedShowId]);
+  const showBundleRef = useRef(null); // mirrors showBundle state for use in mount-time broadcast handlers
+  useEffect(() => { showBundleRef.current = showBundle; }, [showBundle]);
 
   // Scoring cache across mode switches
   const [scoringCache, setScoringCache] = useState({});
@@ -108,7 +125,10 @@ export default function App() {
   useEffect(() => {
     if (!supabase || !selectedShowId) return;
 
-    console.log("🟣 APP: Subscribing to global scoring realtime for show", selectedShowId);
+    console.log(
+      "🟣 APP: Subscribing to global scoring realtime for show",
+      selectedShowId,
+    );
 
     // Subscribe to scoring_cells changes
     const cellsChannel = supabase
@@ -125,7 +145,15 @@ export default function App() {
           const { new: newRow } = payload;
           if (!newRow) return;
 
-          const { show_team_id, show_question_id, is_correct, bonus_count, tiebreaker_guess, tiebreaker_guess_raw } = newRow;
+          const {
+            show_team_id,
+            show_question_id,
+            is_correct,
+            bonus_count,
+            partial_count,
+            tiebreaker_guess,
+            tiebreaker_guess_raw,
+          } = newRow;
 
           setScoringCache((prev) => {
             const showCache = prev[selectedShowId] || {};
@@ -143,6 +171,7 @@ export default function App() {
                     [show_question_id]: {
                       isCorrect: is_correct,
                       bonusCount: bonus_count || 0,
+                      partialCount: partial_count ?? 0,
                       tiebreakerGuess: tiebreaker_guess,
                       tiebreakerGuessRaw: tiebreaker_guess_raw,
                     },
@@ -151,7 +180,7 @@ export default function App() {
               },
             };
           });
-        }
+        },
       )
       .subscribe();
 
@@ -196,11 +225,16 @@ export default function App() {
               isLeague: newRow.is_league || false,
             };
 
-            const existingIdx = teams.findIndex((t) => t.showTeamId === showTeamId);
+            const existingIdx = teams.findIndex(
+              (t) => t.showTeamId === showTeamId,
+            );
             let newTeams;
             if (existingIdx >= 0) {
               newTeams = [...teams];
-              newTeams[existingIdx] = { ...newTeams[existingIdx], ...updatedTeam };
+              newTeams[existingIdx] = {
+                ...newTeams[existingIdx],
+                ...updatedTeam,
+              };
             } else {
               newTeams = [...teams, updatedTeam];
             }
@@ -213,7 +247,7 @@ export default function App() {
               },
             };
           });
-        }
+        },
       )
       .subscribe();
 
@@ -240,7 +274,6 @@ export default function App() {
     }
   }, []);
 
-
   // Timer state
   const [timerPosition, setTimerPosition] = useState({ x: 0, y: 0 });
   const [timerDuration, setTimerDuration] = useState(null); // No default - loaded from Airtable/Supabase
@@ -254,36 +287,44 @@ export default function App() {
     localStorage.setItem("tv_showTimer", String(showTimer));
   }, [showTimer]);
 
-  // Display controls state
-  const [displayControlsOpen, setDisplayControlsOpen] = useState(false);
-  const [displayControlsPosition, setDisplayControlsPosition] = useState({
-    x: 0,
-    y: 0,
-  });
-  const [previewPanelPosition, setPreviewPanelPosition] = useState({ x: 20, y: 20 });
 
-  const [displayFontSize, setDisplayFontSize] = useState(() => {
-    const saved = Number(localStorage.getItem("tv_displayFontSize"));
-    return Number.isFinite(saved) ? saved : 220; // pick your normal default
-  });
-
-  const [customMessage, setCustomMessage] = useState("");
-  const [customMessageImage, setCustomMessageImage] = useState("");
+  // Script panel state
+  const [scriptPanelOpen, setScriptPanelOpen] = useState(false);
+  const [rulesStartedWithScript, setRulesStartedWithScript] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Display nav state
   const [navIsAnswerMode, setNavIsAnswerMode] = useState(false);
   const [navIndex, setNavIndex] = useState(0);
   const [navAnswerStage, setNavAnswerStage] = useState(0); // 0=question, 1=answer, 2=stats
   const [navStarted, setNavStarted] = useState(false); // true once first item has been sent via nav
+  const [navKeyboardEnabled, setNavKeyboardEnabled] = useState(false); // arrow key nav
   const [navImageVisible, setNavImageVisible] = useState(false); // true when image toggled on for current nav item
   const [navImageIndex, setNavImageIndex] = useState(0); // current image index when cycling
-  const [panelSize, setPanelSize] = useState("S"); // S=300px, M=450px, L=620px panel width
+  const [navAudioIndex, setNavAudioIndex] = useState(0); // current audio index when cycling
+  const [navGoToInput, setNavGoToInput] = useState(""); // "go to" input value
+  const [liveDisplayState, setLiveDisplayState] = useState(null); // what's currently on the display (from Supabase)
+  const [remoteAudioStatus, setRemoteAudioStatus] = useState(null); // { playing, hostName } from another host
+  const [gridOnRight, setGridOnRight] = useState(() => localStorage.getItem("tv_gridOnRight") !== "false");
   const sharedAudioRef = useRef(null);
   const [sharedAudioUrl, setSharedAudioUrl] = useState("");
   const [sharedAudioPlaying, setSharedAudioPlaying] = useState(false);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(null);
+  const [stripEditing, setStripEditing] = useState(false);
+  const [stripEditDraft, setStripEditDraft] = useState({});
 
-  // Preview width: panel content width + panel padding (.7rem * 2 ≈ 22px at 16px base)
-  const previewW = { S: 322, M: 472, L: 642, XL: 862 }[panelSize];
+  // Preview width — computed from viewport; updated on resize
+  const _computePreviewW = () => {
+    const topBarH = 48, utilityH = 44, controlH = 54, contextH = 38, padding = 8;
+    const usedH = 80 + topBarH + utilityH + controlH + contextH + padding;
+    const availH = window.innerHeight - usedH;
+    const wFromH = Math.round(availH * 1920 / 1080);
+    const wFromW = window.innerWidth - 40;
+    return Math.max(320, Math.min(wFromH, wFromW, 1600));
+  };
+  const [previewW, setPreviewW] = useState(_computePreviewW);
+  const previewH = Math.round((previewW * 1080) / 1920);
 
   // Answer Key state
   const [showAnswerKey, setShowAnswerKey] = useState(false);
@@ -296,17 +337,32 @@ export default function App() {
   const [hostSetupNewName, setHostSetupNewName] = useState("");
   const [hostSetupError, setHostSetupError] = useState("");
 
-  // displayTargetHostId: which host's display channel we're sending to
-  // (normally our own; may be set to a co-host's ID when joining their display)
-  const [displayTargetHostId, setDisplayTargetHostId] = useState(null);
+  // venueShowId: stable key for the venue's display channel — "{locationRecordId}:{date}"
+  // Persisted to localStorage so co-host sessions survive refresh
+  const [venueShowId, setVenueShowId] = useState(() => localStorage.getItem("tv_venueShowId") || null);
+  const [venueName, setVenueName] = useState(() => localStorage.getItem("tv_venueName") || null);
+
+  // venueId: stable per-location key used as primary key in display_state table.
+  // Strips the trailing ":YYYY-MM-DD" date suffix so co-hosts sharing the same venue
+  // always resolve to the same row regardless of when they entered it.
+  // Examples: "loc123:2025-04-10" → "loc123", "custom:testing:2025-04-10" → "custom:testing"
+  const venueId = venueShowId
+    ? venueShowId.replace(/:\d{4}-\d{2}-\d{2}$/, "")
+    : null;
 
   // Active displays detected via Supabase Presence on "tv:displays"
   const [activeDisplays, setActiveDisplays] = useState([]);
-  // Picker shown when other displays are detected on "Open display" click
-  const [displayPickerOpen, setDisplayPickerOpen] = useState(false);
+
+  // Venue picker
+  const [venuePickerOpen, setVenuePickerOpen] = useState(false);
+  const [venuePickerOptions, setVenuePickerOptions] = useState([]);
+  const [venuePickerLoading, setVenuePickerLoading] = useState(false);
+  const [venueManualInput, setVenueManualInput] = useState("");
 
   // Supabase channel for broadcasting to the display window
   const displayBroadcastRef = useRef(null);
+  const previewIframeRef = useRef(null);
+  const isRefreshingBundleRef = useRef(false); // true when refreshBundle() triggered showBundle change
 
   // On mount: check localStorage for saved host identity, verify against Supabase
   useEffect(() => {
@@ -323,7 +379,6 @@ export default function App() {
           if (data.host_id) {
             setHostId(data.host_id);
             setHostName(data.host_name);
-            setDisplayTargetHostId(data.host_id);
           } else {
             // Not found in Supabase — show setup
             setHostSetupOpen(true);
@@ -333,7 +388,6 @@ export default function App() {
           // Network error — trust localStorage and proceed
           setHostId(savedId);
           setHostName(savedName);
-          setDisplayTargetHostId(savedId);
         });
     } else {
       setHostSetupOpen(true);
@@ -352,7 +406,7 @@ export default function App() {
   const selectHost = (id, name) => {
     setHostId(id);
     setHostName(name);
-    setDisplayTargetHostId(id);
+
     localStorage.setItem("tvHostId", id);
     localStorage.setItem("tvHostName", name);
     setHostSetupOpen(false);
@@ -391,17 +445,18 @@ export default function App() {
     }
   }, [passwordInput]);
 
-  // Keep display broadcast channel in sync with displayTargetHostId
+  // Keep display broadcast channel in sync with venueShowId
   useEffect(() => {
-    if (!supabase || !displayTargetHostId) return;
+    if (!supabase || !venueShowId) return;
 
-    // Clean up previous channel
+    // Keep a broadcast channel for non-persistent signals (fontSize, toggleGuide, updateInlineImageIndex)
+    // that don't need to survive reconnects and shouldn't be stored in display_state.
     if (displayBroadcastRef.current) {
       supabase.removeChannel(displayBroadcastRef.current);
       displayBroadcastRef.current = null;
     }
 
-    const ch = supabase.channel(`tv:display:${displayTargetHostId}`);
+    const ch = supabase.channel(`tv:display:${venueShowId}`);
     ch.subscribe((status) => {
       if (status === "SUBSCRIBED") {
         displayBroadcastRef.current = ch;
@@ -412,9 +467,45 @@ export default function App() {
       supabase.removeChannel(ch);
       displayBroadcastRef.current = null;
     };
-  }, [displayTargetHostId]);
+  }, [venueShowId]);
 
-  // Subscribe to presence channel to detect active displays
+  // Subscribe to display_state changes from Supabase — all hosts see what's on the display
+  // (same pattern as scoring_cells: write → Supabase → Realtime → all Mission Controls update)
+  useEffect(() => {
+    setLiveDisplayState(null);
+    if (!supabase || !venueId) return;
+
+    // Load current state on mount
+    fetch(`/.netlify/functions/supaLoadDisplayState?venueId=${encodeURIComponent(venueId)}`)
+      .then((r) => r.json())
+      .then((data) => { if (data.state?.type) setLiveDisplayState(data.state); })
+      .catch(() => {});
+
+    // Subscribe to Realtime changes
+    const ch = supabase
+      .channel(`app_display_state:${venueId}`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "display_state",
+        filter: `venue_id=eq.${venueId}`,
+      }, (payload) => {
+        const state = payload.new?.state;
+        if (state?.type) setLiveDisplayState(state);
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(ch);
+  }, [venueId]);
+
+  // Update preview iframe src imperatively when venue changes, to avoid reload on unrelated re-renders
+  useEffect(() => {
+    if (!venueShowId || !previewIframeRef.current) return;
+    const newSrc = `${window.location.origin}?display&venueShowId=${venueShowId}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1&preview=1`;
+    if (previewIframeRef.current.src !== newSrc) {
+      previewIframeRef.current.src = newSrc;
+    }
+  }, [venueShowId, hostId, hostName]);
+
+  // Subscribe to presence channel to detect active display windows
   useEffect(() => {
     if (!supabase) return;
     const ch = supabase.channel("tv:displays");
@@ -427,45 +518,90 @@ export default function App() {
     return () => supabase.removeChannel(ch);
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("tv_displayFontSize", String(displayFontSize));
-  }, [displayFontSize]);
+  // Ephemeral types — sent via broadcast only, not persisted to Supabase
+  const EPHEMERAL_DISPLAY_TYPES = new Set(["toggleGuide", "setGuide", "fontSize", "updateInlineImageIndex"]);
 
-  // Send message to display window via Supabase Realtime broadcast
+  // Send a display update.
+  // Persistent types (question, category, results, standby, etc.) are upserted to Supabase display_state
+  // AND broadcast so the display window updates instantly without waiting for the Realtime event.
+  // Ephemeral types (fontSize, guide toggle, image index) are broadcast only.
   const sendToDisplay = (type, data) => {
-    if (!displayBroadcastRef.current) return;
-    console.log("[sendToDisplay]", type, data);
-    displayBroadcastRef.current.send({
-      type: "broadcast",
-      event: "display_update",
-      payload: { type, content: data },
-    });
+    const payload = { type, content: data };
+
+    // Update local live display state immediately (like scoring_cells optimistic update)
+    if (!EPHEMERAL_DISPLAY_TYPES.has(type)) {
+      setLiveDisplayState(payload);
+    }
+
+    // Always broadcast for instant update to display window
+    if (displayBroadcastRef.current) {
+      displayBroadcastRef.current.send({
+        type: "broadcast",
+        event: "display_update",
+        payload,
+      });
+    }
+
+    // Persist to Supabase for non-ephemeral types so any joining host/display gets current state
+    if (!EPHEMERAL_DISPLAY_TYPES.has(type) && venueId) {
+      fetch("/.netlify/functions/supaUpsertDisplayState", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ venueId, venueName, state: payload }),
+      }).catch((err) => console.error("[sendToDisplay] Supabase upsert failed:", err));
+    }
   };
 
-  // Open the display window, with picker if another host's display is already active
-  const openDisplayWindow = useCallback(() => {
-    const others = activeDisplays.filter((d) => d.hostId !== hostId);
-    if (others.length > 0) {
-      setDisplayPickerOpen(true);
-    } else {
-      launchOwnDisplay();
+  // Open a display window — display will load its own state from Supabase on mount
+  const openDisplayWindow = useCallback((vid) => {
+    const alreadyOpen = activeDisplays.some((d) => d.venueShowId === vid);
+    if (alreadyOpen) {
+      // Bring existing window to front if possible; display has its own Supabase subscription
+      return;
     }
-  }, [activeDisplays, hostId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const launchOwnDisplay = useCallback(() => {
-    setDisplayTargetHostId(hostId);
-    const url = `${window.location.origin}?display&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}`;
-    const win = window.open(url, "displayMode", "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no");
+    const name = localStorage.getItem("tv_venueName") || "";
+    const url = `${window.location.origin}?display&venueShowId=${vid}&venueName=${encodeURIComponent(name)}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}`;
+    const win = window.open(url, `display:${vid}`, "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no");
     if (win) win.focus();
-    setDisplayPickerOpen(false);
-  }, [hostId, hostName]);
+  }, [activeDisplays, hostId, hostName]);
 
-  const joinDisplay = useCallback((targetHostId, targetHostName) => {
-    setDisplayTargetHostId(targetHostId);
-    const url = `${window.location.origin}?display&hostId=${targetHostId}&hostName=${encodeURIComponent(targetHostName)}`;
-    const win = window.open(url, "displayMode", "width=1920,height=1080,location=no,toolbar=no,menubar=no,status=no");
-    if (win) win.focus();
-    setDisplayPickerOpen(false);
+  // Select a venue — sets channel, persists, opens controls + display window
+  const selectVenue = useCallback((vid, name) => {
+    setVenueShowId(vid);
+    setVenueName(name);
+    localStorage.setItem("tv_venueShowId", vid);
+    localStorage.setItem("tv_venueName", name);
+    setVenuePickerOpen(false);
+    // Clear stale display state only if no active show is already running on this venue
+    const isLive = activeDisplays.some((d) => d.venueShowId === vid);
+    if (!isLive) {
+      const newVenueId = vid.replace(/:\d{4}-\d{2}-\d{2}$/, "");
+      const standbyPayload = { type: "standby", content: null };
+      setLiveDisplayState(standbyPayload);
+      fetch("/.netlify/functions/supaUpsertDisplayState", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ venueId: newVenueId, venueName: name, state: standbyPayload }),
+      }).catch((err) => console.error("[selectVenue] standby upsert failed:", err));
+    }
+    openDisplayWindow(vid);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openDisplayWindow, activeDisplays]);
+
+  // Open venue picker — fetch today's venues then show modal
+  const openVenuePicker = useCallback(() => {
+    setVenuePickerOpen(true);
+    setVenuePickerLoading(true);
+    fetch("/.netlify/functions/fetchVenuesToday")
+      .then((r) => r.json())
+      .then((data) => {
+        setVenuePickerOptions(data.venues || []);
+        setVenuePickerLoading(false);
+      })
+      .catch(() => {
+        setVenuePickerOptions([]);
+        setVenuePickerLoading(false);
+      });
   }, []);
 
   // Global scoring settings
@@ -499,13 +635,17 @@ export default function App() {
   useEffect(() => {
     if (!selectedShowId) return;
     if (!showBundle) return; // Wait for Airtable bundle to load first
+    if (showBundle.config?.showId !== selectedShowId) return; // Bundle hasn't caught up to selected show yet
     if (supabaseSettingsLoadedRef.current?.showId === selectedShowId) return;
 
     const loadOrCreateSettings = async () => {
       try {
-        console.log("🔵 SUPABASE SETTINGS: Checking for existing settings...", selectedShowId);
+        console.log(
+          "🔵 SUPABASE SETTINGS: Checking for existing settings...",
+          selectedShowId,
+        );
         const res = await fetch(
-          `/.netlify/functions/supaLoadShowSettings?showId=${encodeURIComponent(selectedShowId)}`
+          `/.netlify/functions/supaLoadShowSettings?showId=${encodeURIComponent(selectedShowId)}`,
         );
         if (!res.ok) {
           console.error("Failed to load show settings:", await res.text());
@@ -513,47 +653,87 @@ export default function App() {
         }
         const { settings, exists } = await res.json();
 
-        supabaseSettingsLoadedRef.current = { showId: selectedShowId, exists, applied: false };
+        supabaseSettingsLoadedRef.current = {
+          showId: selectedShowId,
+          exists,
+          applied: false,
+        };
 
         if (exists && settings) {
-          // Supabase has settings - use them (show was previously opened)
-          console.log("🔵 SUPABASE SETTINGS: Found existing settings, applying", settings);
-          console.log("🔵 SUPABASE SETTINGS: prizes value =", JSON.stringify(settings.prizes));
-          applySettings(settings);
+          // Supabase has settings - use them, but always override scoring config from Airtable
+          // since Airtable is the authoritative source for scoring type/points
+          console.log(
+            "🔵 SUPABASE SETTINGS: Found existing settings, applying",
+            settings,
+          );
+          console.log(
+            "🔵 SUPABASE SETTINGS: prizes value =",
+            JSON.stringify(settings.prizes),
+          );
+          const config = showBundle?.config || {};
+          const mergedSettings = { ...settings };
+          if (config.scoringMode) {
+            const mode = config.scoringMode.toLowerCase().replace(/[\s()]/g, "");
+            if (mode === "pub") mergedSettings.scoring_mode = "pub";
+            else if (mode === "pooledadaptive" || mode === "adaptive") mergedSettings.scoring_mode = "pooled-adaptive";
+            else if (mode === "pooled" || mode === "pooledstatic") mergedSettings.scoring_mode = "pooled";
+          }
+          if (typeof config.pubPoints === "number") mergedSettings.pub_points = config.pubPoints;
+          if (typeof config.poolPerQuestion === "number") mergedSettings.pool_per_question = config.poolPerQuestion;
+          if (typeof config.poolContribution === "number") mergedSettings.pool_contribution = config.poolContribution;
+          applySettings(mergedSettings);
           supabaseSettingsLoadedRef.current.applied = true;
         } else {
           // No Supabase settings - create from Airtable config
-          console.log("🔵 SUPABASE SETTINGS: No existing settings, creating from Airtable config");
+          console.log(
+            "🔵 SUPABASE SETTINGS: No existing settings, creating from Airtable config",
+          );
           const config = showBundle?.config || {};
 
           // Build settings from Airtable config
           const newSettings = {};
 
           if (config.scoringMode) {
-            const mode = config.scoringMode.toLowerCase().replace(/[\s()]/g, "");
+            const mode = config.scoringMode
+              .toLowerCase()
+              .replace(/[\s()]/g, "");
             if (mode === "pub") newSettings.scoring_mode = "pub";
-            else if (mode === "pooledadaptive" || mode === "adaptive") newSettings.scoring_mode = "pooled-adaptive";
-            else if (mode === "pooled" || mode === "pooledstatic") newSettings.scoring_mode = "pooled";
+            else if (mode === "pooledadaptive" || mode === "adaptive")
+              newSettings.scoring_mode = "pooled-adaptive";
+            else if (mode === "pooled" || mode === "pooledstatic")
+              newSettings.scoring_mode = "pooled";
           }
-          if (typeof config.pubPoints === "number") newSettings.pub_points = config.pubPoints;
-          if (typeof config.poolPerQuestion === "number") newSettings.pool_per_question = config.poolPerQuestion;
-          if (typeof config.poolContribution === "number") newSettings.pool_contribution = config.poolContribution;
-          if (typeof config.timerDefault === "number") newSettings.timer_default = config.timerDefault;
+          if (typeof config.pubPoints === "number")
+            newSettings.pub_points = config.pubPoints;
+          if (typeof config.poolPerQuestion === "number")
+            newSettings.pool_per_question = config.poolPerQuestion;
+          if (typeof config.poolContribution === "number")
+            newSettings.pool_contribution = config.poolContribution;
+          if (typeof config.timerDefault === "number")
+            newSettings.timer_default = config.timerDefault;
           if (config.prizes) newSettings.prizes = config.prizes;
           if (config.hostName) newSettings.host_name = config.hostName;
           if (config.cohostName) newSettings.cohost_name = config.cohostName;
           if (config.location) newSettings.location_name = config.location;
           if (config.startTime) newSettings.start_times = config.startTime;
-          if (config.announcements) newSettings.announcements = config.announcements;
-          if (typeof config.totalGames === "number") newSettings.total_games = config.totalGames;
+          if (config.announcements)
+            newSettings.announcements = config.announcements;
+          if (typeof config.totalGames === "number")
+            newSettings.total_games = config.totalGames;
 
           // Save to Supabase
           if (Object.keys(newSettings).length > 0) {
-            console.log("🔵 SUPABASE SETTINGS: Saving initial settings from Airtable", newSettings);
+            console.log(
+              "🔵 SUPABASE SETTINGS: Saving initial settings from Airtable",
+              newSettings,
+            );
             await fetch("/.netlify/functions/supaSaveShowSettings", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ showId: selectedShowId, settings: newSettings }),
+              body: JSON.stringify({
+                showId: selectedShowId,
+                settings: newSettings,
+              }),
             });
           }
 
@@ -596,13 +776,20 @@ export default function App() {
         const updatedHostInfo = { ...currentHostInfo };
         if (settings.host_name) updatedHostInfo.host = settings.host_name;
         if (settings.cohost_name) updatedHostInfo.cohost = settings.cohost_name;
-        if (settings.location_name) updatedHostInfo.location = settings.location_name;
-        if (typeof settings.total_games === "number") updatedHostInfo.totalGames = String(settings.total_games);
-        if (settings.start_times) updatedHostInfo.startTimesText = settings.start_times;
-        if (settings.announcements) updatedHostInfo.announcements = settings.announcements;
+        if (settings.location_name)
+          updatedHostInfo.location = settings.location_name;
+        if (typeof settings.total_games === "number")
+          updatedHostInfo.totalGames = String(settings.total_games);
+        if (settings.start_times)
+          updatedHostInfo.startTimesText = settings.start_times;
+        if (settings.announcements)
+          updatedHostInfo.announcements = settings.announcements;
 
         const finalPrizes = settings.prizes || show.prizes || "";
-        console.log("🔵 APPLY SETTINGS: Setting prizes in scoringCache =", JSON.stringify(finalPrizes));
+        console.log(
+          "🔵 APPLY SETTINGS: Setting prizes in scoringCache =",
+          JSON.stringify(finalPrizes),
+        );
 
         return {
           ...prev,
@@ -627,7 +814,10 @@ export default function App() {
   useEffect(() => {
     if (!supabase || !selectedShowId) return;
 
-    console.log("🟣 SUPABASE REALTIME: Subscribing to show_settings for show", selectedShowId);
+    console.log(
+      "🟣 SUPABASE REALTIME: Subscribing to show_settings for show",
+      selectedShowId,
+    );
     const channel = supabase
       .channel(`show_settings:${selectedShowId}`)
       .on(
@@ -648,7 +838,8 @@ export default function App() {
           if (settings.scoring_mode) {
             const mode = settings.scoring_mode;
             if (mode === "pub") setScoringMode("pub");
-            else if (mode === "pooled-adaptive") setScoringMode("pooled-adaptive");
+            else if (mode === "pooled-adaptive")
+              setScoringMode("pooled-adaptive");
             else if (mode === "pooled") setScoringMode("pooled");
           }
           if (typeof settings.pub_points === "number") {
@@ -668,26 +859,37 @@ export default function App() {
           // Apply updated hostInfo and prizes to scoringCache
           setScoringCache((prev) => {
             const show = prev[selectedShowId] || DEFAULT_SHOW_STATE;
-            const currentHostInfo = show.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
+            const currentHostInfo =
+              show.hostInfo || DEFAULT_SHOW_STATE.hostInfo;
 
             const updatedHostInfo = { ...currentHostInfo };
-            if (settings.host_name !== undefined) updatedHostInfo.host = settings.host_name || "";
-            if (settings.cohost_name !== undefined) updatedHostInfo.cohost = settings.cohost_name || "";
-            if (settings.location_name !== undefined) updatedHostInfo.location = settings.location_name || "";
-            if (settings.total_games !== undefined) updatedHostInfo.totalGames = settings.total_games ? String(settings.total_games) : "";
-            if (settings.start_times !== undefined) updatedHostInfo.startTimesText = settings.start_times || "";
-            if (settings.announcements !== undefined) updatedHostInfo.announcements = settings.announcements || "";
+            if (settings.host_name !== undefined)
+              updatedHostInfo.host = settings.host_name || "";
+            if (settings.cohost_name !== undefined)
+              updatedHostInfo.cohost = settings.cohost_name || "";
+            if (settings.location_name !== undefined)
+              updatedHostInfo.location = settings.location_name || "";
+            if (settings.total_games !== undefined)
+              updatedHostInfo.totalGames = settings.total_games
+                ? String(settings.total_games)
+                : "";
+            if (settings.start_times !== undefined)
+              updatedHostInfo.startTimesText = settings.start_times || "";
+            if (settings.announcements !== undefined)
+              updatedHostInfo.announcements = settings.announcements || "";
 
             return {
               ...prev,
               [selectedShowId]: {
                 ...show,
                 hostInfo: updatedHostInfo,
-                ...(settings.prizes !== undefined && { prizes: settings.prizes || "" }),
+                ...(settings.prizes !== undefined && {
+                  prizes: settings.prizes || "",
+                }),
               },
             };
           });
-        }
+        },
       )
       .subscribe();
 
@@ -709,11 +911,15 @@ export default function App() {
     // DON'T save to Supabase until we've loaded AND APPLIED settings
     // This prevents overwriting correct Supabase/Airtable values with localStorage defaults
     if (supabaseSettingsLoadedRef.current?.showId !== selectedShowId) {
-      console.log("🟡 SUPABASE SETTINGS SAVE SKIPPED: Settings not loaded yet for this show");
+      console.log(
+        "🟡 SUPABASE SETTINGS SAVE SKIPPED: Settings not loaded yet for this show",
+      );
       return;
     }
     if (!supabaseSettingsLoadedRef.current?.applied) {
-      console.log("🟡 SUPABASE SETTINGS SAVE SKIPPED: Settings loaded but not yet applied");
+      console.log(
+        "🟡 SUPABASE SETTINGS SAVE SKIPPED: Settings loaded but not yet applied",
+      );
       return;
     }
 
@@ -832,20 +1038,12 @@ export default function App() {
     return () => clearTimeout(t);
   }, [timerRunning, timeLeft, timerDuration]);
 
-  // Restore display controls position from localStorage
+  // Keep previewW in sync with viewport size
   useEffect(() => {
-    const savedPosition = localStorage.getItem("displayControlsPosition");
-    if (savedPosition) {
-      try {
-        setDisplayControlsPosition(JSON.parse(savedPosition));
-      } catch {}
-    }
-    const savedPreviewPos = localStorage.getItem("previewPanelPosition");
-    if (savedPreviewPos) {
-      try {
-        setPreviewPanelPosition(JSON.parse(savedPreviewPos));
-      } catch {}
-    }
+    const onResize = () => setPreviewW(_computePreviewW());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleStartPause = () => setTimerRunning((p) => !p);
@@ -933,6 +1131,16 @@ export default function App() {
         } catch {}
         return next;
       });
+    });
+
+    // AUDIO STATUS from another host
+    ch.on("broadcast", { event: "audioStatus" }, (msg) => {
+      const data = msg?.payload ?? msg;
+      const { playing, hostName: remoteHost } = data || {};
+      // Only show if it's a different host
+      if (remoteHost && remoteHost !== hostName) {
+        setRemoteAudioStatus(playing ? { playing: true, hostName: remoteHost } : null);
+      }
     });
 
     // TIEBREAKER ADDED
@@ -1043,17 +1251,34 @@ export default function App() {
           "[supaLoadScoring] Fetching scoring data for show:",
           selectedShowId,
         );
-        const res = await fetch(
-          `/.netlify/functions/supaLoadScoring?showId=${encodeURIComponent(selectedShowId)}`,
-        );
+        const [res, teamsRes] = await Promise.all([
+          fetch(`/.netlify/functions/supaLoadScoring?showId=${encodeURIComponent(selectedShowId)}`),
+          fetch(`/.netlify/functions/supaLoadShowTeams?showId=${encodeURIComponent(selectedShowId)}`),
+        ]);
         console.log("[supaLoadScoring] Response status:", res.status);
         const json = await res.json();
+        const teamsJson = teamsRes.ok ? await teamsRes.json() : null;
         console.log("[supaLoadScoring] Response data:", json);
         console.log("[supaLoadScoring] Payload:", json.payload);
+
+        // Build a map of fresh showBonus values from show_teams (source of truth for bonus)
+        const freshBonusMap = {};
+        for (const t of teamsJson?.teams ?? []) {
+          freshBonusMap[t.showTeamId] = t.showBonus ?? 0;
+        }
 
         setScoringCache((prev) => {
           const prevShow = prev[selectedShowId] || DEFAULT_SHOW_STATE;
           const loadedData = json.payload ?? prevShow;
+
+          // Merge fresh showBonus values into the loaded teams
+          if (loadedData?.teams) {
+            loadedData.teams = loadedData.teams.map((t) =>
+              freshBonusMap[t.showTeamId] !== undefined
+                ? { ...t, showBonus: freshBonusMap[t.showTeamId] }
+                : t,
+            );
+          }
 
           // Only override scoring settings if the show has actual scoring data saved
           const gridHasData =
@@ -1159,6 +1384,7 @@ export default function App() {
         params: { showId: selectedShowId },
       });
       const bundle = res.data || null;
+      isRefreshingBundleRef.current = true;
       setShowBundle(bundle);
       setBundleLoading(false);
     } catch (e) {
@@ -1206,6 +1432,20 @@ export default function App() {
         }
 
         console.log("showBundle.config", showBundle?.config);
+
+        console.log("[App] FULL SHOW BUNDLE:", bundle);
+        console.log(
+          "[App] ROUNDS/CATEGORIES SUMMARY:",
+          (bundle?.rounds || []).map((r) => ({
+            round: r.round,
+            categories: (r.categories || []).map((c) => ({
+              categoryName: c.categoryName,
+              questionType: c.questionType,
+              questionCount: (c.questions || []).length,
+              questionOrders: (c.questions || []).map((q) => q.questionOrder),
+            })),
+          })),
+        );
 
         setShowBundle(bundle);
 
@@ -1357,7 +1597,10 @@ export default function App() {
           clearTimeout(supabaseHostInfoSaveTimeoutRef.current);
         }
         supabaseHostInfoSaveTimeoutRef.current = setTimeout(() => {
-          console.log("🟢 SUPABASE SETTINGS SAVE (hostInfo/prizes):", { hostInfo: hi, prizes: prizesVal });
+          console.log("🟢 SUPABASE SETTINGS SAVE (hostInfo/prizes):", {
+            hostInfo: hi,
+            prizes: prizesVal,
+          });
           fetch("/.netlify/functions/supaSaveShowSettings", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1367,7 +1610,9 @@ export default function App() {
                 host_name: hi.host || null,
                 cohost_name: hi.cohost || null,
                 location_name: hi.location || null,
-                total_games: hi.totalGames ? parseInt(hi.totalGames, 10) || null : null,
+                total_games: hi.totalGames
+                  ? parseInt(hi.totalGames, 10) || null
+                  : null,
                 start_times: hi.startTimesText || null,
                 announcements: hi.announcements || null,
                 prizes: prizesVal || null,
@@ -1376,10 +1621,21 @@ export default function App() {
             }),
           })
             .then((res) => {
-              if (res.ok) console.log("🟢 SUPABASE SETTINGS SAVE SUCCESS (hostInfo/prizes)");
-              else console.error("Failed to save hostInfo/prizes to show_settings");
+              if (res.ok)
+                console.log(
+                  "🟢 SUPABASE SETTINGS SAVE SUCCESS (hostInfo/prizes)",
+                );
+              else
+                console.error(
+                  "Failed to save hostInfo/prizes to show_settings",
+                );
             })
-            .catch((err) => console.error("supaSaveShowSettings (hostInfo/prizes) error:", err));
+            .catch((err) =>
+              console.error(
+                "supaSaveShowSettings (hostInfo/prizes) error:",
+                err,
+              ),
+            );
         }, 500);
       }
 
@@ -1407,6 +1663,180 @@ export default function App() {
     };
   })();
 
+  // 🔸 Results navigation — standings & prizes computation (mirrors ResultsMode logic)
+  const resultsOrdinal = (n) => {
+    const s = ["th", "st", "nd", "rd"], v = n % 100;
+    return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+  };
+
+  const resultsPrizes = useMemo(() => {
+    return (composedCachedState?.prizes || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  }, [composedCachedState]);
+  const resultsPrizeCount = resultsPrizes.length;
+
+  // Flatten all scored questions from all rounds (mirrors ResultsMode.allQuestions)
+  // Only pulls from categories, not flat r.questions (which are host-added tiebreakers)
+  const resultsAllQuestions = useMemo(() => {
+    if (!showBundle?.rounds) return [];
+    const qs = [];
+    for (const r of showBundle.rounds) {
+      for (const cat of r.categories || []) {
+        for (const q of cat.questions || []) {
+          qs.push({
+            showQuestionId: q.showQuestionId || q.id,
+            questionType: q.questionType || null,
+            questionOrder: q.questionOrder,
+            sortOrder: Number(q.sortOrder ?? 9999),
+            bonusAvailable: !!q.bonusAvailable,
+            bonusValue: q.bonusValue ?? 0,
+            maxBonuses: q.maxBonuses ?? 0,
+            partialCreditAvailable: !!q.partialCreditAvailable,
+            numParts: typeof q.numParts === "number" ? q.numParts : 0,
+            pubPerQuestion: typeof q.pointsPerQuestion === "number" ? q.pointsPerQuestion : null,
+          });
+        }
+      }
+    }
+    return qs;
+  }, [showBundle]);
+
+  // Detect show-wide tiebreaker question
+  const resultsTbQ = useMemo(() => {
+    if (!showBundle?.rounds) return null;
+    for (const r of showBundle.rounds) {
+      for (const q of r.questions || []) {
+        const t = (q.questionType || "").toLowerCase();
+        if (t === "tiebreaker" || String(q.questionOrder).toUpperCase() === "TB" || String(q.id || "").startsWith("tb-"))
+          return q;
+      }
+      for (const cat of r.categories || []) {
+        for (const q of cat.questions || []) {
+          const t = (q.questionType || "").toLowerCase();
+          if (t === "tiebreaker" || String(q.questionOrder).toUpperCase() === "TB" || String(q.id || "").startsWith("tb-"))
+            return q;
+        }
+      }
+    }
+    return null;
+  }, [showBundle]);
+
+  // Parse numeric answer from tiebreaker question
+  const resultsTbNumber = useMemo(() => {
+    if (!resultsTbQ) return null;
+    if (typeof resultsTbQ.tiebreakerNumber === "number" && Number.isFinite(resultsTbQ.tiebreakerNumber))
+      return resultsTbQ.tiebreakerNumber;
+    const pick = (v) => (Array.isArray(v) ? v[0] : v);
+    const raw = pick(resultsTbQ.tiebreakerNumber)?.trim() ||
+      pick(resultsTbQ.answer)?.trim() ||
+      resultsTbQ.answerText?.trim() ||
+      resultsTbQ.correctAnswer?.trim() || null;
+    if (!raw) return null;
+    const m = String(raw).replace(/[\s,]/g, "").match(/-?\d+(?:\.\d+)?/);
+    if (!m) return null;
+    const n = Number(m[0]);
+    return Number.isFinite(n) ? n : null;
+  }, [resultsTbQ]);
+
+  // Compute standings (same logic as ResultsMode)
+  const resultsStandings = useMemo(() => {
+    const teams = composedCachedState?.teams || [];
+    const grid = composedCachedState?.grid || {};
+    if (!teams.length || !resultsAllQuestions.length) return [];
+
+    // Adapt grid format
+    const adaptedGrid = {};
+    for (const teamId in grid) {
+      adaptedGrid[teamId] = {};
+      for (const qId in grid[teamId]) {
+        const cell = grid[teamId][qId];
+        adaptedGrid[teamId][qId] = { isCorrect: cell.isCorrect, bonusCount: cell.bonusCount || 0, partialCount: cell.partialCount ?? 0 };
+      }
+    }
+
+    const tbQId = resultsTbQ?.showQuestionId || resultsTbQ?.id;
+    const scoringQuestions = tbQId
+      ? resultsAllQuestions.filter(q => q.showQuestionId !== tbQId)
+      : resultsAllQuestions;
+
+    const scoringConfig = { mode: scoringMode, pubPoints: Number(pubPoints || 0), poolPerQuestion: Number(poolPerQuestion || 0), poolContribution: Number(poolContribution || 0), teamCount: teams.length };
+    const nCorrectByQ = buildCorrectCountMap(teams, scoringQuestions, adaptedGrid);
+    const totalByTeam = buildTeamTotals(teams, scoringQuestions, adaptedGrid, scoringConfig, nCorrectByQ);
+
+    const getTbGuess = (showTeamId) => {
+      if (!resultsTbQ) return null;
+      const cell = grid[showTeamId]?.[tbQId];
+      const v = cell?.tiebreakerGuess;
+      return typeof v === "number" && Number.isFinite(v) ? v : null;
+    };
+
+    const rows = teams.map(t => {
+      const total = +(totalByTeam[t.showTeamId] ?? 0);
+      const guess = getTbGuess(t.showTeamId);
+      const delta = resultsTbNumber !== null && guess !== null ? Math.abs(guess - resultsTbNumber) : Infinity;
+      return {
+        showTeamId: t.showTeamId,
+        teamName: t.teamName || "(Unnamed team)",
+        total,
+        tbGuess: guess,
+        tbDelta: delta,
+        tieBroken: false,
+        unbreakableTie: false,
+        _tbGroupBroken: false,
+        _tbRank: 0,
+      };
+    });
+
+    rows.sort((a, b) => b.total - a.total || a.teamName.localeCompare(b.teamName, "en", { sensitivity: "base" }));
+    const places = computePlaces(totalByTeam);
+    for (const r of rows) r.place = places[r.showTeamId];
+
+    if (!resultsPrizeCount || resultsTbNumber === null || !resultsTbQ) return rows;
+
+    // Identify tie groups and reorder by tbDelta within prize band
+    const groups = [];
+    let idx = 0;
+    while (idx < rows.length) {
+      const gStart = idx, tot = rows[idx].total;
+      idx++;
+      while (idx < rows.length && rows[idx].total === tot) idx++;
+      groups.push([gStart, idx]);
+    }
+
+    for (const [gStart, gEnd] of groups) {
+      if (gStart >= resultsPrizeCount || gStart < 0) continue;
+      const slice = rows.slice(gStart, gEnd);
+      if (!slice.some(r => Number.isFinite(r.tbDelta))) continue;
+      slice.sort((a, b) => {
+        if (a.total !== b.total) return 0;
+        if (a.tbDelta !== b.tbDelta) return a.tbDelta - b.tbDelta;
+        return a.teamName.localeCompare(b.teamName, "en", { sensitivity: "base" });
+      });
+      const best = slice[0]?.tbDelta, second = slice[1]?.tbDelta;
+      const groupBroken = slice.length > 1 && Number.isFinite(best) && Number.isFinite(second) && best !== second;
+      slice.forEach((r, k) => { r.tieBroken = true; r._tbGroupBroken = !!groupBroken; r._tbRank = k; });
+      if (slice.length > 1 && Number.isFinite(best)) {
+        const topTied = slice.filter(r => r.tbDelta === best);
+        if (topTied.length > 1) topTied.forEach(r => (r.unbreakableTie = true));
+      }
+      for (let k = 0; k < slice.length; k++) rows[gStart + k] = slice[k];
+    }
+
+    // Re-assign places after TB reordering
+    let prevKey = null, place = 0, cnt = 0;
+    for (const r of rows) {
+      cnt++;
+      const tieKey = r._tbGroupBroken ? `${r.total}|${r._tbRank}` : `${r.total}|`;
+      if (prevKey === null || tieKey !== prevKey) { place = cnt; prevKey = tieKey; }
+      r.place = place;
+    }
+    return rows;
+  }, [composedCachedState, resultsAllQuestions, resultsTbQ, resultsTbNumber, resultsPrizeCount, scoringMode, pubPoints, poolPerQuestion, poolContribution]);
+
+  const resultsTiebreakerWasUsed = useMemo(
+    () => resultsStandings.some(r => r.place <= resultsPrizeCount && r._tbGroupBroken),
+    [resultsStandings, resultsPrizeCount],
+  );
+
   // 🔸 Merge question edits into showBundle for display
   const showBundleWithEdits = useMemo(() => {
     if (!showBundle) return null;
@@ -1433,13 +1863,16 @@ export default function App() {
               ...(edit.question !== undefined && {
                 questionText: edit.question,
               }),
-              ...(edit.notes !== undefined && {
-                questionNotes: edit.notes,
+              ...((edit.notes !== undefined || edit.questionNotes !== undefined) && {
+                questionNotes: edit.notes ?? edit.questionNotes,
               }),
               ...(edit.pronunciationGuide !== undefined && {
                 questionPronunciationGuide: edit.pronunciationGuide,
               }),
               ...(edit.answer !== undefined && { answer: edit.answer }),
+              ...(edit.answerNotes !== undefined && {
+                answerNotes: edit.answerNotes,
+              }),
               _edited: true, // flag for UI to show indicator
             };
           }),
@@ -1453,13 +1886,19 @@ export default function App() {
           return {
             ...q,
             ...(edit.question !== undefined && { questionText: edit.question }),
-            ...(edit.notes !== undefined && {
-              questionNotes: edit.notes,
+            ...(edit.questionNotes !== undefined && {
+              questionNotes: edit.questionNotes,
             }),
             ...(edit.pronunciationGuide !== undefined && {
               questionPronunciationGuide: edit.pronunciationGuide,
             }),
             ...(edit.answer !== undefined && { answer: edit.answer }),
+            ...(edit.questionNotes !== undefined && {
+              questionNotes: edit.questionNotes,
+            }),
+            ...(edit.answerNotes !== undefined && {
+              answerNotes: edit.answerNotes,
+            }),
             _edited: true, // flag for UI to show indicator
           };
         });
@@ -1487,13 +1926,17 @@ export default function App() {
   const navFlatList = useMemo(() => {
     if (!showBundleWithEdits?.rounds) return [];
     const round = showBundleWithEdits.rounds.find(
-      (r) => String(r.round) === String(selectedRoundId)
+      (r) => String(r.round) === String(selectedRoundId),
     );
     if (!round) return [];
 
     const sorted = [...(round.categories || [])].sort((a, b) => {
-      const av = (a.questionType || "").toLowerCase().includes("visual") ? 1 : 0;
-      const bv = (b.questionType || "").toLowerCase().includes("visual") ? 1 : 0;
+      const av = (a.questionType || "").toLowerCase().includes("visual")
+        ? 1
+        : 0;
+      const bv = (b.questionType || "").toLowerCase().includes("visual")
+        ? 1
+        : 0;
       if (av !== bv) return bv - av; // visuals first
       return (a.categoryOrder ?? 999) - (b.categoryOrder ?? 999);
     });
@@ -1502,13 +1945,17 @@ export default function App() {
     const visualQuestions = [];
     for (const cat of sorted) {
       if ((cat.questionType || "").toLowerCase().includes("visual")) {
-        const qs = [...(cat.questions || [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        const qs = [...(cat.questions || [])].sort(
+          (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+        );
         for (const q of qs) {
           visualQuestions.push({
             questionNumber: q.questionOrder,
             questionText: q.questionText || "",
             categoryName: (cat.categoryName || "").trim(),
-            inlineImages: Array.isArray(q.questionImages) ? q.questionImages.map((img) => ({ url: img.url })) : [],
+            inlineImages: Array.isArray(q.questionImages)
+              ? q.questionImages.map((img) => ({ url: img.url }))
+              : [],
             currentInlineImageIndex: 0,
           });
         }
@@ -1531,8 +1978,11 @@ export default function App() {
     }
 
     for (const cat of sorted) {
-      const isVisual = (cat.questionType || "").toLowerCase().includes("visual");
-      const isTiebreaker = (cat.questionType || "").toLowerCase() === "tiebreaker";
+      const isVisual = (cat.questionType || "")
+        .toLowerCase()
+        .includes("visual");
+      const isTiebreaker =
+        (cat.questionType || "").toLowerCase() === "tiebreaker";
 
       // In Questions mode, skip visual categories (they're in the carousel)
       // Tiebreaker categories are always included
@@ -1542,31 +1992,44 @@ export default function App() {
           categoryName: (cat.categoryName || "").trim(),
           categoryDescription: cat.categoryDescription || "",
           isTiebreaker,
-          categoryAudio: Array.isArray(cat.categoryAudio) ? cat.categoryAudio.filter(a => a?.url) : [],
+          superSecret: !!cat.superSecret,
+          questionType: (cat.questionType || "").toLowerCase(),
+          categoryAudio: Array.isArray(cat.categoryAudio)
+            ? cat.categoryAudio.filter((a) => a?.url)
+            : [],
         });
       }
 
       const questions = [...(cat.questions || [])].sort(
-        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
       );
       for (const q of questions) {
         items.push({
           type: "question",
           isVisual,
+          isTiebreaker,
           showQuestionId: q.showQuestionId,
           questionNumber: q.questionOrder,
           questionText: q.questionText || "",
           answer: q.answer || "",
           categoryName: (cat.categoryName || "").trim(),
+          superSecret: !!cat.superSecret,
           bonusAvailable: !!q.bonusAvailable,
           bonusValue: q.bonusValue || null,
           maxBonuses: q.maxBonuses || null,
+          partialCreditAvailable: !!q.partialCreditAvailable,
+          numParts: typeof q.numParts === "number" ? q.numParts : null,
           showImageByDefault: !!q.showImageByDefault,
           autoRevealAnswerImage: !!q.autoRevealAnswerImage,
           inlineImages: Array.isArray(q.questionImages)
             ? q.questionImages.map((img) => ({ url: img.url }))
             : [],
-          questionAudio: Array.isArray(q.questionAudio) ? q.questionAudio.filter(a => a?.url) : [],
+          questionNotes: q.questionNotes || "",
+          pronunciationGuide: q.questionPronunciationGuide || "",
+          answerNotes: q.answerNotes || "",
+          questionAudio: Array.isArray(q.questionAudio)
+            ? q.questionAudio.filter((a) => a?.url)
+            : [],
         });
       }
     }
@@ -1577,51 +2040,827 @@ export default function App() {
   // Questions mode nav: carousel + non-visual categories + all questions (minus visual)
   // Visual questions are handled by the carousel item, not individually
   const navQuestionsMode = useMemo(
-    () => navFlatList.filter((item) => item.type === "carousel" || item.type === "category" || (item.type === "question" && !item.isVisual)),
-    [navFlatList]
+    () =>
+      navFlatList.filter(
+        (item) =>
+          item.type === "carousel" ||
+          item.type === "category" ||
+          (item.type === "question" && !item.isVisual),
+      ),
+    [navFlatList],
   );
 
-  // Answers mode nav: all questions in order (visual included, no category/carousel items)
+  // Answers mode nav: all questions in order (visual included, no category/carousel items, no tiebreakers)
   const navQuestionList = useMemo(
-    () => navFlatList.filter((item) => item.type === "question"),
-    [navFlatList]
+    () => navFlatList.filter((item) => item.type === "question" && !item.isTiebreaker),
+    [navFlatList],
   );
 
-  // Reset nav position when show or round changes
+  // Build the ordered results-reveal nav sequence from last place to first.
+  // Each place reveal is TWO steps: place+points first (no teams), then teams added.
+  // Step types: "results-splash" | "results-scramble" | "results-tb-combined" |
+  //             "results-place-pts" (place+pts, no teams) | "results-place-reveal" (place+pts+teams)
+  const resultsNavSequence = useMemo(() => {
+    const steps = [];
+    if (!resultsStandings.length) return steps;
+
+    // Step 1: splash screen
+    steps.push({ type: "results-splash" });
+
+    // Unique total values, sorted ascending (last place → first place)
+    const uniqueTotals = [...new Set(resultsStandings.map(r => r.total))].sort((a, b) => a - b);
+
+    const roundNums = (showBundle?.rounds || []).map(r => Number(r.round));
+    const maxRound = roundNums.length ? Math.max(...roundNums) : 0;
+    const isFinalRound = resultsPrizeCount > 0 && Number(selectedRoundId) === maxRound;
+
+    for (const total of uniqueTotals) {
+      const group = resultsStandings.filter(r => r.total === total);
+      const highestPlace = Math.min(...group.map(r => r.place));
+      const placeStr = resultsOrdinal(highestPlace);
+      const isTied = group.length > 1;
+      const prize = isFinalRound && highestPlace <= resultsPrizeCount
+        ? (isTied ? `Vying for ${resultsPrizes[highestPlace - 1] || ""}` : resultsPrizes[highestPlace - 1] || "")
+        : null;
+
+      // In final round, check if tiebreaker was used within this total group
+      const anyTbBroken = isFinalRound && group.some(r => r._tbGroupBroken);
+
+      if (anyTbBroken && resultsTiebreakerWasUsed) {
+        // Scramble, then TB question, then TB answer, then individual sub-place reveals
+        const tbAnswerText = resultsTbQ ? (
+          Array.isArray(resultsTbQ.answer) ? resultsTbQ.answer[0] : (resultsTbQ.answer || resultsTbQ.answerText || resultsTbQ.correctAnswer || "")
+        ) : "";
+        steps.push({
+          type: "results-scramble",
+          place: placeStr,
+          teams: [...group.map(r => r.teamName)].sort(() => Math.random() - 0.5),
+          points: total,
+          prize: prize,
+        });
+        steps.push({
+          type: "results-tb-question",
+          tbQuestion: resultsTbQ?.questionText || "",
+          tbTeamsAndGuesses: group.map(r => ({ teamName: r.teamName, guess: r.tbGuess })),
+        });
+        steps.push({
+          type: "results-tb-answer",
+          tbQuestion: resultsTbQ?.questionText || "",
+          tbAnswer: tbAnswerText,
+          tbTeamsAndGuesses: group.map(r => ({ teamName: r.teamName, guess: r.tbGuess })),
+        });
+        // After the TB reveal the crowd already knows the points, so go straight to team reveal
+        const subPlaces = [...new Set(group.map(r => r.place))].sort((a, b) => b - a);
+        for (const place of subPlaces) {
+          const atPlace = group.filter(r => r.place === place);
+          const subPlaceStr = resultsOrdinal(place);
+          const subPrize = place <= resultsPrizeCount ? resultsPrizes[place - 1] || "" : null;
+          const subIsTied = atPlace.length > 1;
+          steps.push({ type: "results-place-reveal", place: subPlaceStr, teams: atPlace.map(r => r.teamName), isTied: subIsTied, points: total, prize: subPrize });
+        }
+      } else {
+        // Simple two-step reveal: place+pts, then teams
+        steps.push({ type: "results-place-pts", place: placeStr, points: total, isTied, prize: prize || null });
+        steps.push({ type: "results-place-reveal", place: placeStr, teams: group.map(r => r.teamName), isTied, points: total, prize: prize || null });
+      }
+    }
+
+    return steps;
+  }, [resultsStandings, resultsPrizes, resultsPrizeCount, resultsTiebreakerWasUsed, resultsTbQ, resultsTbNumber, showBundle, selectedRoundId]);
+
+  // Rules items as nav prefix — full list or just phoneAway
+  const navRulesPrefix = useMemo(
+    () => RULES_ITEMS.map((item) => ({ type: "rules", ...item })),
+    [],
+  );
+  const phoneAwayPrefix = useMemo(
+    () => [{ type: "rules", ...PHONE_AWAY_ITEM }],
+    [],
+  );
+
+  // Combined Questions mode list: rules prefix + show content
+  const navWithRules = useMemo(() => {
+    const prefix = rulesStartedWithScript ? navRulesPrefix : phoneAwayPrefix;
+    return [...prefix, ...navQuestionsMode];
+  }, [rulesStartedWithScript, navQuestionsMode, navRulesPrefix, phoneAwayPrefix]);
+
+  // When the tiebreaker was NOT used to break a tie, insert it between the last regular
+  // question and the results sequence so the host can reveal it as a standalone bonus round.
+  // The normal stage logic (0=question, 1=answer) handles the two-step reveal;
+  // stage 2 (stats) is already skipped for tiebreaker items in pushNavQuestion.
+  const navTiebreakerSteps = useMemo(() => {
+    if (!resultsTbQ || resultsTiebreakerWasUsed) return [];
+    const roundNums = (showBundle?.rounds || []).map(r => Number(r.round));
+    const maxRound = roundNums.length ? Math.max(...roundNums) : 0;
+    const isFinalRound = resultsPrizeCount > 0 && Number(selectedRoundId) === maxRound;
+    if (!isFinalRound) return [];
+    const tbItem = navFlatList.find(i => i.type === "question" && i.isTiebreaker);
+    if (!tbItem) return [];
+    return [tbItem];
+  }, [resultsTbQ, resultsTiebreakerWasUsed, showBundle, resultsPrizeCount, selectedRoundId, navFlatList]);
+
+  // Answers mode list: questions + optional tiebreaker reveal + results sequence
+  const navAnswersModeList = useMemo(
+    () => [...navQuestionList, ...navTiebreakerSteps, ...resultsNavSequence],
+    [navQuestionList, navTiebreakerSteps, resultsNavSequence],
+  );
+
+  // Grid of categories + questions for Mission Control direct navigation
+  const navGrid = useMemo(() => {
+    const rows = [];
+    let currentRow = null;
+    for (const item of navFlatList) {
+      if (item.type === "category" || item.type === "carousel") {
+        currentRow = { catItem: item, questions: [] };
+        rows.push(currentRow);
+      } else if (item.type === "question" && currentRow) {
+        currentRow.questions.push(item);
+      }
+    }
+    return rows;
+  }, [navFlatList]);
+
+  // Reset nav position when show or round changes (but NOT on bundle refresh)
   useEffect(() => {
+    if (isRefreshingBundleRef.current) {
+      isRefreshingBundleRef.current = false;
+      return; // bundle refresh — keep nav position and display as-is
+    }
     setNavIndex(0);
     setNavAnswerStage(0);
     setNavStarted(false);
+    setRulesStartedWithScript(false);
   }, [showBundle, selectedRoundId]);
 
   // Push a questions-mode item to the display
-  const pushNavItem = useCallback((item) => {
-    if (!item) return;
-    if (item.type === "carousel") {
-      sendToDisplay("questionCarousel", {
-        questions: item.visualQuestions,
-        currentIndex: 0,
-        autoCycle: true,
-      });
-      setCarouselActive(true);
-    } else {
-      // Close carousel if it was open
-      if (carouselActive) {
-        sendToDisplay("closeQuestionCarousel", null);
-        setCarouselActive(false);
+  const pushNavItem = useCallback(
+    (item) => {
+      if (!item) return;
+      if (item.type === "rules") {
+        sendToDisplay("message", { text: item.text, fontSize: item.fontSize || 119 });
+        return;
       }
-    }
-    if (item.type === "category") {
-      sendToDisplay("category", {
-        categoryName: item.categoryName,
-        categoryDescription: item.categoryDescription,
-      });
-    } else if (item.type === "question") {
+      if (item.type === "carousel") {
+        sendToDisplay("questionCarousel", {
+          questions: item.visualQuestions,
+          currentIndex: 0,
+          autoCycle: true,
+        });
+        setCarouselActive(true);
+      } else {
+        // Close carousel if it was open
+        if (carouselActive) {
+          sendToDisplay("closeQuestionCarousel", null);
+          setCarouselActive(false);
+        }
+      }
+      if (item.type === "category") {
+        sendToDisplay("category", {
+          categoryName: item.categoryName,
+          categoryDescription: item.categoryDescription,
+          superSecret: !!item.superSecret,
+        });
+      } else if (item.type === "question") {
+        const payload = {
+          questionNumber: item.questionNumber,
+          questionText: item.questionText,
+          categoryName: item.categoryName,
+        };
+        if (item.showImageByDefault && item.inlineImages?.length > 0) {
+          payload.inlineImages = item.inlineImages;
+          payload.currentInlineImageIndex = 0;
+        }
+        sendToDisplay("question", payload);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [carouselActive],
+  );
+
+  // Push an answers-mode question at a given stage (0=question, 1=answer, 2=stats)
+  // imageVisible: explicit override — pass navImageVisible when staying on same question, false when moving to a new one
+  const pushNavQuestion = useCallback(
+    (item, stage, imageVisible = false) => {
+      if (!item) return;
       const payload = {
         questionNumber: item.questionNumber,
         questionText: item.questionText,
         categoryName: item.categoryName,
       };
+      if ((item.showImageByDefault || imageVisible) && item.inlineImages?.length > 0) {
+        payload.inlineImages = item.inlineImages;
+        // Auto-reveal answer image overrides manual index; otherwise use current navImageIndex
+        if (item.showImageByDefault && item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
+          payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
+        } else {
+          payload.currentInlineImageIndex = navImageIndex;
+        }
+      }
+      if (stage >= 1) {
+        payload.answer = item.answer;
+      }
+      if (stage >= 2 && !item.isTiebreaker) {
+        const grid = composedCachedState?.grid || {};
+        const teams = composedCachedState?.teams || [];
+        let correctCount = 0;
+        for (const team of teams) {
+          if (
+            grid[team.showTeamId]?.[item.showQuestionId]?.isCorrect === true
+          ) {
+            correctCount++;
+          }
+        }
+        const scoringObj = {
+          mode: scoringMode,
+          pubPoints,
+          poolPerQuestion,
+          poolContribution,
+          teamCount: teams.length,
+        };
+        const questionBonus = item.bonusAvailable
+          ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
+          : null;
+        const questionPartial = item.partialCreditAvailable && item.numParts > 0
+          ? { numParts: item.numParts }
+          : null;
+        payload.correctCount = correctCount;
+        payload.totalTeams = teams.length;
+        if (scoringMode !== "pub") {
+          payload.pointsPerTeam = computeAutoEarned(
+            { isCorrect: true },
+            scoringObj,
+            correctCount,
+          );
+        }
+        payload.bonusBreakdown = computeBonusBreakdown(
+          teams,
+          grid,
+          item.showQuestionId,
+          scoringObj,
+          correctCount,
+          questionBonus,
+        );
+        payload.partialBreakdown = computePartialBreakdown(
+          teams,
+          grid,
+          item.showQuestionId,
+          scoringObj,
+          correctCount,
+          questionPartial,
+        );
+      }
+      sendToDisplay("question", payload);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [
+      composedCachedState,
+      scoringMode,
+      pubPoints,
+      poolPerQuestion,
+      poolContribution,
+      navImageIndex,
+    ],
+  );
+
+  // Push a results-reveal step to the display
+  const pushResultsStep = useCallback((step) => {
+    if (!step) return;
+    if (step.type === "results-splash") {
+      sendToDisplay("results-splash", {});
+      return;
+    }
+    if (step.type === "results-scramble") {
+      const scrambled = [...(step.teams || [])].sort(() => Math.random() - 0.5);
+      sendToDisplay("results", { place: step.place, teams: scrambled, isTied: true, points: step.points, prize: step.prize || null });
+      return;
+    }
+    if (step.type === "results-tb-question") {
+      sendToDisplay("results-tb-question", { tbQuestion: step.tbQuestion });
+      return;
+    }
+    if (step.type === "results-tb-answer") {
+      sendToDisplay("results-tb-answer", {
+        tbQuestion: step.tbQuestion,
+        tbAnswer: step.tbAnswer,
+        tbTeamsAndGuesses: step.tbTeamsAndGuesses,
+      });
+      return;
+    }
+    if (step.type === "results-place-pts") {
+      // Place + points only — no team names yet
+      sendToDisplay("results", { place: step.place, teams: null, isTied: step.isTied, points: step.points, prize: step.prize || null });
+      return;
+    }
+    if (step.type === "results-place-reveal") {
+      // Place + points + team names
+      sendToDisplay("results", { place: step.place, teams: step.teams, isTied: step.isTied, points: step.points, prize: step.prize || null });
+      return;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Host Script (moved from Sidebar.js) ──────────────────────────────────
+  const scriptPanelRef = useRef(null);
+  const [scriptPanelPosition, setScriptPanelPosition] = useState(() => {
+    try { const s = localStorage.getItem("scriptPanelPosition"); return s ? JSON.parse(s) : { x: 80, y: 80 }; }
+    catch { return { x: 80, y: 80 }; }
+  });
+
+  const _isTBQuestion = (q) => {
+    const t = String(q?.questionType || q?.["Question type"] || "").toLowerCase();
+    const o = String(q?.questionOrder || q?.["Question order"] || "").toUpperCase();
+    return t === "tiebreaker" || o === "TB";
+  };
+  const _scriptAllRounds = useMemo(() => showBundleWithEdits?.rounds ?? [], [showBundleWithEdits?.rounds]);
+  const _scriptTotalQ = useMemo(() => {
+    let c = 0;
+    for (const r of _scriptAllRounds) {
+      for (const q of r?.questions || []) { if (!String(q?.questionType||"").toLowerCase().includes("tiebreaker")) c++; }
+      for (const cat of r?.categories || []) {
+        for (const q of cat?.questions || []) {
+          const t = String(q?.questionType||cat?.questionType||"").toLowerCase();
+          if (!t.includes("tiebreaker") && String(q?.questionOrder||"").toUpperCase() !== "TB") c++;
+        }
+      }
+    }
+    return c;
+  }, [_scriptAllRounds]);
+  const _scriptMultiGame = useMemo(() => {
+    const s = (showBundleWithEdits?.Show?.Show || showBundleWithEdits?.showName || "").trim();
+    const m1 = s.match(/^\s*\d{4}-\d{2}-\d{2}\s+Game\s+(\d+)\s*@\s*(.+)\s*$/i);
+    if (m1) return { isMultiNight: true, gameIndex: parseInt(m1[1],10), venue: m1[2].trim() };
+    const m2 = s.match(/^\s*\d{4}-\d{2}-\d{2}\s*@\s*(.+)\s*$/);
+    return { isMultiNight: false, gameIndex: null, venue: m2?.[1]?.trim() || "" };
+  }, [showBundleWithEdits?.Show, showBundleWithEdits?.showName]);
+  const _scriptPrizeList = useMemo(() => {
+    const raw = (composedCachedState?.prizes || "").toString();
+    const parts = raw.includes("\n") ? raw.split(/\r?\n/) : raw.split(/,\s*/);
+    return parts.map(s => s.trim()).filter(Boolean);
+  }, [composedCachedState?.prizes]);
+  const _ordinal = (n) => { const j=n%10,k=n%100; if(j===1&&k!==11)return`${n}st`; if(j===2&&k!==12)return`${n}nd`; if(j===3&&k!==13)return`${n}rd`; return`${n}th`; };
+  const hostScript = useMemo(() => {
+    const X = _scriptTotalQ;
+    const hName = (composedCachedState?.hostInfo?.host || showBundleWithEdits?.config?.hostName || "your host").trim();
+    const cName = (composedCachedState?.hostInfo?.cohost || showBundleWithEdits?.config?.cohostName || "your co-host").trim();
+    const loc = (composedCachedState?.hostInfo?.location || showBundleWithEdits?.config?.location || _scriptMultiGame.venue || "your venue").trim();
+    const totalGamesFromConfig = showBundleWithEdits?.config?.totalGamesThisNight;
+    const totalGamesInput = Number(composedCachedState?.hostInfo?.totalGames);
+    const totalGames = (Number.isFinite(totalGamesFromConfig) && totalGamesFromConfig > 0) ? totalGamesFromConfig : (Number.isFinite(totalGamesInput) && totalGamesInput > 0) ? totalGamesInput : 1;
+    const isMultiGame = totalGames >= 2;
+    const configStartTimes = showBundleWithEdits?.config?.allStartTimes || [];
+    const manualStartTimes = (composedCachedState?.hostInfo?.startTimesText || "").split(/[,;\n]/).map(t => t.trim()).filter(Boolean);
+    const startTimes = configStartTimes.length > 0 ? configStartTimes : manualStartTimes;
+    const isTipsy = (showBundleWithEdits?.config?.showTemplate || "").toLowerCase().includes("tipsy");
+    let visualQ=0, spokenQ=0, audioQ=0, visualCat=0, spokenCat=0; const spokenSizes=[];
+    for (const r of _scriptAllRounds) {
+      for (const cat of r?.categories || []) {
+        const ct = String(cat?.questionType||cat?.["Question type"]||"").toLowerCase();
+        const qs = (cat?.questions||[]).filter(q=>!_isTBQuestion(q));
+        if (ct.includes("visual")) { visualCat++; visualQ+=qs.length; }
+        else if (ct.includes("audio")) { audioQ+=qs.length; }
+        else if (qs.length > 0) { spokenCat++; spokenQ+=qs.length; spokenSizes.push(qs.length); }
+      }
+    }
+    const qPerCat = (() => { if(!spokenSizes.length) return 0; const f={}; let b=spokenSizes[0],bc=0; for(const n of spokenSizes){f[n]=(f[n]||0)+1;if(f[n]>bc){b=n;bc=f[n];}} return b; })();
+    const triviaType = isTipsy ? "tipsy team trivia" : "team trivia";
+    let text = `Hey, everybody! It's time for ${triviaType} at ${loc}!\n\nI'm ${hName} and this is ${cName}, and we're your hosts tonight as you play for trivia glory and some pretty awesome prizes.\n`;
+    if (composedCachedState?.hostInfo?.announcements?.trim()) text += `\n${composedCachedState.hostInfo.announcements.trim()}\n`;
+    const isFirstGame = _scriptMultiGame.gameIndex === 1 || _scriptMultiGame.gameIndex === null;
+    if (isMultiGame && isFirstGame) { const t1=startTimes[0]||"[TIME1]",t2=startTimes[1]||"[TIME2]"; text += `\nWe'll be playing ${totalGames} games of trivia tonight - one starting right now at ${t1}, and the next starting right around ${t2}. The slate will be wiped clean after the first game; that means you can play one OR both games with us. How long you choose to hang out with us tonight is up to you.\n`; }
+    text += isMultiGame ? `\nWe'll be asking you ${X} questions in each game tonight.\n` : `\nWe'll be asking you ${X} questions tonight.\n`;
+    const parts=[];
+    if (visualQ>0) parts.push(`${visualQ} visual question${visualQ===1?"":"s"}`);
+    if (spokenQ>0) { let st=`${spokenQ} spoken word question${spokenQ===1?"":"s"}`; if(spokenCat>0&&qPerCat>0) st+=` divided into categories of ${qPerCat} question${qPerCat===1?"":"s"} each`; parts.push(st); }
+    if (audioQ>0) parts.push(`${audioQ} audio question${audioQ===1?"":"s"}`);
+    if (parts.length>0) { let bd=parts.length===1?parts[0]:parts.length===2?`${parts[0]} and ${parts[1]}`:`${parts.slice(0,-1).join(", ")}, and ${parts[parts.length-1]}`; text+=`\nThere will be ${bd}.\n`; }
+    if (scoringMode==="pub") { const pp=Number.isFinite(pubPoints)?pubPoints:10; text+=`\nEach question is worth ${pp} point${pp===1?"":"s"}, for a total of ${X*pp} possible points${isMultiGame?" in each game":""}.\n`; }
+    else if (scoringMode==="pooled") { const ps=Number.isFinite(poolPerQuestion)?poolPerQuestion:150; text+=`\nEach question tonight has a point pool of ${ps} points that will be divided up evenly among the teams that answer it correctly; in other words, you'll be rewarded if you know stuff that nobody else knows.\n`; }
+    else if (scoringMode==="pooled-adaptive") { const pc=Number.isFinite(poolContribution)?poolContribution:10; text+=`\nEach question tonight has a point pool that contains ${pc} point${pc===1?"":"s"} for each team that is playing the game. The pool for each question will be divided up evenly among the teams that answer it correctly; in other words, you'll be rewarded if you know stuff that nobody else knows.\n`; }
+    if (_scriptPrizeList.length>0) { text+=`\n${loc} is awarding prizes for the top ${_scriptPrizeList.length} team${_scriptPrizeList.length===1?"":"s"}:\n`; _scriptPrizeList.forEach((p,i)=>{text+=`  • ${_ordinal(i+1)}: ${p}\n`;}); }
+    text += `\nNow before we get going with the game, here are the rules.\n● To keep things fair, no electronic devices may be out during the round. And that's not just when you're with your team at your table. If you have to step away from your table for any reason, please return with only your charming personality, and NOT with answers that you looked up while you were away. Because there are prizes at stake, if it looks like cheating, we have to treat it like cheating.\n● Don't shout out the answers; you might accidentally give answers away to other teams. Use those handy dandy notepads to share ideas with your team instead.\n● Spelling doesn't count unless we say it does.\n● Unless we say otherwise, when we ask for someone's name, we want their last name. Give us the first name, too, if you like, but just remember that if any part of your answer is wrong, the whole thing is wrong. It's always safest to just give us last names.\n● For fictional characters, either the first or last name is okay unless we say otherwise.\n● Our answer is the correct answer. Dispute if you like and we'll consider it, but our decisions are final.\n● Finally, be generous to the staff; they're working hard to ensure you have a great time. Don't be afraid to ask them for answers to our questions; they may know some that you don't.`;
+    if (visualQ > 0) { text += "\n\n"; const hasCohost = cName && cName !== "your co-host"; const vd = isMultiGame ? (visualCat>1?"the first visual round for game #1":"the visual round for game #1") : (visualCat>1?"the first visual round":"the visual round"); text += hasCohost ? `${cName} is coming around with ${vd}. That's your signal to put those phones away because the contest starts now. Good luck!` : `I'll be coming around in just a moment with ${vd}. That's your signal to put those phones away because the contest starts now. Good luck!`; }
+    return text;
+  }, [_scriptTotalQ, _scriptPrizeList, composedCachedState?.hostInfo, _scriptMultiGame, showBundleWithEdits, scoringMode, pubPoints, poolPerQuestion, poolContribution, _scriptAllRounds]);
+  const activeRulesIndex = navStarted && navIndex < navRulesPrefix.length ? navIndex : null;
+  const scriptSections = useMemo(() => {
+    const marker = "\nNow before we get going"; const start = hostScript.indexOf(marker);
+    if (start === -1) return [{ text: hostScript, ruleIndex: null }];
+    const pre = hostScript.slice(0, start); const body = hostScript.slice(start);
+    const bps=[]; let f=0; while(true){const p=body.indexOf("●",f);if(p===-1)break;bps.push(p);f=p+1;}
+    if(bps.length<6) return [{text:pre,ruleIndex:null},{text:body,ruleIndex:null}];
+    const seg=(s,e)=>body.slice(s,e);
+    const sections=[{text:pre,ruleIndex:null},{text:seg(0,bps[0]),ruleIndex:0},{text:seg(bps[0],bps[1]),ruleIndex:1},{text:seg(bps[1],bps[2]),ruleIndex:2},{text:seg(bps[2],bps[3]),ruleIndex:3},{text:seg(bps[3],bps[5]),ruleIndex:4},{text:seg(bps[5]),ruleIndex:5}];
+    const last=sections[sections.length-1]; const cp=last.text.lastIndexOf("\n\n");
+    if(cp!==-1){sections[sections.length-1]={text:last.text.slice(0,cp),ruleIndex:5};sections.push({text:last.text.slice(cp),ruleIndex:6});}
+    return sections;
+  }, [hostScript]);
+  // ── End Host Script ────────────────────────────────────────────────────────
+
+  // Unified question-send function for QuestionsMode buttons — builds full payload and syncs nav cursor
+  const pushDisplayQuestion = useCallback(
+    (showQuestionId, stage, withImages) => {
+      const item = navFlatList.find(
+        (i) => i.type === "question" && i.showQuestionId === showQuestionId,
+      );
+      if (!item) return;
+
+      const payload = {
+        questionNumber: item.questionNumber,
+        questionText: item.questionText,
+        categoryName: item.categoryName,
+      };
+
+      if (withImages && item.inlineImages?.length > 0) {
+        payload.inlineImages = item.inlineImages;
+        if (item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
+          payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
+        } else {
+          payload.currentInlineImageIndex = 0;
+        }
+      }
+
+      if (stage >= 1) {
+        payload.answer = item.answer;
+      }
+
+      if (stage >= 2 && !item.isTiebreaker) {
+        const grid = composedCachedState?.grid || {};
+        const teams = composedCachedState?.teams || [];
+        let correctCount = 0;
+        for (const team of teams) {
+          if (grid[team.showTeamId]?.[showQuestionId]?.isCorrect === true)
+            correctCount++;
+        }
+        const scoringObj = {
+          mode: scoringMode,
+          pubPoints,
+          poolPerQuestion,
+          poolContribution,
+          teamCount: teams.length,
+        };
+        const questionBonus = item.bonusAvailable
+          ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
+          : null;
+        const questionPartial = item.partialCreditAvailable && item.numParts > 0
+          ? { numParts: item.numParts }
+          : null;
+        payload.correctCount = correctCount;
+        payload.totalTeams = teams.length;
+        if (scoringMode !== "pub") {
+          payload.pointsPerTeam = computeAutoEarned(
+            { isCorrect: true },
+            scoringObj,
+            correctCount,
+          );
+        }
+        payload.bonusBreakdown = computeBonusBreakdown(
+          teams,
+          grid,
+          showQuestionId,
+          scoringObj,
+          correctCount,
+          questionBonus,
+        );
+        payload.partialBreakdown = computePartialBreakdown(
+          teams,
+          grid,
+          showQuestionId,
+          scoringObj,
+          correctCount,
+          questionPartial,
+        );
+      }
+
+      sendToDisplay("question", payload);
+
+      // Sync nav cursor — use navWithRules so navIndex is offset past the rules prefix, consistent with navForward/navBackward
+      const list = navIsAnswerMode ? navAnswersModeList : navWithRules;
+      const idx = list.findIndex(
+        (i) => i.type === "question" && i.showQuestionId === showQuestionId,
+      );
+      if (idx >= 0) {
+        setNavIndex(idx);
+        setNavAnswerStage(stage);
+        setNavStarted(true);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [
+      navFlatList,
+      navAnswersModeList,
+      navWithRules,
+      navIsAnswerMode,
+      composedCachedState,
+      scoringMode,
+      pubPoints,
+      poolPerQuestion,
+      poolContribution,
+    ],
+  );
+
+  // Wrapper around sendToDisplay that also syncs the nav cursor position
+  const sendToDisplayWithNavSync = useCallback(
+    (type, data) => {
+      sendToDisplay(type, data);
+      if (type === "question" && data?.questionNumber !== undefined) { // eslint-disable-line
+        // Always search navQuestionList (includes visual questions) to find the item
+        const found = navQuestionList.find(
+          (item) =>
+            item.type === "question" &&
+            String(item.questionNumber) === String(data.questionNumber) &&
+            item.categoryName === (data.categoryName || "").trim(),
+        );
+        if (found) {
+          // Find index in the active list — use navWithRules so questions are offset past the rules prefix
+          const list = navIsAnswerMode ? navAnswersModeList : navWithRules;
+          const idx = list.indexOf(found) !== -1 ? list.indexOf(found) : navAnswersModeList.indexOf(found);
+          setNavIndex(idx >= 0 ? idx : 0);
+          setNavStarted(true);
+          if (navIsAnswerMode) {
+            const stage =
+              data.correctCount !== undefined
+                ? 2
+                : data.answer !== undefined
+                  ? 1
+                  : 0;
+            setNavAnswerStage(stage);
+          }
+        }
+      } else if (
+        type === "category" &&
+        !navIsAnswerMode &&
+        data?.categoryName
+      ) {
+        const idx = navFlatList.findIndex(
+          (item) =>
+            item.type === "category" && item.categoryName === data.categoryName,
+        );
+        if (idx >= 0) {
+          setNavIndex(idx);
+          setNavStarted(true);
+        }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [navIsAnswerMode, navFlatList, navQuestionList, navAnswersModeList, navWithRules],
+  );
+
+  const navActiveList = navIsAnswerMode ? navAnswersModeList : navWithRules;
+
+  // Current nav item (this host's local cursor) — used for nav label, audio, live re-push
+  const navCurrentItem = useMemo(() => {
+    const current = navActiveList[navIndex];
+    if (!current) return null;
+    if (current.type === "question") {
+      return navQuestionList.find(q => q.showQuestionId === current.showQuestionId) ?? current;
+    }
+    return current;
+  }, [navActiveList, navIndex, navQuestionList]);
+
+  // Context panel item — derived from what's actually on the display (Supabase display_state).
+  // All hosts see the same context panel regardless of their local nav cursor position.
+  const contextPanelItem = useMemo(() => {
+    if (!liveDisplayState) return null;
+    const { type, content } = liveDisplayState;
+    if (type === "question") {
+      return navFlatList.find(
+        (item) =>
+          item.type === "question" &&
+          item.questionNumber === content?.questionNumber &&
+          item.categoryName === content?.categoryName,
+      ) ?? null;
+    }
+    if (type === "category") {
+      return navFlatList.find(
+        (item) =>
+          item.type === "category" && item.categoryName === content?.categoryName,
+      ) ?? null;
+    }
+    return null;
+  }, [liveDisplayState, navFlatList]);
+
+  const navForward = useCallback(() => {
+    if (!navStarted) {
+      // First press: snapshot whether script is open, then send first item
+      setRulesStartedWithScript(scriptPanelOpen);
+      setNavStarted(true);
+      if (navIsAnswerMode) {
+        const firstItem = navAnswersModeList[navIndex];
+        if (firstItem?.type === "question") {
+          pushNavQuestion(firstItem, 0, false);
+        } else if (firstItem) {
+          pushResultsStep(firstItem);
+        }
+      } else {
+        // navWithRules not yet updated with snapshot — compute prefix inline
+        const prefix = scriptPanelOpen ? navRulesPrefix : phoneAwayPrefix;
+        const combined = [...prefix, ...navQuestionsMode];
+        pushNavItem(combined[navIndex]);
+      }
+      return;
+    }
+    if (navIsAnswerMode) {
+      const currentItem = navAnswersModeList[navIndex];
+      if (!currentItem) return;
+      if (currentItem.type === "question") {
+        const maxStage = currentItem.isTiebreaker ? 1 : 2;
+        if (navAnswerStage < maxStage) {
+          const nextStage = navAnswerStage + 1;
+          setNavAnswerStage(nextStage);
+          pushNavQuestion(currentItem, nextStage, navImageVisible);
+        } else {
+          // Advance past this question to next item (could be another question or results step)
+          const nextIdx = navIndex + 1;
+          if (nextIdx < navAnswersModeList.length) {
+            const nextItem = navAnswersModeList[nextIdx];
+            setNavIndex(nextIdx);
+            setNavAnswerStage(0);
+            if (nextItem.type === "question") {
+              pushNavQuestion(nextItem, 0, false);
+            } else {
+              pushResultsStep(nextItem);
+            }
+          }
+        }
+      } else {
+        // Results step — just advance to the next step
+        const nextIdx = navIndex + 1;
+        if (nextIdx < navAnswersModeList.length) {
+          setNavIndex(nextIdx);
+          pushResultsStep(navAnswersModeList[nextIdx]);
+        }
+      }
+    } else {
+      if (navIndex < navWithRules.length - 1) {
+        const nextIdx = navIndex + 1;
+        setNavIndex(nextIdx);
+        pushNavItem(navWithRules[nextIdx]);
+      }
+    }
+  }, [
+    navStarted,
+    navIsAnswerMode,
+    navIndex,
+    navAnswerStage,
+    navWithRules,
+    navQuestionsMode,
+    navRulesPrefix,
+    phoneAwayPrefix,
+    navAnswersModeList,
+    pushNavItem,
+    pushNavQuestion,
+    pushResultsStep,
+    scriptPanelOpen,
+  ]);
+
+  const navBackward = useCallback(() => {
+    if (navIsAnswerMode) {
+      const currentItem = navAnswersModeList[navIndex];
+      if (!currentItem) return;
+      if (currentItem.type === "question") {
+        if (navAnswerStage > 0) {
+          const prevStage = navAnswerStage - 1;
+          setNavAnswerStage(prevStage);
+          pushNavQuestion(currentItem, prevStage, navImageVisible);
+        } else if (navIndex > 0) {
+          const prevIdx = navIndex - 1;
+          const prevItem = navAnswersModeList[prevIdx];
+          setNavIndex(prevIdx);
+          if (prevItem?.type === "question") {
+            const prevMaxStage = prevItem.isTiebreaker ? 1 : 2;
+            setNavAnswerStage(prevMaxStage);
+            pushNavQuestion(prevItem, prevMaxStage, false);
+          } else {
+            setNavAnswerStage(0);
+            pushResultsStep(prevItem);
+          }
+        }
+      } else {
+        // Results step — go back to previous step
+        if (navIndex > 0) {
+          const prevIdx = navIndex - 1;
+          const prevItem = navAnswersModeList[prevIdx];
+          setNavIndex(prevIdx);
+          setNavAnswerStage(0);
+          if (prevItem?.type === "question") {
+            const prevMaxStage = prevItem.isTiebreaker ? 1 : 2;
+            setNavAnswerStage(prevMaxStage);
+            pushNavQuestion(prevItem, prevMaxStage, false);
+          } else {
+            pushResultsStep(prevItem);
+          }
+        }
+      }
+    } else {
+      if (navIndex > 0) {
+        const prevIdx = navIndex - 1;
+        setNavIndex(prevIdx);
+        pushNavItem(navWithRules[prevIdx]);
+      }
+    }
+  }, [
+    navIsAnswerMode,
+    navIndex,
+    navAnswerStage,
+    navWithRules,
+    navAnswersModeList,
+    pushNavItem,
+    pushNavQuestion,
+    pushResultsStep,
+  ]);
+
+  // Keyboard arrow nav (only when enabled) — placed after navForward/navBackward are defined
+  useEffect(() => {
+    if (!navKeyboardEnabled) return;
+    const handler = (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navForward();
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navBackward();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [navKeyboardEnabled, navForward, navBackward]);
+
+  const toggleNavMode = useCallback(() => {
+    setNavIsAnswerMode((prev) => !prev);
+    setNavIndex(0);
+    setNavAnswerStage(0);
+    setNavStarted(false);
+    setRulesStartedWithScript(false);
+  }, []);
+
+  const resetNav = useCallback(() => {
+    setNavIndex(0);
+    setNavStarted(false);
+    setNavAnswerStage(0);
+    setRulesStartedWithScript(false);
+  }, []);
+
+  const getNavLabel = useCallback(
+    (list, idx, stage) => {
+      if (list.length === 0) return "No show";
+      const item = list[idx];
+      if (!item) return "—";
+      if (item.type === "rules") return item.label || "Rule";
+      if (item.type === "carousel") return "Visual carousel";
+      if (item.type === "category") {
+        if (item.isTiebreaker) return "Tiebreaker";
+        const catItems = list.filter(i => i.type === "category" && !i.isTiebreaker);
+        const catIdx = catItems.indexOf(item);
+        return catIdx !== -1 ? `Cat ${catIdx + 1}` : (item.categoryName || "Category");
+      }
+      if (item.type === "results-splash") return "Results splash";
+      if (item.type === "results-scramble") return "Scramble";
+      if (item.type === "results-tb-question") return "TB question";
+      if (item.type === "results-tb-answer") return "TB answer";
+      if (item.type === "results-place-pts") return `${item.place} · pts`;
+      if (item.type === "results-place-reveal") return `${item.place} · teams`;
+      const stageLabel = navIsAnswerMode
+        ? ` · ${["question", "answer", "stats"][stage] ?? ""}`
+        : "";
+      return `Q${item.questionNumber}${stageLabel}`;
+    },
+    [navIsAnswerMode],
+  );
+
+  // Grid click handlers
+  const handleGridCategoryClick = useCallback((catItem) => {
+    if (!catItem) return;
+    const idx = navWithRules.indexOf(catItem);
+    setNavIndex(idx >= 0 ? idx : 0);
+    setNavStarted(true);
+    // pushNavItem handles both category and carousel types
+    if (catItem.type === "carousel") {
+      sendToDisplay("questionCarousel", { questions: catItem.visualQuestions, currentIndex: 0, autoCycle: true });
+    } else {
+      sendToDisplay("category", { categoryName: catItem.categoryName, categoryDescription: catItem.categoryDescription, superSecret: !!catItem.superSecret });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navWithRules]);
+
+  const handleGridQuestionClick = useCallback((item) => {
+    if (!item) return;
+    const isCurrent = navCurrentItem?.type === "question" && navCurrentItem.showQuestionId === item.showQuestionId;
+    if (navIsAnswerMode && isCurrent) {
+      // Cycle through stages for current question (wrap at max)
+      const maxStage = item.isTiebreaker ? 1 : 2;
+      const nextStage = navAnswerStage < maxStage ? navAnswerStage + 1 : 0;
+      setNavAnswerStage(nextStage);
+      const idx = navAnswersModeList.findIndex(i => i.type === "question" && i.showQuestionId === item.showQuestionId);
+      if (idx >= 0) setNavIndex(idx);
+      pushNavQuestion(item, nextStage, navImageVisible);
+    } else {
+      // Jump to this question at stage 0
+      const list = navIsAnswerMode ? navAnswersModeList : navWithRules;
+      const idx = list.findIndex(i => i.type === "question" && i.showQuestionId === item.showQuestionId);
+      setNavIndex(idx >= 0 ? idx : 0);
+      setNavAnswerStage(0);
+      setNavStarted(true);
+      const payload = { questionNumber: item.questionNumber, questionText: item.questionText, categoryName: item.categoryName };
       if (item.showImageByDefault && item.inlineImages?.length > 0) {
         payload.inlineImages = item.inlineImages;
         payload.currentInlineImageIndex = 0;
@@ -1629,249 +2868,7 @@ export default function App() {
       sendToDisplay("question", payload);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carouselActive]);
-
-  // Push an answers-mode question at a given stage (0=question, 1=answer, 2=stats)
-  const pushNavQuestion = useCallback((item, stage) => {
-    if (!item) return;
-    const payload = {
-      questionNumber: item.questionNumber,
-      questionText: item.questionText,
-      categoryName: item.categoryName,
-    };
-    if (item.showImageByDefault && item.inlineImages?.length > 0) {
-      payload.inlineImages = item.inlineImages;
-      // Auto-reveal answer image: image 0 for question, image 1 for answer/stats
-      if (item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
-        payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
-      } else {
-        payload.currentInlineImageIndex = 0;
-      }
-    }
-    if (stage >= 1) {
-      payload.answer = item.answer;
-    }
-    if (stage >= 2) {
-      const grid = composedCachedState?.grid || {};
-      const teams = composedCachedState?.teams || [];
-      let correctCount = 0;
-      for (const team of teams) {
-        if (grid[team.showTeamId]?.[item.showQuestionId]?.isCorrect === true) {
-          correctCount++;
-        }
-      }
-      const scoringObj = {
-        mode: scoringMode,
-        pubPoints,
-        poolPerQuestion,
-        poolContribution,
-        teamCount: teams.length,
-      };
-      const questionBonus = item.bonusAvailable
-        ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
-        : null;
-      payload.correctCount = correctCount;
-      payload.totalTeams = teams.length;
-      payload.pointsPerTeam = computeAutoEarned({ isCorrect: true }, scoringObj, correctCount);
-      payload.bonusBreakdown = computeBonusBreakdown(
-        teams, grid, item.showQuestionId, scoringObj, correctCount, questionBonus
-      );
-    }
-    sendToDisplay("question", payload);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composedCachedState, scoringMode, pubPoints, poolPerQuestion, poolContribution]);
-
-  // Unified question-send function for QuestionsMode buttons — builds full payload and syncs nav cursor
-  const pushDisplayQuestion = useCallback((showQuestionId, stage, withImages) => {
-    const item = navFlatList.find(i => i.type === "question" && i.showQuestionId === showQuestionId);
-    if (!item) return;
-
-    const payload = {
-      questionNumber: item.questionNumber,
-      questionText: item.questionText,
-      categoryName: item.categoryName,
-    };
-
-    if (withImages && item.inlineImages?.length > 0) {
-      payload.inlineImages = item.inlineImages;
-      if (item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
-        payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
-      } else {
-        payload.currentInlineImageIndex = 0;
-      }
-    }
-
-    if (stage >= 1) {
-      payload.answer = item.answer;
-    }
-
-    if (stage >= 2) {
-      const grid = composedCachedState?.grid || {};
-      const teams = composedCachedState?.teams || [];
-      let correctCount = 0;
-      for (const team of teams) {
-        if (grid[team.showTeamId]?.[showQuestionId]?.isCorrect === true) correctCount++;
-      }
-      const scoringObj = {
-        mode: scoringMode,
-        pubPoints,
-        poolPerQuestion,
-        poolContribution,
-        teamCount: teams.length,
-      };
-      const questionBonus = item.bonusAvailable
-        ? { bonusValue: item.bonusValue, maxBonuses: item.maxBonuses }
-        : null;
-      payload.correctCount = correctCount;
-      payload.totalTeams = teams.length;
-      payload.pointsPerTeam = computeAutoEarned({ isCorrect: true }, scoringObj, correctCount);
-      payload.bonusBreakdown = computeBonusBreakdown(
-        teams, grid, showQuestionId, scoringObj, correctCount, questionBonus
-      );
-    }
-
-    sendToDisplay("question", payload);
-
-    // Sync nav cursor — use navQuestionsMode (not navFlatList) so navIndex stays consistent with navForward/navBackward
-    const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
-    const idx = list.findIndex(i => i.type === "question" && i.showQuestionId === showQuestionId);
-    if (idx >= 0) {
-      setNavIndex(idx);
-      setNavAnswerStage(stage);
-      setNavStarted(true);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navFlatList, navQuestionList, navIsAnswerMode, composedCachedState, scoringMode, pubPoints, poolPerQuestion, poolContribution]);
-
-  // Wrapper around sendToDisplay that also syncs the nav cursor position
-  const sendToDisplayWithNavSync = useCallback((type, data) => {
-    sendToDisplay(type, data);
-    if (type === "question" && data?.questionNumber !== undefined) {
-      const list = navIsAnswerMode ? navQuestionList : navQuestionsMode;
-      const idx = list.findIndex(
-        (item) =>
-          item.type === "question" &&
-          String(item.questionNumber) === String(data.questionNumber) &&
-          item.categoryName === (data.categoryName || "").trim()
-      );
-      if (idx >= 0) {
-        setNavIndex(idx);
-        setNavStarted(true);
-        if (navIsAnswerMode) {
-          const stage =
-            data.correctCount !== undefined ? 2
-            : data.answer !== undefined ? 1
-            : 0;
-          setNavAnswerStage(stage);
-        }
-      }
-    } else if (type === "category" && !navIsAnswerMode && data?.categoryName) {
-      const idx = navFlatList.findIndex(
-        (item) => item.type === "category" && item.categoryName === data.categoryName
-      );
-      if (idx >= 0) {
-        setNavIndex(idx);
-        setNavStarted(true);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navIsAnswerMode, navFlatList, navQuestionList]);
-
-  const navActiveList = navIsAnswerMode ? navQuestionList : navQuestionsMode;
-
-  const navForward = useCallback(() => {
-    if (!navStarted) {
-      // First press: send the current item without advancing
-      setNavStarted(true);
-      if (navIsAnswerMode) {
-        pushNavQuestion(navQuestionList[navIndex], 0);
-      } else {
-        pushNavItem(navQuestionsMode[navIndex]);
-      }
-      return;
-    }
-    if (navIsAnswerMode) {
-      const currentQ = navQuestionList[navIndex];
-      if (!currentQ) return;
-      if (navAnswerStage < 2) {
-        const nextStage = navAnswerStage + 1;
-        setNavAnswerStage(nextStage);
-        pushNavQuestion(currentQ, nextStage);
-      } else if (navIndex < navQuestionList.length - 1) {
-        const nextIdx = navIndex + 1;
-        setNavIndex(nextIdx);
-        setNavAnswerStage(0);
-        pushNavQuestion(navQuestionList[nextIdx], 0);
-      }
-    } else {
-      if (navIndex < navQuestionsMode.length - 1) {
-        const nextIdx = navIndex + 1;
-        setNavIndex(nextIdx);
-        pushNavItem(navQuestionsMode[nextIdx]);
-      }
-    }
-  }, [navStarted, navIsAnswerMode, navIndex, navAnswerStage, navQuestionsMode, navQuestionList, pushNavItem, pushNavQuestion]);
-
-  const navBackward = useCallback(() => {
-    if (navIsAnswerMode) {
-      const currentQ = navQuestionList[navIndex];
-      if (!currentQ) return;
-      if (navAnswerStage > 0) {
-        const prevStage = navAnswerStage - 1;
-        setNavAnswerStage(prevStage);
-        pushNavQuestion(currentQ, prevStage);
-      } else if (navIndex > 0) {
-        const prevIdx = navIndex - 1;
-        setNavIndex(prevIdx);
-        setNavAnswerStage(2);
-        pushNavQuestion(navQuestionList[prevIdx], 2);
-      }
-    } else {
-      if (navIndex > 0) {
-        const prevIdx = navIndex - 1;
-        setNavIndex(prevIdx);
-        pushNavItem(navQuestionsMode[prevIdx]);
-      }
-    }
-  }, [navIsAnswerMode, navIndex, navAnswerStage, navQuestionsMode, navQuestionList, pushNavItem, pushNavQuestion]);
-
-  const toggleNavMode = useCallback(() => {
-    const nextMode = !navIsAnswerMode;
-    setNavIsAnswerMode(nextMode);
-    if (nextMode) {
-      // Switching to answers mode: find current question in navQuestionList
-      const currentItem = navQuestionsMode[navIndex];
-      if (currentItem?.type === "question") {
-        const idx = navQuestionList.findIndex(
-          (q) => q.showQuestionId === currentItem.showQuestionId
-        );
-        setNavIndex(idx >= 0 ? idx : 0);
-      } else {
-        setNavIndex(0);
-      }
-    } else {
-      // Switching to questions mode: find current question in navQuestionsMode
-      const currentQ = navQuestionList[navIndex];
-      if (currentQ) {
-        const idx = navQuestionsMode.findIndex(
-          (item) => item.type === "question" && item.showQuestionId === currentQ.showQuestionId
-        );
-        setNavIndex(idx >= 0 ? idx : 0);
-      }
-    }
-    setNavAnswerStage(0);
-    setNavStarted(false);
-  }, [navIsAnswerMode, navQuestionsMode, navQuestionList, navIndex]);
-
-  const getNavLabel = useCallback((list, idx, stage) => {
-    if (list.length === 0) return "No show";
-    const item = list[idx];
-    if (!item) return "—";
-    if (item.type === "carousel") return "Visual carousel";
-    if (item.type === "category") return item.categoryName || "Category";
-    const stageLabel = navIsAnswerMode ? ` · ${["question", "answer", "stats"][stage] ?? ""}` : "";
-    return `Q${item.questionNumber}${stageLabel}`;
-  }, [navIsAnswerMode]);
+  }, [navCurrentItem, navIsAnswerMode, navAnswerStage, navWithRules, navAnswersModeList, pushNavQuestion, navImageVisible]);
 
   const navCurrentLabel = useMemo(() => {
     if (navActiveList.length === 0) return "No show";
@@ -1891,19 +2888,31 @@ export default function App() {
       sharedAudioRef.current.pause();
     }
     const audio = new Audio(url);
-    audio.onplay  = () => setSharedAudioPlaying(true);
-    audio.onpause = () => setSharedAudioPlaying(false);
-    audio.onended = () => { setSharedAudioPlaying(false); };
+    audio.onplay = () => { setSharedAudioPlaying(true); window.tvSend?.("audioStatus", { playing: true, url, hostName }); };
+    audio.onpause = () => { setSharedAudioPlaying(false); window.tvSend?.("audioStatus", { playing: false, url, hostName }); };
+    audio.onended = () => {
+      setSharedAudioPlaying(false);
+      setAudioCurrentTime(0);
+      window.tvSend?.("audioStatus", { playing: false, url, hostName });
+    };
+    audio.ontimeupdate = () => setAudioCurrentTime(audio.currentTime);
+    audio.ondurationchange = () => setAudioDuration(isFinite(audio.duration) ? audio.duration : null);
     sharedAudioRef.current = audio;
     setSharedAudioUrl(url);
     setSharedAudioPlaying(false);
+    setAudioCurrentTime(0);
+    setAudioDuration(null);
     audio.play();
-  }, []);
+  }, [hostName]);
 
   const toggleAudio = useCallback(() => {
     const a = sharedAudioRef.current;
     if (!a) return;
-    if (sharedAudioPlaying) { a.pause(); } else { a.play(); }
+    if (sharedAudioPlaying) {
+      a.pause();
+    } else {
+      a.play();
+    }
   }, [sharedAudioPlaying]);
 
   const toggleNavImage = useCallback(() => {
@@ -1914,17 +2923,90 @@ export default function App() {
     setNavImageIndex(0);
     const stage = navIsAnswerMode ? navAnswerStage : 0;
     pushDisplayQuestion(item.showQuestionId, stage, newVisible);
-  }, [navImageVisible, navActiveList, navIndex, navIsAnswerMode, navAnswerStage, pushDisplayQuestion]);
+  }, [
+    navImageVisible,
+    navActiveList,
+    navIndex,
+    navIsAnswerMode,
+    navAnswerStage,
+    pushDisplayQuestion,
+  ]);
 
-  const cycleNavImage = useCallback((dir) => {
-    const item = navActiveList[navIndex];
-    if (!item || item.type !== "question" || !item.inlineImages?.length) return;
-    const newIdx = Math.max(0, Math.min(item.inlineImages.length - 1, navImageIndex + dir));
-    setNavImageIndex(newIdx);
-    sendToDisplay("updateInlineImageIndex", { currentIndex: newIdx });
-  }, [navActiveList, navIndex, navImageIndex]);
+  const cycleNavImage = useCallback(
+    (dir) => {
+      const item = navActiveList[navIndex];
+      if (!item || item.type !== "question" || !item.inlineImages?.length)
+        return;
+      const newIdx = Math.max(
+        0,
+        Math.min(item.inlineImages.length - 1, navImageIndex + dir),
+      );
+      setNavImageIndex(newIdx);
+      sendToDisplay("updateInlineImageIndex", { currentIndex: newIdx });
+    },
+    [navActiveList, navIndex, navImageIndex],
+  );
 
-  // Stop audio and reset image toggle when nav position changes
+  const cycleNavAudio = useCallback(
+    (dir) => {
+      if (!currentNavAudio.length) return;
+      const newIdx = Math.max(0, Math.min(currentNavAudio.length - 1, navAudioIndex + dir));
+      setNavAudioIndex(newIdx);
+      // If already playing this item's audio, switch to the new track
+      if (sharedAudioRef.current && (sharedAudioPlaying || sharedAudioUrl === currentNavAudio[navAudioIndex]?.url)) {
+        playAudio(currentNavAudio[newIdx].url);
+      }
+    },
+    [currentNavAudio, navAudioIndex, sharedAudioPlaying, sharedAudioUrl, playAudio],
+  );
+
+  const navGoTo = useCallback(() => {
+    const input = navGoToInput.trim();
+    if (!input) return;
+
+    // Special keyword: "audio" — navigate to the audio category in Questions mode
+    if (input.toLowerCase() === "audio") {
+      const audioCategory = navQuestionsMode.find(
+        (item) => item.type === "category" && item.questionType === "audio",
+      );
+      if (audioCategory) {
+        const idx = navWithRules.indexOf(audioCategory);
+        setNavIndex(idx !== -1 ? idx : 0);
+        setNavAnswerStage(0);
+        setNavStarted(true);
+        pushNavItem(audioCategory);
+        setNavGoToInput("");
+      }
+      return;
+    }
+
+    const inputUpper = input.toUpperCase();
+    // Search all questions (navQuestionList includes visual; navQuestionsMode does not)
+    const found = navQuestionList.find(
+      (item) => String(item.questionNumber || "").toUpperCase() === inputUpper,
+    );
+    if (!found) return;
+    if (navIsAnswerMode) {
+      const idx = navQuestionList.indexOf(found);
+      setNavIndex(idx);
+      setNavAnswerStage(0);
+      setNavStarted(true);
+      pushNavQuestion(found, 0);
+    } else {
+      // For Questions mode, find the item in navWithRules so navIndex is offset past the rules prefix
+      const qIdx = navWithRules.indexOf(found);
+      const idx = qIdx !== -1 ? qIdx : navWithRules.findIndex(
+        (item) => item.type === "question" && String(item.questionNumber || "").toUpperCase() === inputUpper,
+      );
+      setNavIndex(idx !== -1 ? idx : 0);
+      setNavAnswerStage(0);
+      setNavStarted(true);
+      pushNavItem(found);
+    }
+    setNavGoToInput("");
+  }, [navGoToInput, navIsAnswerMode, navQuestionList, navQuestionsMode, navWithRules, pushNavQuestion, pushNavItem]);
+
+  // Stop audio and reset image/audio toggles when nav position changes
   useEffect(() => {
     if (sharedAudioRef.current) {
       sharedAudioRef.current.pause();
@@ -1932,7 +3014,31 @@ export default function App() {
     }
     setNavImageVisible(false);
     setNavImageIndex(0);
+    setNavAudioIndex(0);
+    setStripEditing(false);
+    setStripEditDraft({});
   }, [navIndex, navIsAnswerMode]);
+
+  // Re-push to display when the current question's text is edited live
+  const prevLivePushIdRef = useRef(null);
+  const prevLivePushTextRef = useRef(null);
+  useEffect(() => {
+    const id = navCurrentItem?.showQuestionId;
+    const text = navCurrentItem?.questionText;
+    if (id === prevLivePushIdRef.current && text !== prevLivePushTextRef.current) {
+      // Same question, text changed — re-push if we're the active host
+      if (navStarted && navCurrentItem?.type === "question") {
+        if (navIsAnswerMode) {
+          pushNavQuestion(navCurrentItem, navAnswerStage, navImageVisible);
+        } else {
+          pushNavItem(navCurrentItem);
+        }
+      }
+    }
+    prevLivePushIdRef.current = id ?? null;
+    prevLivePushTextRef.current = text ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navCurrentItem?.questionText, navCurrentItem?.showQuestionId]);
 
   const navNextLabel = useMemo(() => {
     if (navIsAnswerMode) {
@@ -1944,12 +3050,19 @@ export default function App() {
       }
       return null;
     } else {
-      if (navIndex < navQuestionsMode.length - 1) {
-        return getNavLabel(navQuestionsMode, navIndex + 1, 0);
+      if (navIndex < navWithRules.length - 1) {
+        return getNavLabel(navWithRules, navIndex + 1, 0);
       }
       return null;
     }
-  }, [navIsAnswerMode, navQuestionsMode, navQuestionList, navIndex, navAnswerStage, getNavLabel]);
+  }, [
+    navIsAnswerMode,
+    navWithRules,
+    navQuestionList,
+    navIndex,
+    navAnswerStage,
+    getNavLabel,
+  ]);
 
   // Helper function to edit a question field
   const editQuestionField = (showQuestionId, field, value) => {
@@ -2172,50 +3285,6 @@ export default function App() {
   // UI
   return (
     <>
-      {/* Sidebar with menu */}
-      <Sidebar
-        setShowDetails={setshowDetails}
-        displayControlsOpen={displayControlsOpen}
-        setDisplayControlsOpen={setDisplayControlsOpen}
-        showTimer={showTimer}
-        setShowTimer={setShowTimer}
-        setShowAnswerKey={setShowAnswerKey}
-        refreshBundle={refreshBundle}
-        getClosestQuestionKey={getClosestQuestionKey}
-        questionRefs={questionRefs}
-        showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
-        hostInfo={composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo}
-        prizes={composedCachedState?.prizes ?? ""}
-        scoringMode={scoringMode}
-        pubPoints={pubPoints}
-        poolPerQuestion={poolPerQuestion}
-        poolContribution={poolContribution}
-        sendToDisplay={sendToDisplayWithNavSync}
-      >
-        <SidebarMenu
-          showTimer={showTimer}
-          setTimerPosition={setTimerPosition}
-          prizes={composedCachedState?.prizes ?? ""}
-          setPrizes={(val) => patchShared({ prizes: String(val || "") })}
-          hostInfo={
-            composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo
-          }
-          setHostInfo={(val) => patchShared({ hostInfo: val })}
-          displayControlsOpen={displayControlsOpen}
-          setDisplayControlsPosition={setDisplayControlsPosition}
-          scoringMode={scoringMode}
-          setScoringMode={setScoringMode}
-          pubPoints={pubPoints}
-          setPubPoints={setPubPoints}
-          poolPerQuestion={poolPerQuestion}
-          setPoolPerQuestion={setPoolPerQuestion}
-          poolContribution={poolContribution}
-          setPoolContribution={setPoolContribution}
-          factionBonus={factionBonus}
-          setFactionBonus={setFactionBonus}
-        />
-      </Sidebar>
-
       {/* Fixed header bar */}
       <div
         style={{
@@ -2236,596 +3305,826 @@ export default function App() {
         <img src={logo} alt="TriviaVanguard" style={{ height: "68px" }} />
       </div>
 
-      {/* Display Controls Panel (app-level, available in all modes) */}
-      {displayControlsOpen && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-            zIndex: 1000,
-          }}
-        >
-          <Draggable
-            nodeRef={displayControlsRef}
-            position={displayControlsPosition}
-            onStop={(e, data) => {
-              const newPos = { x: data.x, y: data.y };
-              setDisplayControlsPosition(newPos);
-              localStorage.setItem(
-                "displayControlsPosition",
-                JSON.stringify(newPos),
-              );
-            }}
+      {/* ── Mission Control — fixed full-page layout ── */}
+      <div
+        style={{
+          position: "fixed",
+          top: "80px",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 100,
+          display: "flex",
+          flexDirection: "column",
+          backgroundColor: "#fff",
+          overflow: "hidden",
+        }}
+      >
+        {/* MC top bar: show selector + venue + mode panel toggles */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: ".5rem",
+          padding: ".35rem .75rem",
+          borderBottom: `1px solid ${colors.gray?.border || "#e0e0e0"}`,
+          flexShrink: 0,
+          flexWrap: "wrap",
+          minHeight: "48px",
+        }}>
+          {/* Venue button */}
+          <Button
+            onClick={openVenuePicker}
+            title="Select display venue"
+            style={{ fontSize: ".85rem", padding: ".3rem .6rem", borderRadius: ".4rem", whiteSpace: "nowrap", ...(venueShowId && { background: colors.accent, color: "#fff" }) }}
           >
-            <div
-              ref={displayControlsRef}
-              style={{
-                position: "absolute",
-                pointerEvents: "auto",
-                display: "flex",
-                flexDirection: "column",
-                gap: ".5rem",
-                width: "min(300px, calc(100vw - 2rem))",
-                backgroundColor: "#fff",
-                padding: ".6rem .7rem",
-                borderRadius: "12px",
-                boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-                border: `2px solid ${colors.accent}`,
-              }}
-            >
-              {/* Drag / title row */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: ".5rem",
-                  cursor: "grab",
-                  userSelect: "none",
-                }}
-              >
-                <span style={{ opacity: 0.6 }}>⋮⋮</span>
-                <span
-                  style={{
-                    fontWeight: 500,
-                    color: colors.dark,
-                    fontFamily: tokens.font.body,
-                  }}
-                >
-                  Display controls
-                </span>
-              </div>
+            📺 {venueName || "Set venue"}
+          </Button>
 
-              {/* Everything below stays basically the same */}
+          {/* Show selector */}
+          <select
+            value={selectedShowId}
+            aria-label="Show selector"
+            onChange={(e) => {
+              const newId = e.target.value;
+              if (newId === "__OLDER__") { setOlderShowsOpen(true); setTimeout(() => { e.target.value = selectedShowId || ""; }, 0); return; }
+              if (newId === "__ARCHIVED__") { setShowDropZone(true); setTimeout(() => { e.target.value = selectedShowId || ""; }, 0); return; }
+              if (!selectedShowId || selectedShowId === newId) { setSelectedShowId(newId); setSelectedRoundId(""); return; }
+              const oldShowId = selectedShowId;
+              setScoringCache((prev) => { const next = { ...prev }; delete next[oldShowId]; localStorage.setItem("trivia.scoring.backup", JSON.stringify(next)); return next; });
+              setSelectedRoundId(""); setVisibleImages({}); setVisibleCategoryImages({}); setCurrentImageIndex({});
+              setSelectedShowId(newId);
+            }}
+            style={{ fontSize: ".9rem", fontFamily: tokens.font.body, padding: ".3rem .4rem", borderRadius: ".4rem", border: `1px solid ${colors.gray?.border || "#ccc"}`, maxWidth: "260px" }}
+          >
+            <option value="">— Select a show —</option>
+            {shows.map((s) => (<option key={s.id} value={s.id}>{s.Show?.Show}</option>))}
+            <option value="__OLDER__" style={{ fontStyle: "italic" }}>📚 View older shows…</option>
+            <option value="__ARCHIVED__" style={{ fontStyle: "italic" }}>📂 Open archived show from file…</option>
+          </select>
+
+          {/* Round selector */}
+          {roundNumbers.length > 1 && (
+            <select value={selectedRoundId} onChange={(e) => setSelectedRoundId(e.target.value)}
+              style={{ fontSize: ".9rem", fontFamily: tokens.font.body, padding: ".3rem .4rem", borderRadius: ".4rem", border: `1px solid ${colors.gray?.border || "#ccc"}` }}>
+              {roundNumbers.map((n) => (<option key={n} value={String(n)}>{`Round ${n}`}</option>))}
+            </select>
+          )}
+
+          {/* Bundle status */}
+          {bundleLoading && <span style={{ fontSize: ".8rem", color: "#888", fontFamily: tokens.font.body }}>Loading…</span>}
+          {bundleError && <span style={{ fontSize: ".8rem", color: colors.error, fontFamily: tokens.font.body }}>Error loading show</span>}
+
+          {/* Sync status dot */}
+          <span title={`Multi-host sync: ${rtStatus}`} style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0, backgroundColor: rtStatus === "SUBSCRIBED" ? "#22c55e" : rtStatus === "SUBSCRIBING" ? "#eab308" : "#ef4444" }} />
+
+          {/* Mode panel toggle buttons */}
+          <div style={{ marginLeft: "auto", display: "flex", gap: ".35rem", flexShrink: 0 }}>
+            <Button onClick={() => setQuestionsOpen(v => !v)} title="Questions & Answers panel"
+              style={{ fontSize: ".85rem", padding: ".3rem .65rem", borderRadius: ".4rem", ...(questionsOpen && { background: colors.accent, color: "#fff" }) }}>
+              Questions
+            </Button>
+            <Button onClick={() => setScoringOpen(v => !v)} title="Scoring panel"
+              style={{ fontSize: ".85rem", padding: ".3rem .65rem", borderRadius: ".4rem", ...(scoringOpen && { background: colors.accent, color: "#fff" }) }}>
+              Scores
+            </Button>
+            <Button onClick={() => setResultsOpen(v => !v)} title="Results panel"
+              style={{ fontSize: ".85rem", padding: ".3rem .65rem", borderRadius: ".4rem", ...(resultsOpen && { background: colors.accent, color: "#fff" }) }}>
+              Results
+            </Button>
+          </div>
+        </div>
+
+              {/* Utility buttons row */}
               <div
                 style={{
                   display: "flex",
-                  flexWrap: "wrap",
                   gap: ".4rem",
                   alignItems: "center",
-                }}
-              >
-                <Button
-                  onClick={openDisplayWindow}
-                  title="Open Display Mode in new window"
-                  style={{
-                    fontSize: "1rem",
-                    padding: ".45rem .55rem",
-                    minWidth: "2.25rem",
-                    height: "2.25rem",
-                    borderRadius: ".5rem",
-                  }}
-                >
-                  📺
-                </Button>
-
-                <Button
-                  onClick={() => {
-                    if (!hostId) return;
-                    const url = `${window.location.origin}?display&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1`;
-                    navigator.clipboard.writeText(url).catch(() =>
-                      window.prompt("Copy viewer link:", url)
-                    );
-                  }}
-                  title="Copy view-only display link"
-                  style={{
-                    fontSize: "1rem",
-                    padding: ".45rem .55rem",
-                    minWidth: "2.25rem",
-                    height: "2.25rem",
-                    borderRadius: ".5rem",
-                  }}
-                >
-                  🔗
-                </Button>
-
-                <Button
-                  onClick={() => {
-                    sendToDisplay("closeQuestionCarousel", null);
-                    sendToDisplay("standby", null);
-                    setCarouselActive(false);
-                  }}
-                  title="Clear the display (standby screen)"
-                  style={{
-                    fontSize: "1rem",
-                    padding: ".45rem .55rem",
-                    minWidth: "2.25rem",
-                    height: "2.25rem",
-                    borderRadius: ".5rem",
-                  }}
-                >
-                  🧹
-                </Button>
-
-                <Button
-                  onClick={() => sendToDisplay("toggleGuide")}
-                  title="Toggle alignment guide"
-                  style={{
-                    fontSize: "1rem",
-                    padding: ".45rem .55rem",
-                    minWidth: "2.25rem",
-                    height: "2.25rem",
-                    borderRadius: ".5rem",
-                  }}
-                >
-                  📐
-                </Button>
-
-                <Button
-                  onClick={() => {
-                    setDisplayFontSize((prev) => {
-                      const newSize = Math.max(50, prev - 10);
-                      sendToDisplay("fontSize", { size: newSize });
-                      return newSize;
-                    });
-                  }}
-                  title="Decrease display text size"
-                >
-                  A-
-                </Button>
-
-                <Button
-                  onClick={() => {
-                    setDisplayFontSize((prev) => {
-                      const newSize = Math.min(400, prev + 10);
-                      sendToDisplay("fontSize", { size: newSize });
-                      return newSize;
-                    });
-                  }}
-                  title="Increase display text size"
-                >
-                  A+
-                </Button>
-              </div>
-
-              {/* Custom message row */}
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: ".4rem" }}
-              >
-                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
-                  <input
-                    type="text"
-                    value={customMessage}
-                    onChange={(e) => setCustomMessage(e.target.value)}
-                    placeholder="Type a message for the TV…"
-                    className="display-controls-input"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (customMessage.trim() || customMessageImage.trim())) {
-                        sendToDisplay("message", {
-                          text: customMessage.trim(),
-                          imageUrl: customMessageImage.trim() || null,
-                        });
-                      }
-                    }}
-                    style={{
-                      flex: 1,
-                      fontSize: ".9rem",
-                      padding: ".5rem .6rem",
-                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
-                      borderRadius: ".6rem",
-                      minWidth: "200px",
-                      backgroundColor: "#fff",
-                      color: colors.dark || "#2B394A",
-                    }}
-                  />
-
-                  <ButtonPrimary
-                    onClick={() => {
-                      if (customMessage.trim() || customMessageImage.trim()) {
-                        sendToDisplay("message", {
-                          text: customMessage.trim(),
-                          imageUrl: customMessageImage.trim() || null,
-                        });
-                      }
-                    }}
-                    disabled={!customMessage.trim() && !customMessageImage.trim()}
-                    title="Push this message to display"
-                    style={{
-                      fontSize: "1rem",
-                      padding: ".45rem .55rem",
-                      minWidth: "2.25rem",
-                      height: "2.25rem",
-                      borderRadius: ".5rem",
-                      opacity: (customMessage.trim() || customMessageImage.trim()) ? 1 : 0.5,
-                    }}
-                  >
-                    📣
-                  </ButtonPrimary>
-                </div>
-
-                {/* Image URL row */}
-                <div style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
-                  <input
-                    type="text"
-                    value={customMessageImage}
-                    onChange={(e) => setCustomMessageImage(e.target.value)}
-                    placeholder="Paste image URL here…"
-                    className="display-controls-input"
-                    style={{
-                      flex: 1,
-                      fontSize: ".85rem",
-                      padding: ".4rem .6rem",
-                      border: `1px solid ${colors.gray?.border || "#ccc"}`,
-                      borderRadius: ".6rem",
-                      minWidth: "200px",
-                      backgroundColor: "#fff",
-                      color: colors.dark || "#2B394A",
-                    }}
-                  />
-                  {customMessageImage.trim() && (
-                    <Button
-                      onClick={() => setCustomMessageImage("")}
-                      title="Clear image"
-                      style={{
-                        fontSize: ".85rem",
-                        padding: ".3rem .5rem",
-                        minWidth: "2rem",
-                        height: "2rem",
-                        borderRadius: ".5rem",
-                      }}
-                    >
-                      ✕
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Display nav row */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: ".3rem",
-                  paddingTop: ".4rem",
+                  padding: ".3rem .5rem",
                   borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}`,
                 }}
               >
-                {/* Mode toggle */}
-                <div style={{ display: "flex", gap: ".3rem" }}>
-                  {["Questions", "Answers"].map((mode) => {
-                    const isActive = (mode === "Answers") === navIsAnswerMode;
-                    return (
-                      <button
-                        key={mode}
-                        onClick={toggleNavMode}
-                        disabled={navActiveList.length === 0}
-                        style={{
-                          flex: 1,
-                          fontSize: ".78rem",
-                          padding: ".3rem .4rem",
-                          borderRadius: ".4rem",
-                          border: `2px solid ${colors.accent}`,
-                          background: isActive ? colors.accent : "transparent",
-                          color: isActive ? "#fff" : colors.accent,
-                          fontWeight: isActive ? 700 : 400,
-                          cursor: "pointer",
-                          fontFamily: tokens.font.body,
-                          opacity: navActiveList.length === 0 ? 0.4 : 1,
-                        }}
-                      >
-                        {mode}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* ← current → row */}
-                <div style={{ display: "flex", alignItems: "center", gap: ".4rem" }}>
-                  <Button
-                    onClick={navBackward}
-                    disabled={
-                      navActiveList.length === 0 ||
-                      (navIsAnswerMode
-                        ? navIndex === 0 && navAnswerStage === 0
-                        : navIndex === 0)
+                <Button
+                  onClick={() => venueShowId && openDisplayWindow(venueShowId)}
+                  disabled={!venueShowId}
+                  title={venueShowId ? "Open Display Mode in new window" : "Select a venue first"}
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >📺</Button>
+                <Button
+                  onClick={() => { sendToDisplay("closeQuestionCarousel", null); sendToDisplay("standby", null); setCarouselActive(false); }}
+                  title="Clear the display (standby screen)"
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >🧹</Button>
+                <Button
+                  onClick={() => {
+                    if (!venueShowId) return;
+                    const url = `${window.location.origin}?display&venueShowId=${venueShowId}&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1`;
+                    navigator.clipboard.writeText(url).catch(() => window.prompt("Copy viewer link:", url));
+                  }}
+                  title="Copy view-only display link"
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >🔗</Button>
+                <Button
+                  onClick={() => sendToDisplay("toggleGuide")}
+                  title="Toggle alignment guide"
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >📐</Button>
+                <Button
+                  onClick={() => {
+                    if (navCurrentItem?.type !== "question") return;
+                    setStripEditDraft({
+                      question: navCurrentItem.questionText || "",
+                      notes: navCurrentItem.questionNotes || "",
+                      pronunciationGuide: navCurrentItem.pronunciationGuide || "",
+                      answer: navCurrentItem.answer || "",
+                      answerNotes: navCurrentItem.answerNotes || "",
+                    });
+                    setStripEditing(true);
+                  }}
+                  disabled={navCurrentItem?.type !== "question"}
+                  title={navCurrentItem?.type === "question" ? "Edit question" : "Navigate to a question to edit"}
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", opacity: navCurrentItem?.type !== "question" ? 0.35 : 1 }}
+                >✏️</Button>
+                <Button
+                  onClick={() => setNavKeyboardEnabled(v => !v)}
+                  title={navKeyboardEnabled ? "Disable keyboard arrow nav" : "Enable keyboard arrow nav"}
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", ...(navKeyboardEnabled && { background: colors.accent }) }}
+                >←→</Button>
+                <Button
+                  onClick={() => setGridOnRight(v => { const next = !v; localStorage.setItem("tv_gridOnRight", String(next)); return next; })}
+                  title="Swap preview / grid positions"
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >⇄</Button>
+                <Button
+                  onClick={() => {
+                    const closestKey = getClosestQuestionKey?.();
+                    setshowDetails((prev) => !prev);
+                    if (closestKey && questionRefs?.current?.[closestKey]?.current) {
+                      requestAnimationFrame(() => requestAnimationFrame(() => {
+                        questionRefs.current[closestKey]?.current?.scrollIntoView({ behavior: "instant", block: "center" });
+                      }));
                     }
-                    title="Previous"
-                    style={{ fontSize: ".9rem", padding: ".25rem .45rem", borderRadius: ".4rem", flexShrink: 0 }}
-                  >
-                    ←
-                  </Button>
-                  <span
-                    style={{
-                      flex: 1,
-                      textAlign: "center",
-                      fontSize: ".78rem",
-                      fontWeight: 600,
-                      color: colors.dark,
-                      fontFamily: tokens.font.body,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      opacity: navActiveList.length === 0 ? 0.4 : 1,
-                    }}
-                  >
-                    {navCurrentLabel}
-                  </span>
-                  <Button
-                    onClick={navForward}
-                    disabled={
-                      navActiveList.length === 0 ||
-                      (navStarted && navIsAnswerMode
-                        ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2
-                        : navStarted && navIndex >= navQuestionsMode.length - 1)
-                    }
-                    title={navStarted ? "Next" : "Start — send first item to display"}
-                    style={{ fontSize: ".9rem", padding: ".25rem .45rem", borderRadius: ".4rem", flexShrink: 0 }}
-                  >
-                    {navStarted ? "→" : "▶"}
-                  </Button>
-                </div>
-
-                {/* Up next / ready to send label */}
-                {(navNextLabel || !navStarted) && (
-                  <div
-                    style={{
-                      fontSize: ".72rem",
-                      color: navStarted ? (colors.gray?.text || "#888") : colors.accent,
-                      fontFamily: tokens.font.body,
-                      textAlign: "center",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      fontWeight: navStarted ? 400 : 600,
-                    }}
-                  >
-                    {navStarted ? `next: ${navNextLabel}` : `▶ ${navCurrentLabel}`}
-                  </div>
-                )}
+                  }}
+                  title="Show/hide all answers"
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >🥷</Button>
+                <Button
+                  onClick={() => setShowAnswerKey((prev) => !prev)}
+                  title="Show/hide answer key"
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >📋</Button>
+                <Button
+                  onClick={refreshBundle}
+                  title="Refresh questions from Airtable"
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                >🔄</Button>
+                <Button
+                  onClick={() => setScriptPanelOpen((prev) => !prev)}
+                  title="Show/hide host script"
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", ...(scriptPanelOpen && { background: colors.accent }) }}
+                >💬</Button>
+                <Button
+                  onClick={() => setSettingsOpen((prev) => !prev)}
+                  title="Settings"
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", ...(settingsOpen && { background: colors.accent }) }}
+                >⚙️</Button>
               </div>
 
-              {/* Audio players for current nav item */}
-              {currentNavAudio.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: ".35rem", paddingTop: ".4rem", borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}` }}>
-                  {currentNavAudio.map((audioObj, i) => (
-                    <SharedAudioPlayer
-                      key={i}
-                      url={audioObj.url}
-                      filename={audioObj.filename}
-                      sharedUrl={sharedAudioUrl}
-                      sharedPlaying={sharedAudioPlaying}
-                      audioRef={sharedAudioRef}
-                      onPlay={playAudio}
-                      onToggle={toggleAudio}
-                    />
-                  ))}
+              {/* Settings panel — opens below utility row */}
+              {settingsOpen && (
+                <div style={{
+                  borderTop: `1px solid ${colors.gray?.border || "#e0e0e0"}`,
+                  background: colors.dark,
+                  padding: ".5rem",
+                  maxHeight: "20rem",
+                  overflowY: "auto",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: ".5rem", marginBottom: ".5rem" }}>
+                    <span style={{ fontSize: ".75rem", color: "#aaa", fontFamily: tokens.font.body }}>Timer widget</span>
+                    <Button
+                      onClick={() => setShowTimer((prev) => !prev)}
+                      title={showTimer ? "Hide timer" : "Show timer"}
+                      style={{ fontSize: ".8rem", padding: ".2rem .5rem", borderRadius: ".3rem", ...(showTimer && { background: colors.accent }) }}
+                    >⏱️ {showTimer ? "Hide" : "Show"}</Button>
+                  </div>
+                  <SidebarMenu
+                    showTimer={showTimer}
+                    setTimerPosition={setTimerPosition}
+                    prizes={composedCachedState?.prizes ?? ""}
+                    setPrizes={(val) => patchShared({ prizes: String(val || "") })}
+                    hostInfo={composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo}
+                    setHostInfo={(val) => patchShared({ hostInfo: val })}
+                    scoringMode={scoringMode}
+                    setScoringMode={setScoringMode}
+                    pubPoints={pubPoints}
+                    setPubPoints={setPubPoints}
+                    poolPerQuestion={poolPerQuestion}
+                    setPoolPerQuestion={setPoolPerQuestion}
+                    poolContribution={poolContribution}
+                    setPoolContribution={setPoolContribution}
+                    factionBonus={factionBonus}
+                    setFactionBonus={setFactionBonus}
+                  />
                 </div>
               )}
 
-            </div>
-          </Draggable>
+              {/* ── body column ── */}
+              <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden", background: colors.dark }}>
 
-          {/* Preview panel — separate floating panel */}
-          {hostId && (
-            <Draggable
-              nodeRef={previewPanelRef}
-              position={previewPanelPosition}
-              onStop={(e, data) => {
-                const newPos = { x: data.x, y: data.y };
-                setPreviewPanelPosition(newPos);
-                localStorage.setItem("previewPanelPosition", JSON.stringify(newPos));
-              }}
-            >
-              <div
-                ref={previewPanelRef}
-                style={{
-                  position: "absolute",
-                  pointerEvents: "auto",
-                  display: "flex",
-                  flexDirection: "column",
-                  backgroundColor: "#fff",
-                  borderRadius: "12px",
-                  boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-                  border: `2px solid ${colors.accent}`,
-                  overflow: "hidden",
-                  width: previewW,
-                }}
-              >
-                {/* Preview drag / title row */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: ".4rem",
-                    padding: ".3rem .5rem",
-                    cursor: "grab",
-                    userSelect: "none",
-                  }}
-                >
-                  <span style={{ opacity: 0.6 }}>⋮⋮</span>
-                  <span style={{ fontWeight: 500, color: colors.dark, fontFamily: tokens.font.body }}>
-                    Preview
-                  </span>
-                  <div style={{ marginLeft: "auto", display: "flex", gap: ".2rem", cursor: "default" }}>
-                    {["S", "M", "L", "XL"].map(s => (
-                      <button
-                        key={s}
-                        onClick={() => setPanelSize(s)}
-                        style={{
-                          fontSize: ".7rem",
-                          fontFamily: tokens.font.body,
-                          fontWeight: panelSize === s ? 700 : 400,
-                          padding: ".1rem .35rem",
-                          borderRadius: ".3rem",
-                          border: `1px solid ${colors.accent}`,
-                          background: panelSize === s ? colors.accent : "transparent",
-                          color: panelSize === s ? "#fff" : colors.accent,
-                          cursor: "pointer",
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {/* Timer bar */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "flex-end",
-                    gap: ".4rem",
-                    padding: ".35rem .6rem",
-                    background: colors.dark,
-                  }}
-                >
-                  {[
-                    { label: "Reset", onClick: handleReset },
-                    { label: null /* time display */ },
-                    { label: timerRunning ? "Pause" : "Start", onClick: handleStartPause, primary: true },
-                    {
-                      label: navStarted ? "→" : "▶",
-                      onClick: navForward,
-                      disabled: navActiveList.length === 0 || (navStarted && navIsAnswerMode ? navIndex >= navQuestionList.length - 1 && navAnswerStage >= 2 : navStarted && navIndex >= navQuestionsMode.length - 1),
-                      title: navStarted ? "Next" : "Start display",
-                    },
-                  ].map(({ label, onClick, disabled, title, primary }) => label === null ? (
-                    <span
-                      key="time"
-                      style={{
-                        fontSize: "1.1rem",
-                        fontWeight: "bold",
-                        fontFamily: tokens.font.body,
-                        minWidth: "2.8rem",
-                        textAlign: "center",
-                        color: timerRunning ? colors.accent : "#fff",
-                      }}
-                    >
-                      {timeLeft !== null ? `${timeLeft}s` : "--"}
-                    </span>
-                  ) : (
+                {/* Control bar — 2-row layout */}
+                {(() => {
+                  // Use navQuestionList for item lookup so visual questions (filtered out of navQuestionsMode) are found
+                  const item = navActiveList[navIndex]?.type === "question"
+                    ? (navQuestionList.find(q => q.showQuestionId === navActiveList[navIndex]?.showQuestionId) ?? navActiveList[navIndex])
+                    : navActiveList[navIndex];
+                  const hasAudio = currentNavAudio.length > 0;
+                  const multiAudio = currentNavAudio.length > 1;
+                  const currentAudio = currentNavAudio[navAudioIndex] || currentNavAudio[0];
+                  const isPlaying = hasAudio && sharedAudioUrl === currentAudio?.url && sharedAudioPlaying;
+                  const hasImg = item?.type === "question" && item.inlineImages?.length > 0;
+                  const multiImg = !!(hasImg && item.inlineImages.length > 1);
+                  const imgCount = hasImg ? item.inlineImages.length : 0;
+                  const btnBase = {
+                    padding: ".22rem .45rem",
+                    fontSize: ".8rem",
+                    fontFamily: tokens.font.body,
+                    borderRadius: ".35rem",
+                    border: "1px solid #888",
+                    background: "transparent",
+                    color: "#fff",
+                    cursor: "pointer",
+                    minWidth: "1.8rem",
+                    textAlign: "center",
+                  };
+                  const arrowBtn = (label, onClick, disabled, extraStyle = {}) => (
                     <button
-                      key={label}
-                      onClick={onClick}
+                      onClick={disabled ? undefined : onClick}
                       disabled={disabled}
-                      title={title}
                       style={{
-                        padding: ".25rem .55rem",
-                        fontSize: ".82rem",
-                        fontFamily: tokens.font.body,
-                        borderRadius: ".35rem",
-                        border: `1px solid ${primary ? colors.accent : "#888"}`,
-                        background: primary ? colors.accent : "transparent",
-                        color: "#fff",
+                        ...btnBase,
+                        padding: ".15rem .3rem",
+                        fontSize: ".75rem",
+                        minWidth: "1.4rem",
+                        opacity: disabled ? 0.25 : 1,
                         cursor: disabled ? "default" : "pointer",
-                        opacity: disabled ? 0.4 : 1,
+                        ...extraStyle,
                       }}
                     >
                       {label}
                     </button>
-                  ))}
-                  {(() => {
-                    const hasAudio = currentNavAudio.length > 0;
-                    const isPlaying = hasAudio && sharedAudioUrl === currentNavAudio[0].url && sharedAudioPlaying;
-                    return (
-                      <button
-                        onClick={hasAudio ? () => sharedAudioUrl === currentNavAudio[0].url ? toggleAudio() : playAudio(currentNavAudio[0].url) : undefined}
-                        title={!hasAudio ? "No audio" : isPlaying ? "Stop audio" : "Play audio"}
-                        disabled={!hasAudio}
-                        style={{
-                          padding: ".25rem .45rem",
-                          fontSize: ".82rem",
-                          fontFamily: tokens.font.body,
-                          borderRadius: ".35rem",
-                          border: `1px solid ${isPlaying ? colors.accent : "#888"}`,
-                          background: isPlaying ? colors.accent : "transparent",
-                          color: hasAudio ? "#fff" : "#555",
-                          cursor: hasAudio ? "pointer" : "default",
-                          minWidth: "2rem",
-                          textAlign: "center",
-                          opacity: hasAudio ? 1 : 0.35,
-                        }}
-                      >
-                        {isPlaying ? "■" : "♪"}
-                      </button>
-                    );
-                  })()}
-                  {(() => {
-                    const item = navActiveList[navIndex];
-                    const hasImg = item?.type === "question" && item.inlineImages?.length > 0 && !item.showImageByDefault;
-                    const multiImg = hasImg && item.inlineImages.length > 1;
-                    const btnStyle = {
-                      padding: ".25rem .45rem",
-                      fontSize: ".82rem",
-                      fontFamily: tokens.font.body,
-                      borderRadius: ".35rem",
-                      cursor: "pointer",
-                      minWidth: "2rem",
-                      textAlign: "center",
-                    };
-                    return (
-                      <div style={{ display: "flex", alignItems: "center", gap: ".2rem" }}>
-                        {navImageVisible && multiImg && (
-                          <button
-                            onClick={() => cycleNavImage(-1)}
-                            disabled={navImageIndex === 0}
-                            title="Previous image"
-                            style={{ ...btnStyle, border: "1px solid #888", background: "transparent", color: navImageIndex === 0 ? "#555" : "#fff", opacity: navImageIndex === 0 ? 0.35 : 1 }}
-                          >‹</button>
+                  );
+                  const navAtStart = navIsAnswerMode ? navIndex === 0 && navAnswerStage === 0 : navIndex === 0;
+                  const navAtEnd = navStarted && (navIsAnswerMode
+                    ? navIndex >= navAnswersModeList.length - 1 && (navAnswersModeList[navIndex]?.type !== "question" || navAnswerStage >= 2)
+                    : navIndex >= navWithRules.length - 1);
+                  return (
+                    <div style={{ background: colors.dark, display: "flex", gap: ".4rem", padding: ".35rem .5rem", alignItems: "stretch", width: previewW, flexShrink: 0 }}>
+
+                      {/* White now-playing panel — tall, spans full control bar height */}
+                      <div style={{ flex: 1, background: "#fff", borderRadius: ".5rem", padding: ".3rem .6rem", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                        <div style={{ fontWeight: 700, fontSize: ".85rem", color: colors.dark, fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center", width: "100%" }}>
+                          {navStarted ? navCurrentLabel : `▶ ${navCurrentLabel}`}
+                        </div>
+                        {navStarted && navNextLabel && (
+                          <div style={{ fontSize: ".72rem", color: "#888", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center", width: "100%" }}>
+                            next: {navNextLabel}
+                          </div>
                         )}
+                      </div>
+
+                      {/* Timer + arrows column: timer on top, arrows below */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: ".25rem" }}>
+                        {/* Timer row: Reset left, countdown center, Start right */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: ".25rem" }}>
+                          <button onClick={handleReset} style={{ ...btnBase, width: "3rem" }}>Reset</button>
+                          <span style={{ textAlign: "center", fontSize: "1rem", fontWeight: "bold", fontFamily: tokens.font.body, color: timerRunning ? colors.accent : "#fff", display: "inline-block", minWidth: "3.2rem" }}>
+                            {timeLeft !== null ? `${timeLeft}s` : "--"}
+                          </span>
+                          <button onClick={handleStartPause} style={{ ...btnBase, width: "3rem", border: `1px solid ${colors.accent}`, background: colors.accent }}>
+                            {timerRunning ? "Pause" : "Start"}
+                          </button>
+                        </div>
+                        {/* Nav arrows row: fill available width with consistent gap */}
+                        <div style={{ display: "flex", gap: ".25rem", alignItems: "center" }}>
+                          {arrowBtn("←", navBackward, navActiveList.length === 0 || navAtStart, { flex: 1 })}
+                          {arrowBtn(navStarted ? "→" : "▶", navForward, navActiveList.length === 0 || navAtEnd, { flex: 1 })}
+                        </div>
+                      </div>
+
+                      {/* Audio column: ‹ › arrows above ♪ button */}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: ".25rem" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", width: "3rem" }}>
+                          {arrowBtn("‹", () => cycleNavAudio(-1), !multiAudio || navAudioIndex === 0)}
+                          {arrowBtn("›", () => cycleNavAudio(1), !multiAudio || navAudioIndex >= currentNavAudio.length - 1)}
+                        </div>
+                        <button
+                          onClick={hasAudio ? () => sharedAudioUrl === currentAudio?.url ? toggleAudio() : playAudio(currentAudio.url) : undefined}
+                          disabled={!hasAudio}
+                          title={!hasAudio ? "No audio" : isPlaying ? "Stop audio" : "Play audio"}
+                          style={{
+                            ...btnBase,
+                            width: "3rem",
+                            border: `1px solid ${isPlaying ? colors.accent : "#888"}`,
+                            background: isPlaying ? colors.accent : "transparent",
+                            color: hasAudio ? "#fff" : "#555",
+                            opacity: hasAudio ? 1 : 0.35,
+                            cursor: hasAudio ? "pointer" : "default",
+                          }}
+                        >
+                          {isPlaying ? "■" : "♪"}
+                        </button>
+                      </div>
+
+                      {/* Image column: ‹ › arrows above ▣ button */}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: ".25rem" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", width: "3rem" }}>
+                          {arrowBtn("‹", () => cycleNavImage(-1), !multiImg || navImageIndex === 0)}
+                          {arrowBtn("›", () => cycleNavImage(1), !multiImg || navImageIndex >= imgCount - 1)}
+                        </div>
                         <button
                           onClick={hasImg ? toggleNavImage : undefined}
                           disabled={!hasImg}
-                          title={!hasImg ? "No toggleable image" : navImageVisible ? "Hide image" : "Show image"}
-                          style={{ ...btnStyle, border: `1px solid ${navImageVisible ? colors.accent : "#888"}`, background: navImageVisible ? colors.accent : "transparent", color: hasImg ? "#fff" : "#555", opacity: hasImg ? 1 : 0.35, cursor: hasImg ? "pointer" : "default" }}
-                        >▣</button>
-                        {navImageVisible && multiImg && (
-                          <button
-                            onClick={() => cycleNavImage(1)}
-                            disabled={navImageIndex >= item.inlineImages.length - 1}
-                            title="Next image"
-                            style={{ ...btnStyle, border: "1px solid #888", background: "transparent", color: navImageIndex >= item.inlineImages.length - 1 ? "#555" : "#fff", opacity: navImageIndex >= item.inlineImages.length - 1 ? 0.35 : 1 }}
-                          >›</button>
-                        )}
+                          title={!hasImg ? "No image" : navImageVisible ? "Hide image" : "Show image"}
+                          style={{
+                            ...btnBase,
+                            width: "3rem",
+                            border: `1px solid ${navImageVisible ? colors.accent : "#888"}`,
+                            background: navImageVisible ? colors.accent : "transparent",
+                            color: hasImg ? "#fff" : "#555",
+                            opacity: hasImg ? 1 : 0.35,
+                            cursor: hasImg ? "pointer" : "default",
+                          }}
+                        >
+                          ▣
+                        </button>
                       </div>
-                    );
-                  })()}
-                </div>
-                {/* Preview iframe */}
-                <div style={{ width: previewW, height: Math.round(previewW * 1080 / 1920), overflow: "hidden", background: "#000" }}>
-                  <iframe
-                    src={`${window.location.origin}?display&hostId=${hostId}&hostName=${encodeURIComponent(hostName)}&viewer=1&preview=1`}
-                    title="Display preview"
+                    </div>
+                  );
+                })()}
+                {/* Preview + grid sub-row */}
+                <div style={{ display: "flex", flexDirection: gridOnRight ? "row" : "row-reverse", flexShrink: 0 }}>
+                  {/* Preview iframe */}
+                  <div
                     style={{
-                      width: 1920,
-                      height: 1080,
-                      border: "none",
-                      transformOrigin: "top left",
-                      transform: `scale(${previewW / 1920})`,
-                      display: "block",
-                      pointerEvents: "none",
+                      width: previewW,
+                      height: previewH,
+                      overflow: "hidden",
+                      background: "#000",
+                      flexShrink: 0,
                     }}
+                  >
+                    <iframe
+                      ref={previewIframeRef}
+                      title="Display preview"
+                      style={{
+                        width: 1920,
+                        height: 1080,
+                        border: "none",
+                        transformOrigin: "top left",
+                        transform: `scale(${previewW / 1920})`,
+                        display: "block",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  </div>
+
+                  {/* Grid — fills all space to the right of preview */}
+                  {navGrid.length > 0 && (
+                    <div style={{
+                      flex: 1,
+                      minWidth: 0,
+                      height: previewH,
+                      background: colors.dark,
+                      borderLeft: gridOnRight ? `1px solid rgba(255,255,255,0.1)` : "none",
+                      borderRight: !gridOnRight ? `1px solid rgba(255,255,255,0.1)` : "none",
+                      display: "flex",
+                      flexDirection: "column",
+                      overflow: "hidden",
+                    }}>
+                      {/* Q/A mode toggle */}
+                      <div style={{ display: "flex", gap: ".25rem", padding: ".3rem .5rem", flexShrink: 0, borderBottom: `1px solid rgba(255,255,255,0.08)` }}>
+                        {[
+                          { label: "Questions", isActive: !navIsAnswerMode },
+                          { label: "Answers", isActive: navIsAnswerMode },
+                        ].map(({ label, isActive }) => (
+                          <button
+                            key={label}
+                            onClick={isActive ? undefined : toggleNavMode}
+                            disabled={navActiveList.length === 0 || isActive}
+                            style={{
+                              flex: 1,
+                              fontSize: ".88rem",
+                              fontFamily: tokens.font.body,
+                              padding: ".2rem .4rem",
+                              borderRadius: ".35rem",
+                              border: `1px solid ${colors.accent}`,
+                              background: isActive ? colors.accent : "transparent",
+                              color: "#fff",
+                              fontWeight: isActive ? 700 : 400,
+                              opacity: navActiveList.length === 0 ? 0.4 : 1,
+                              cursor: isActive ? "default" : "pointer",
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Scrollable grid rows */}
+                      <div style={{ flex: 1, overflowY: "auto", padding: ".3rem .5rem", display: "flex", flexDirection: "column", gap: ".25rem" }}>
+                        {(() => {
+                          let spokenCatCount = 0;
+                          return navGrid.map((row, rowIdx) => {
+                            const catItem = row.catItem;
+                            const isCatActive = navCurrentItem === catItem ||
+                              (navCurrentItem?.type === "carousel" && catItem?.type === "carousel" && navCurrentItem?.categoryName === catItem?.categoryName);
+                            let catLabel;
+                            if (catItem.type === "carousel") {
+                              catLabel = "Visual";
+                            } else if (catItem.isTiebreaker) {
+                              catLabel = "TB";
+                            } else if (catItem.questionType === "audio") {
+                              catLabel = "Audio";
+                            } else {
+                              spokenCatCount++;
+                              catLabel = `Cat ${spokenCatCount}`;
+                            }
+                            const rawName = catItem.categoryName || catLabel;
+                            const plainName = rawName
+                              .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+                              .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+                              .replace(/\*\*([^*]+)\*\*/g, "$1")
+                              .replace(/\*([^*]+)\*/g, "$1")
+                              .replace(/__([^_]+)__/g, "$1")
+                              .replace(/_([^_]+)_/g, "$1")
+                              .replace(/`([^`]+)`/g, "$1")
+                              .replace(/#+\s*/g, "")
+                              .trim();
+                            return (
+                              <div key={rowIdx} style={{ display: "flex", gap: ".25rem", alignItems: "center" }}>
+                                <button
+                                  onClick={() => handleGridCategoryClick(catItem)}
+                                  title={plainName}
+                                  style={{
+                                    fontSize: ".85rem",
+                                    fontFamily: tokens.font.body,
+                                    padding: ".2rem 0",
+                                    borderRadius: ".35rem",
+                                    border: `1px solid ${colors.accent}`,
+                                    background: isCatActive ? colors.accent : "transparent",
+                                    color: "#fff",
+                                    fontWeight: isCatActive ? 700 : 400,
+                                    cursor: "pointer",
+                                    width: "4.5rem",
+                                    flexShrink: 0,
+                                    textAlign: "center",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {catLabel}
+                                </button>
+                                {row.questions.map((q, qIdx) => {
+                                  const isQActive = navCurrentItem?.type === "question" && navCurrentItem.showQuestionId === q.showQuestionId;
+                                  const stageLabel = isQActive && navIsAnswerMode
+                                    ? (navAnswerStage === 0 ? "" : navAnswerStage === 1 ? "·A" : "·S")
+                                    : "";
+                                  return (
+                                    <button
+                                      key={q.showQuestionId || qIdx}
+                                      onClick={() => handleGridQuestionClick(q)}
+                                      title={q.questionText || `Q${q.questionNumber}`}
+                                      style={{
+                                        fontSize: ".85rem",
+                                        fontFamily: tokens.font.body,
+                                        padding: ".2rem .4rem",
+                                        borderRadius: ".35rem",
+                                        border: "1px solid #888",
+                                        background: isQActive ? colors.accent : "transparent",
+                                        color: "#fff",
+                                        fontWeight: isQActive ? 700 : 400,
+                                        cursor: "pointer",
+                                        minWidth: "2rem",
+                                        textAlign: "center",
+                                      }}
+                                    >
+                                      {q.questionNumber}{stageLabel}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </div>{/* end preview+grid sub-row */}
+
+                {/* Remote audio status — shown when another host is playing audio */}
+                {remoteAudioStatus?.playing && (
+                  <div style={{ background: "#1a2a1a", borderTop: "1px solid #2a4a2a", padding: ".25rem .6rem", fontSize: ".75rem", color: "#7fc97f", fontFamily: tokens.font.body, fontStyle: "italic", width: previewW, flexShrink: 0 }}>
+                    {remoteAudioStatus.hostName} is playing audio
+                  </div>
+                )}
+
+                {/* Context panel — always rendered so preview position doesn't jump */}
+                {(() => {
+                  const enrichedItem = contextPanelItem;
+                  const hasAudio = currentNavAudio.length > 0;
+                  const audioObj = currentNavAudio[navAudioIndex] || currentNavAudio[0];
+                  const isCurrentAudio = hasAudio && !!audioObj && sharedAudioUrl === audioObj.url;
+
+                  let categoryNumber = null, totalCategories = 0;
+                  if (enrichedItem?.type === "category") {
+                    const catItems = navQuestionsMode.filter(i => i.type === "category" && !i.isTiebreaker);
+                    totalCategories = catItems.length;
+                    const catIdx = catItems.indexOf(enrichedItem);
+                    if (catIdx !== -1) categoryNumber = catIdx + 1;
+                  }
+
+                  const hasQuestionNotes = !!(enrichedItem?.questionNotes?.trim());
+                  const hasPronunciation = !!(enrichedItem?.pronunciationGuide?.trim());
+                  const hasAnswerNotes = !!(enrichedItem?.answerNotes?.trim());
+                  const isTbStep = enrichedItem?.type === "results-tb-question" || enrichedItem?.type === "results-tb-answer";
+
+                  // Solo: exactly one team answered correctly
+                  let soloTeamName = null;
+                  if (enrichedItem?.type === "question" && enrichedItem.showQuestionId) {
+                    const sqid = enrichedItem.showQuestionId;
+                    const grid = composedCachedState?.grid || {};
+                    const teams = composedCachedState?.teams || [];
+                    const correctTeams = teams.filter(t => grid[t.showTeamId]?.[sqid]?.isCorrect === true);
+                    if (correctTeams.length === 1) soloTeamName = correctTeams[0].teamName || correctTeams[0].name || null;
+                  }
+                  const tbTeamsAndGuesses = isTbStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
+
+                  // Next place info: find the next results-place-pts or results-place-reveal step after current
+                  const isResultsPlaceStep = enrichedItem?.type === "results-place-pts" || enrichedItem?.type === "results-place-reveal";
+                  let nextPlaceInfo = null;
+                  if (isResultsPlaceStep) {
+                    for (let i = navIndex + 1; i < navAnswersModeList.length; i++) {
+                      const s = navAnswersModeList[i];
+                      if (s.type === "results-place-pts" || s.type === "results-place-reveal") {
+                        nextPlaceInfo = s;
+                        break;
+                      }
+                    }
+                  }
+
+                  const hasContent = (hasQuestionNotes && !navIsAnswerMode) || hasPronunciation || (hasAnswerNotes && navIsAnswerMode) || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
+
+                  const formatTime = (s) => {
+                    if (!s || !isFinite(s)) return "--:--";
+                    const m = Math.floor(s / 60);
+                    const sec = Math.floor(s % 60);
+                    return `${m}:${sec.toString().padStart(2, "0")}`;
+                  };
+
+                  const labelStyle = {
+                    fontSize: ".72rem",
+                    fontWeight: 700,
+                    letterSpacing: ".05em",
+                    textTransform: "uppercase",
+                    color: colors.accent,
+                    fontFamily: tokens.font.body,
+                    flexShrink: 0,
+                    lineHeight: 1.5,
+                    paddingTop: "1px",
+                    width: "3.8rem",
+                    textAlign: "right",
+                  };
+                  const textStyle = {
+                    fontSize: "1rem",
+                    color: "#ddd",
+                    fontFamily: tokens.font.body,
+                    lineHeight: 1.45,
+                  };
+                  const rowStyle = { display: "flex", gap: ".5rem", alignItems: "flex-start" };
+
+                  return (
+                    <div style={{
+                      background: "#182030",
+                      borderTop: "1px solid #2a3a4a",
+                      padding: ".4rem .6rem",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: ".3rem",
+                      minHeight: "2.4rem",
+                      justifyContent: hasContent ? "flex-start" : "center",
+                      width: previewW,
+                      flexShrink: 0,
+                    }}>
+                      {!hasContent && (
+                        <div style={{ ...textStyle, color: "#2e4050", textAlign: "center", fontSize: ".78rem", fontStyle: "italic" }}>
+                          no context
+                        </div>
+                      )}
+
+                      {categoryNumber !== null && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Cat</span>
+                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
+                            {categoryNumber} of {totalCategories}
+                          </span>
+                          {enrichedItem?.superSecret && (
+                            <span style={{ fontSize: ".7rem", color: colors.accent, fontWeight: 700, fontStyle: "italic", letterSpacing: ".03em", alignSelf: "center" }}>
+                              Super Secret
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {isResultsPlaceStep && enrichedItem && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Now</span>
+                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
+                            {enrichedItem.place} · {enrichedItem.points} {enrichedItem.points === 1 ? "pt" : "pts"}
+                          </span>
+                        </div>
+                      )}
+                      {nextPlaceInfo && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Next</span>
+                          <span style={{ ...textStyle, color: colors.accent }}>
+                            {nextPlaceInfo.place} · {nextPlaceInfo.points} pts
+                            {enrichedItem?.points != null ? ` (+${nextPlaceInfo.points - enrichedItem.points})` : ""}
+                          </span>
+                        </div>
+                      )}
+
+                      {soloTeamName && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Solo</span>
+                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>{soloTeamName}</span>
+                        </div>
+                      )}
+
+                      {enrichedItem?.type === "category" && enrichedItem?.superSecret && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>🔎</span>
+                          <span style={{ ...textStyle, color: "#ddd" }}>
+                            <strong style={{ color: colors.accent }}>This is the Super Secret category of the week!</strong>{" "}
+                            If you follow us on Facebook, you'll see a post at the start of each week letting you know where around central Minnesota you can find us that week. That post also tells you the super secret category for the week, so that you can study up before the contest to have a leg up on the competition!
+                          </span>
+                        </div>
+                      )}
+
+                      {hasQuestionNotes && !navIsAnswerMode && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Notes</span>
+                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.questionNotes) }} />
+                        </div>
+                      )}
+
+                      {hasPronunciation && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Pron.</span>
+                          <span style={{ ...textStyle, fontStyle: "italic" }} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.pronunciationGuide) }} />
+                        </div>
+                      )}
+
+                      {hasAnswerNotes && navIsAnswerMode && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Ans. notes</span>
+                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.answerNotes) }} />
+                        </div>
+                      )}
+
+                      {isTbStep && tbTeamsAndGuesses.length > 0 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
+                          <div style={rowStyle}>
+                            <span style={labelStyle}>TB</span>
+                            <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
+                              {enrichedItem.tbQuestion || ""}
+                            </span>
+                          </div>
+                          {enrichedItem.tbAnswer && (
+                            <div style={rowStyle}>
+                              <span style={labelStyle}>Ans.</span>
+                              <span style={{ ...textStyle, color: colors.accent }}>{enrichedItem.tbAnswer}</span>
+                            </div>
+                          )}
+                          {tbTeamsAndGuesses.map((tg, i) => (
+                            <div key={i} style={{ ...rowStyle, paddingLeft: "4.3rem" }}>
+                              <span style={{ ...textStyle, color: "#aaa", flex: 1 }}>{tg.teamName}</span>
+                              <span style={{ ...textStyle, color: "#fff", flexShrink: 0, marginLeft: ".5rem" }}>
+                                {tg.guess !== null && tg.guess !== undefined ? `guessed ${tg.guess}` : "no guess"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {hasAudio && audioObj && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: ".25rem" }}>
+                          <div style={{ display: "flex", gap: ".5rem", alignItems: "center" }}>
+                            <span style={labelStyle}>Audio</span>
+                            <span style={{ ...textStyle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {audioObj.filename || "audio file"}
+                            </span>
+                            <span style={{ ...textStyle, color: "#888", flexShrink: 0, fontSize: ".78rem" }}>
+                              {isCurrentAudio && audioCurrentTime > 0
+                                ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}`
+                                : formatTime(audioDuration)}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              height: "5px",
+                              background: "#2a3a4a",
+                              borderRadius: "3px",
+                              cursor: isCurrentAudio && audioDuration ? "pointer" : "default",
+                              overflow: "hidden",
+                            }}
+                            onClick={(e) => {
+                              if (!sharedAudioRef.current || !audioDuration) return;
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                              sharedAudioRef.current.currentTime = ratio * audioDuration;
+                            }}
+                          >
+                            <div style={{
+                              height: "100%",
+                              width: isCurrentAudio && audioDuration
+                                ? `${Math.min(100, (audioCurrentTime / audioDuration) * 100)}%`
+                                : "0%",
+                              background: colors.accent,
+                              borderRadius: "3px",
+                            }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>{/* end body column */}
+      </div>
+
+      {/* Question Edit Modal */}
+      {stripEditing && navCurrentItem?.type === "question" && (() => {
+        const sqid = navCurrentItem.showQuestionId;
+        const saveEdits = () => {
+          editQuestionField(sqid, "question", stripEditDraft.question.trim());
+          editQuestionField(sqid, "notes", stripEditDraft.notes.trim());
+          editQuestionField(sqid, "pronunciationGuide", stripEditDraft.pronunciationGuide.trim());
+          editQuestionField(sqid, "answer", stripEditDraft.answer.trim());
+          editQuestionField(sqid, "answerNotes", stripEditDraft.answerNotes.trim());
+          setStripEditing(false);
+        };
+        const fieldStyle = {
+          width: "100%",
+          boxSizing: "border-box",
+          background: "#f7f7f7",
+          border: `1px solid ${colors.gray?.border || "#ddd"}`,
+          borderRadius: ".3rem",
+          fontFamily: tokens.font.body,
+          fontSize: ".9rem",
+          padding: ".35rem .5rem",
+          color: colors.dark,
+          resize: "vertical",
+        };
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
+            onClick={() => setStripEditing(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: "#fff", borderRadius: "10px", padding: "1.25rem 1.5rem", width: "min(520px, 100%)", display: "flex", flexDirection: "column", gap: ".75rem", boxShadow: "0 8px 32px rgba(0,0,0,0.25)" }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: ".25rem" }}>
+                <span style={{ fontWeight: 700, fontSize: "1rem", fontFamily: tokens.font.body, color: colors.dark }}>
+                  Edit Q{navCurrentItem.questionNumber} — {navCurrentItem.categoryName}
+                </span>
+                <button onClick={() => setStripEditing(false)} style={{ background: "none", border: "none", fontSize: "1.1rem", cursor: "pointer", color: "#888", lineHeight: 1 }}>✕</button>
+              </div>
+              {[
+                { key: "question", label: "Question text", rows: 3 },
+                { key: "notes", label: "Question notes", rows: 2 },
+                { key: "pronunciationGuide", label: "Pronunciation guide", rows: 1 },
+                { key: "answer", label: "Answer", rows: 1 },
+                { key: "answerNotes", label: "Answer notes", rows: 2 },
+              ].map(({ key, label, rows }) => (
+                <div key={key} style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
+                  <label style={{ fontSize: ".72rem", fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: colors.accent, fontFamily: tokens.font.body }}>{label}</label>
+                  <textarea
+                    value={stripEditDraft[key] || ""}
+                    onChange={(e) => setStripEditDraft(d => ({ ...d, [key]: e.target.value }))}
+                    rows={rows}
+                    style={fieldStyle}
+                    autoFocus={key === "question"}
                   />
                 </div>
+              ))}
+              <div style={{ display: "flex", gap: ".5rem", justifyContent: "flex-end", marginTop: ".25rem" }}>
+                <button onClick={() => setStripEditing(false)} style={{ fontFamily: tokens.font.body, fontSize: ".85rem", padding: ".4rem .9rem", borderRadius: ".35rem", border: `1px solid ${colors.gray?.border || "#ccc"}`, background: "transparent", cursor: "pointer", color: colors.dark }}>Cancel</button>
+                <button onClick={saveEdits} style={{ fontFamily: tokens.font.body, fontSize: ".85rem", padding: ".4rem .9rem", borderRadius: ".35rem", border: `1px solid ${colors.accent}`, background: colors.accent, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
               </div>
-            </Draggable>
-          )}
-        </div>
-      )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Answer Key Modal (app-level) */}
       {showAnswerKey && (
@@ -2865,376 +4164,185 @@ export default function App() {
         </div>
       )}
 
-      {/* Main content area */}
-      <div
-        style={{
-          fontFamily: tokens.font.display,
-          padding: `${tokens.spacing.md} ${tokens.spacing.xl} ${tokens.spacing.xl} ${tokens.spacing.xl}`,
-          backgroundColor: colors.bg,
-          marginTop: "80px", // Offset for fixed header
-          marginLeft: "50px", // Offset for sidebar
-        }}
+      {/* ── Floating Questions panel ── */}
+      {questionsOpen && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 500 }}>
+          <Draggable nodeRef={questionsRef} position={questionsPos} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setQuestionsPos(p); localStorage.setItem("tv_questionsPos", JSON.stringify(p)); }}>
+            <div ref={questionsRef} style={{ position: "absolute", background: "#fff", borderRadius: "8px", boxShadow: "0 4px 24px rgba(0,0,0,0.2)", width: "min(96vw, 900px)", maxHeight: "85vh", display: "flex", flexDirection: "column", pointerEvents: "auto" }}>
+              <div style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: `1px solid ${colors.gray?.border || "#e0e0e0"}`, cursor: "grab", background: colors.dark, borderRadius: "8px 8px 0 0", userSelect: "none" }}>
+                <span style={{ color: "#fff", fontWeight: 700, fontSize: ".9rem", flex: 1, fontFamily: tokens.font.body }}>Questions &amp; Answers</span>
+                <button onClick={() => setQuestionsOpen(false)} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "1.1rem", lineHeight: 1, padding: "0 .25rem" }}>✕</button>
+              </div>
+              <div style={{ overflowY: "auto", flex: 1 }}>
+                <QuestionsMode
+                  showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
+                  selectedRoundId={selectedRoundId}
+                  showDetails={showDetails}
+                  setshowDetails={setshowDetails}
+                  questionRefs={questionRefs}
+                  visibleImages={visibleImages}
+                  setVisibleImages={setVisibleImages}
+                  currentImageIndex={currentImageIndex}
+                  setCurrentImageIndex={setCurrentImageIndex}
+                  visibleCategoryImages={visibleCategoryImages}
+                  setVisibleCategoryImages={setVisibleCategoryImages}
+                  getClosestQuestionKey={getClosestQuestionKey}
+                  numberToLetter={numberToLetter}
+                  scoringMode={scoringMode}
+                  pubPoints={pubPoints}
+                  poolPerQuestion={poolPerQuestion}
+                  poolContribution={poolContribution}
+                  prizes={composedCachedState?.prizes ?? ""}
+                  cachedState={composedCachedState}
+                  hostInfo={composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo}
+                  setPrizes={(val) => patchShared({ prizes: String(val || "") })}
+                  setHostInfo={(val) => patchShared({ hostInfo: val })}
+                  editQuestionField={editQuestionField}
+                  addTiebreaker={addTiebreaker}
+                  refreshBundle={refreshBundle}
+                  sharedAudioUrl={sharedAudioUrl}
+                  sharedAudioPlaying={sharedAudioPlaying}
+                  sharedAudioRef={sharedAudioRef}
+                  onPlayAudio={playAudio}
+                  onToggleAudio={toggleAudio}
+                />
+              </div>
+            </div>
+          </Draggable>
+        </div>
+      )}
+
+      {/* ── Floating Scores panel ── */}
+      {scoringOpen && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 500 }}>
+          <Draggable nodeRef={scoringRef} position={scoringPos} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setScoringPos(p); localStorage.setItem("tv_scoringPos", JSON.stringify(p)); }}>
+            <div ref={scoringRef} style={{ position: "absolute", background: "#fff", borderRadius: "8px", boxShadow: "0 4px 24px rgba(0,0,0,0.2)", width: "min(96vw, 1100px)", maxHeight: "85vh", display: "flex", flexDirection: "column", pointerEvents: "auto" }}>
+              <div style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: `1px solid ${colors.gray?.border || "#e0e0e0"}`, cursor: "grab", background: colors.dark, borderRadius: "8px 8px 0 0", userSelect: "none" }}>
+                <span style={{ color: "#fff", fontWeight: 700, fontSize: ".9rem", flex: 1, fontFamily: tokens.font.body }}>Scores</span>
+                <button onClick={() => setScoringOpen(false)} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "1.1rem", lineHeight: 1, padding: "0 .25rem" }}>✕</button>
+              </div>
+              <div style={{ overflowY: "auto", flex: 1 }}>
+                <ScoringMode
+                  showBundle={showBundle ? { ...showBundle, rounds: (showBundle.rounds || []).filter((r) => Number(r.round) === Number(selectedRoundId)) } : { rounds: [], teams: [] }}
+                  selectedShowId={selectedShowId}
+                  selectedRoundId={selectedRoundId}
+                  preloadedTeams={showBundle?.teams ?? []}
+                  cachedState={composedCachedState}
+                  onChangeState={(payload) => {
+                    setScoringCache((prev) => {
+                      const { teams = [], entryOrder = [], grid = {} } = payload;
+                      const prevShow = prev[selectedShowId] || DEFAULT_SHOW_STATE;
+                      const nextShow = { ...prevShow, teams, entryOrder, grid };
+                      const next = { ...prev, [selectedShowId]: nextShow };
+                      saveDebounced("all", () => {
+                        fetch("/.netlify/functions/supaSaveScoring", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            showId: selectedShowId,
+                            roundId: "all",
+                            payload: {
+                              teams: nextShow.teams ?? [],
+                              entryOrder: nextShow.entryOrder ?? [],
+                              prizes: nextShow.prizes ?? "",
+                              scoringMode: nextShow.scoringMode ?? "pub",
+                              pubPoints: nextShow.pubPoints ?? 10,
+                              poolPerQuestion: nextShow.poolPerQuestion ?? 500,
+                              poolContribution: nextShow.poolContribution ?? 10,
+                              hostInfo: nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
+                              tiebreakers: nextShow.tiebreakers ?? {},
+                              grid: nextShow.grid ?? {},
+                            },
+                          }),
+                        }).catch(() => {});
+                      });
+                      try { localStorage.setItem("trivia.scoring.backup", JSON.stringify(next)); } catch {}
+                      return next;
+                    });
+                  }}
+                  scoringMode={scoringMode}
+                  setScoringMode={setScoringMode}
+                  pubPoints={pubPoints}
+                  setPubPoints={setPubPoints}
+                  poolPerQuestion={poolPerQuestion}
+                  setPoolPerQuestion={setPoolPerQuestion}
+                  poolContribution={poolContribution}
+                  setPoolContribution={setPoolContribution}
+                />
+              </div>
+            </div>
+          </Draggable>
+        </div>
+      )}
+
+      {/* ── Floating Results panel ── */}
+      {resultsOpen && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 500 }}>
+          <Draggable nodeRef={resultsRef} position={resultsPos} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setResultsPos(p); localStorage.setItem("tv_resultsPos", JSON.stringify(p)); }}>
+            <div ref={resultsRef} style={{ position: "absolute", background: "#fff", borderRadius: "8px", boxShadow: "0 4px 24px rgba(0,0,0,0.2)", width: "min(96vw, 1100px)", maxHeight: "85vh", display: "flex", flexDirection: "column", pointerEvents: "auto" }}>
+              <div style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: `1px solid ${colors.gray?.border || "#e0e0e0"}`, cursor: "grab", background: colors.dark, borderRadius: "8px 8px 0 0", userSelect: "none" }}>
+                <span style={{ color: "#fff", fontWeight: 700, fontSize: ".9rem", flex: 1, fontFamily: tokens.font.body }}>Results</span>
+                <button onClick={() => setResultsOpen(false)} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "1.1rem", lineHeight: 1, padding: "0 .25rem" }}>✕</button>
+              </div>
+              <div style={{ overflowY: "auto", flex: 1 }}>
+                <ResultsMode
+                  showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
+                  selectedShowId={selectedShowId}
+                  selectedRoundId={selectedRoundId}
+                  cachedState={composedCachedState}
+                  cachedByRound={scoringCache[selectedShowId] ?? {}}
+                  scoringMode={scoringMode}
+                  setScoringMode={setScoringMode}
+                  pubPoints={pubPoints}
+                  setPubPoints={setPubPoints}
+                  poolPerQuestion={poolPerQuestion}
+                  setPoolPerQuestion={setPoolPerQuestion}
+                  poolContribution={poolContribution}
+                  factionBonus={factionBonus}
+                  prizes={composedCachedState?.prizes ?? ""}
+                  setPrizes={(val) => patchShared({ prizes: String(val || "") })}
+                  questionEdits={questionEdits[selectedShowId] ?? {}}
+                  sendToDisplay={sendToDisplayWithNavSync}
+                  displayControlsOpen={true}
+                />
+              </div>
+            </div>
+          </Draggable>
+        </div>
+      )}
+
+      {/* ── Floating Script panel ── */}
+      {scriptPanelOpen && scriptSections.length > 0 && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 600 }}>
+          <Draggable nodeRef={scriptPanelRef} position={scriptPanelPosition} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setScriptPanelPosition(p); localStorage.setItem("scriptPanelPosition", JSON.stringify(p)); }}>
+            <div ref={scriptPanelRef} style={{ position: "absolute", background: colors.dark, borderRadius: "8px", boxShadow: "0 4px 24px rgba(0,0,0,0.35)", width: "min(96vw, 520px)", maxHeight: "75vh", display: "flex", flexDirection: "column", pointerEvents: "auto", border: `1px solid rgba(255,255,255,0.12)` }}>
+              <div style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: "1px solid rgba(255,255,255,0.1)", cursor: "grab", userSelect: "none" }}>
+                <span style={{ color: "#fff", fontWeight: 700, fontSize: ".9rem", flex: 1, fontFamily: tokens.font.body }}>💬 Host Script</span>
+                <button onClick={() => setScriptPanelOpen(false)} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "1.1rem", lineHeight: 1, padding: "0 .25rem" }}>✕</button>
+              </div>
+              <div style={{ overflowY: "auto", flex: 1, padding: ".75rem 1rem" }}>
+                {scriptSections.map((section, idx) => {
+                  const isActive = activeRulesIndex !== null && section.ruleIndex === activeRulesIndex;
+                  return (
+                    <div key={idx} style={{ marginBottom: ".75rem", padding: ".4rem .6rem", borderRadius: ".35rem", background: isActive ? "rgba(255,140,0,0.18)" : "transparent", border: isActive ? `1px solid ${colors.accent}` : "1px solid transparent", transition: "background 0.2s" }}>
+                      <p style={{ margin: 0, fontSize: ".88rem", fontFamily: tokens.font.body, color: "#ddd", whiteSpace: "pre-wrap", lineHeight: 1.55 }}>{section.text}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </Draggable>
+        </div>
+      )}
+
+      {/* ── Older Shows Modal (app-level) ── */}
+      <ui.Modal
+        isOpen={olderShowsOpen}
+        onClose={() => setOlderShowsOpen(false)}
+        title="Browse Older Shows"
+        subtitle="Select a show from the past 50 shows"
+        style={{ width: "min(92vw, 600px)", maxHeight: "80vh" }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "left",
-            gap: tokens.spacing.sm,
-            marginBottom: tokens.spacing.sm,
-          }}
-        >
-          <ButtonTab
-            active={activeMode === "show"}
-            onClick={() => setActiveMode("show")}
-          >
-            Questions & answers
-          </ButtonTab>
-
-          <ButtonTab
-            active={activeMode === "score"}
-            onClick={() => setActiveMode("score")}
-          >
-            Scores
-          </ButtonTab>
-
-          <ButtonTab
-            active={activeMode === "results"}
-            onClick={() => setActiveMode("results")}
-          >
-            Results
-          </ButtonTab>
-        </div>
-        <div
-          style={{
-            fontSize: ".9rem",
-            opacity: 0.85,
-            display: "flex",
-            alignItems: "center",
-            gap: "0.35rem",
-            marginLeft: "0.25rem",
-          }}
-        >
-          <span
-            style={{
-              display: "inline-block",
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              backgroundColor:
-                rtStatus === "SUBSCRIBED"
-                  ? "#22c55e"
-                  : rtStatus === "SUBSCRIBING"
-                    ? "#eab308"
-                    : "#ef4444",
-            }}
-          />
-          Multi-host sync:{" "}
-          <strong>
-            {rtStatus === "SUBSCRIBED"
-              ? "Active"
-              : rtStatus === "SUBSCRIBING"
-                ? "Connecting..."
-                : "Offline"}
-          </strong>
-        </div>
-
-        <div>
-          <label
-            style={{
-              fontSize: "1.25rem",
-              color: colors.dark,
-              marginRight: tokens.spacing.md,
-            }}
-          >
-            Select Show:
-            <select
-              value={selectedShowId}
-              onChange={(e) => {
-                const newId = e.target.value;
-
-                // Special case: "View older shows" option
-                if (newId === "__OLDER__") {
-                  setOlderShowsOpen(true);
-                  // Reset select to prevent it from staying on this option
-                  setTimeout(() => {
-                    e.target.value = selectedShowId || "";
-                  }, 0);
-                  return;
-                }
-
-                // Special case: "Open archived show from file" option
-                if (newId === "__ARCHIVED__") {
-                  // Show the drag-and-drop modal
-                  setShowDropZone(true);
-
-                  // Reset select after triggering
-                  setTimeout(() => {
-                    e.target.value = selectedShowId || "";
-                  }, 0);
-
-                  return;
-                }
-
-                if (!selectedShowId || selectedShowId === newId) {
-                  setSelectedShowId(newId);
-                  setSelectedRoundId("");
-                  return;
-                }
-
-                // Clear cache for the OLD show to prevent data leakage
-                const oldShowId = selectedShowId;
-                setScoringCache((prev) => {
-                  const next = { ...prev };
-                  // Remove the old show's data completely
-                  delete next[oldShowId];
-                  // Update localStorage immediately
-                  localStorage.setItem(
-                    "trivia.scoring.backup",
-                    JSON.stringify(next),
-                  );
-                  return next;
-                });
-
-                // Clear in-memory, per-show UI bits
-                setSelectedRoundId("");
-                setVisibleImages({});
-                setVisibleCategoryImages({});
-                setCurrentImageIndex({});
-
-                setSelectedShowId(newId);
-              }}
-              style={{
-                fontSize: "1.25rem",
-                fontFamily: tokens.font.body,
-                marginLeft: tokens.spacing.sm,
-                verticalAlign: "middle",
-              }}
-            >
-              <option value="">-- Select a Show --</option>
-              {shows.map((s) => (
-                <option
-                  key={s.id}
-                  value={s.id}
-                  style={{ fontFamily: tokens.font.body }}
-                >
-                  {s.Show?.Show}
-                </option>
-              ))}
-              <option
-                value="__OLDER__"
-                style={{ fontFamily: tokens.font.body, fontStyle: "italic" }}
-              >
-                📚 View older shows...
-              </option>
-              <option
-                value="__ARCHIVED__"
-                style={{ fontFamily: tokens.font.body, fontStyle: "italic" }}
-              >
-                📂 Open archived show from file...
-              </option>
-            </select>
-          </label>
-        </div>
-
-        {roundNumbers.length > 1 && (
-          <div>
-            <label
-              style={{
-                fontSize: "1.25rem",
-                color: colors.dark,
-                marginRight: tokens.spacing.md,
-              }}
-            >
-              Select Round:
-              <select
-                value={selectedRoundId}
-                onChange={(e) => setSelectedRoundId(e.target.value)}
-                style={{
-                  fontSize: "1.25rem",
-                  fontFamily: tokens.font.body,
-                  marginLeft: tokens.spacing.sm,
-                  verticalAlign: "middle",
-                }}
-              >
-                {roundNumbers.map((n) => (
-                  <option key={n} value={String(n)}>
-                    {`Round ${n}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        )}
-
-        {bundleLoading && (
-          <div style={{ padding: tokens.spacing.md }}>Loading show…</div>
-        )}
-        {bundleError && (
-          <div style={{ padding: tokens.spacing.md, color: colors.error }}>
-            Error loading show: {String(bundleError)}
-          </div>
-        )}
-
-        {activeMode === "show" && (
-          <QuestionsMode
-            showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
-            selectedRoundId={selectedRoundId}
-            showDetails={showDetails}
-            setshowDetails={setshowDetails}
-            questionRefs={questionRefs}
-            visibleImages={visibleImages}
-            setVisibleImages={setVisibleImages}
-            currentImageIndex={currentImageIndex}
-            setCurrentImageIndex={setCurrentImageIndex}
-            visibleCategoryImages={visibleCategoryImages}
-            setVisibleCategoryImages={setVisibleCategoryImages}
-            getClosestQuestionKey={getClosestQuestionKey}
-            numberToLetter={numberToLetter}
-            scoringMode={scoringMode}
-            pubPoints={pubPoints}
-            poolPerQuestion={poolPerQuestion}
-            poolContribution={poolContribution}
-            prizes={composedCachedState?.prizes ?? ""}
-            cachedState={composedCachedState}
-            hostInfo={
-              composedCachedState?.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo
-            }
-            setPrizes={(val) => patchShared({ prizes: String(val || "") })}
-            setHostInfo={(val) => patchShared({ hostInfo: val })}
-            editQuestionField={editQuestionField}
-            displayControlsOpen={displayControlsOpen}
-            addTiebreaker={addTiebreaker}
-            sendToDisplay={sendToDisplayWithNavSync}
-            pushDisplayQuestion={pushDisplayQuestion}
-            refreshBundle={refreshBundle}
-            carouselActive={carouselActive}
-            setCarouselActive={setCarouselActive}
-            sharedAudioUrl={sharedAudioUrl}
-            sharedAudioPlaying={sharedAudioPlaying}
-            sharedAudioRef={sharedAudioRef}
-            onPlayAudio={playAudio}
-            onToggleAudio={toggleAudio}
-          />
-        )}
-
-        {activeMode === "score" && (
-          <ScoringMode
-            showBundle={
-              showBundle
-                ? {
-                    ...showBundle,
-                    rounds: (showBundle.rounds || []).filter(
-                      (r) => Number(r.round) === Number(selectedRoundId),
-                    ),
-                  }
-                : { rounds: [], teams: [] }
-            }
-            selectedShowId={selectedShowId}
-            selectedRoundId={selectedRoundId}
-            preloadedTeams={showBundle?.teams ?? []}
-            cachedState={composedCachedState}
-            onChangeState={(payload) => {
-              setScoringCache((prev) => {
-                const { teams = [], entryOrder = [], grid = {} } = payload;
-                const prevShow = prev[selectedShowId] || DEFAULT_SHOW_STATE;
-
-                const nextShow = {
-                  ...prevShow,
-                  teams,
-                  entryOrder,
-                  grid,
-                };
-
-                const next = {
-                  ...prev,
-                  [selectedShowId]: nextShow,
-                };
-
-                // Persist to Supabase with round_id="all" - save COMPLETE show state
-                saveDebounced("all", () => {
-                  fetch("/.netlify/functions/supaSaveScoring", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      showId: selectedShowId,
-                      roundId: "all",
-                      payload: {
-                        teams: nextShow.teams ?? [],
-                        entryOrder: nextShow.entryOrder ?? [],
-                        prizes: nextShow.prizes ?? "",
-                        scoringMode: nextShow.scoringMode ?? "pub",
-                        pubPoints: nextShow.pubPoints ?? 10,
-                        poolPerQuestion: nextShow.poolPerQuestion ?? 500,
-                        poolContribution: nextShow.poolContribution ?? 10,
-                        hostInfo:
-                          nextShow.hostInfo ?? DEFAULT_SHOW_STATE.hostInfo,
-                        tiebreakers: nextShow.tiebreakers ?? {},
-                        grid: nextShow.grid ?? {},
-                      },
-                    }),
-                  }).catch(() => {});
-                });
-
-                // keep your localStorage backup
-                try {
-                  localStorage.setItem(
-                    "trivia.scoring.backup",
-                    JSON.stringify(next),
-                  );
-                } catch {}
-
-                return next;
-              });
-            }}
-            scoringMode={scoringMode}
-            setScoringMode={setScoringMode}
-            pubPoints={pubPoints}
-            setPubPoints={setPubPoints}
-            poolPerQuestion={poolPerQuestion}
-            setPoolPerQuestion={setPoolPerQuestion}
-            poolContribution={poolContribution}
-            setPoolContribution={setPoolContribution}
-          />
-        )}
-
-        {activeMode === "results" && (
-          <ResultsMode
-            showBundle={showBundleWithEdits || { rounds: [], teams: [] }}
-            selectedShowId={selectedShowId}
-            selectedRoundId={selectedRoundId}
-            cachedState={composedCachedState}
-            cachedByRound={scoringCache[selectedShowId] ?? {}}
-            scoringMode={scoringMode}
-            setScoringMode={setScoringMode}
-            pubPoints={pubPoints}
-            setPubPoints={setPubPoints}
-            poolPerQuestion={poolPerQuestion}
-            setPoolPerQuestion={setPoolPerQuestion}
-            poolContribution={poolContribution}
-            factionBonus={factionBonus}
-            prizes={composedCachedState?.prizes ?? ""}
-            setPrizes={(val) => patchShared({ prizes: String(val || "") })}
-            questionEdits={questionEdits[selectedShowId] ?? {}}
-            sendToDisplay={sendToDisplayWithNavSync}
-            displayControlsOpen={displayControlsOpen}
-          />
-        )}
-
-        <ButtonPrimary
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          style={{ margin: `${tokens.spacing.xl} auto`, display: "block" }}
-        >
-          ↑ Back to Top
-        </ButtonPrimary>
-
-        {/* Older Shows Modal */}
-        <ui.Modal
-          isOpen={olderShowsOpen}
-          onClose={() => setOlderShowsOpen(false)}
-          title="Browse Older Shows"
-          subtitle="Select a show from the past 50 shows"
-          style={{ width: "min(92vw, 600px)", maxHeight: "80vh" }}
-        >
           {olderShows.length === 0 ? (
             <div style={{ textAlign: "center", padding: tokens.spacing.md }}>
               <Button
@@ -3424,8 +4532,6 @@ export default function App() {
             </Draggable>
           </div>
         )}
-
-      </div>
 
       {/* Hidden file input for importing archived shows */}
       <input
@@ -3676,7 +4782,13 @@ export default function App() {
               <Button onClick={submitPassword}>Go</Button>
             </div>
             {passwordError && (
-              <p style={{ color: "red", fontSize: "0.82rem", marginTop: "0.5rem" }}>
+              <p
+                style={{
+                  color: "red",
+                  fontSize: "0.82rem",
+                  marginTop: "0.5rem",
+                }}
+              >
                 {passwordError}
               </p>
             )}
@@ -3712,10 +4824,23 @@ export default function App() {
 
             {hostSetupHosts.length > 0 && (
               <>
-                <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "#555" }}>
+                <p
+                  style={{
+                    fontSize: "0.85rem",
+                    marginBottom: "0.5rem",
+                    color: "#555",
+                  }}
+                >
                   Select an existing host:
                 </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "1rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.4rem",
+                    marginBottom: "1rem",
+                  }}
+                >
                   {hostSetupHosts.map((h) => (
                     <button
                       key={h.host_id}
@@ -3733,14 +4858,26 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-                <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "#555" }}>
+                <p
+                  style={{
+                    fontSize: "0.85rem",
+                    marginBottom: "0.5rem",
+                    color: "#555",
+                  }}
+                >
                   Or create a new host:
                 </p>
               </>
             )}
 
             {hostSetupHosts.length === 0 && (
-              <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "#555" }}>
+              <p
+                style={{
+                  fontSize: "0.85rem",
+                  marginBottom: "0.5rem",
+                  color: "#555",
+                }}
+              >
                 Enter your name to get started:
               </p>
             )}
@@ -3764,7 +4901,13 @@ export default function App() {
             </div>
 
             {hostSetupError && (
-              <p style={{ color: "red", fontSize: "0.82rem", marginTop: "0.5rem" }}>
+              <p
+                style={{
+                  color: "red",
+                  fontSize: "0.82rem",
+                  marginTop: "0.5rem",
+                }}
+              >
                 {hostSetupError}
               </p>
             )}
@@ -3772,8 +4915,8 @@ export default function App() {
         </div>
       )}
 
-      {/* ── Display Picker Modal ── */}
-      {displayPickerOpen && (
+      {/* ── Venue Picker Modal ── */}
+      {venuePickerOpen && (
         <div
           style={{
             position: "fixed",
@@ -3790,35 +4933,111 @@ export default function App() {
               background: "#fff",
               borderRadius: 10,
               padding: "2rem",
-              width: 360,
+              width: 380,
               boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
             }}
           >
-            <h2 style={{ marginBottom: "1rem", fontSize: "1.1rem" }}>
-              Open which display?
+            <h2 style={{ marginBottom: "1rem", fontSize: "1.1rem", fontFamily: tokens.font.body }}>
+              Where are you hosting tonight?
             </h2>
 
-            <Button
-              onClick={launchOwnDisplay}
-              style={{ width: "100%", marginBottom: "0.5rem" }}
-            >
-              My display ({hostName})
-            </Button>
+            {venuePickerLoading && (
+              <p style={{ color: "#888", fontFamily: tokens.font.body, fontSize: ".9rem" }}>
+                Loading venues…
+              </p>
+            )}
 
-            {activeDisplays
-              .filter((d) => d.hostId !== hostId)
-              .map((d) => (
-                <Button
-                  key={d.hostId}
-                  onClick={() => joinDisplay(d.hostId, d.hostName)}
-                  style={{ width: "100%", marginBottom: "0.5rem" }}
-                >
-                  Join {d.hostName}'s display
-                </Button>
-              ))}
+            {!venuePickerLoading && venuePickerOptions.length === 0 && (
+              <p style={{ color: "#888", fontFamily: tokens.font.body, fontSize: ".9rem" }}>
+                No shows found for today.
+              </p>
+            )}
+
+            {(() => {
+              const activeVenues = [...new Map(activeDisplays.map((d) => [d.venueShowId, d])).values()];
+              if (activeVenues.length === 0) return null;
+              return (
+                <div style={{ marginBottom: "1rem" }}>
+                  <p style={{ fontWeight: 600, fontSize: ".8rem", color: "#888", fontFamily: tokens.font.body, marginBottom: ".4rem", textTransform: "uppercase", letterSpacing: ".04em" }}>
+                    Currently active
+                  </p>
+                  {activeVenues.map((d) => (
+                    <Button
+                      key={d.venueShowId}
+                      onClick={() => selectVenue(d.venueShowId, d.venueName || d.venueShowId)}
+                      style={{
+                        width: "100%",
+                        marginBottom: "0.4rem",
+                        background: venueShowId === d.venueShowId ? colors.accent : undefined,
+                        color: venueShowId === d.venueShowId ? "#fff" : undefined,
+                      }}
+                    >
+                      {d.venueName || d.venueShowId}
+                    </Button>
+                  ))}
+                  {venuePickerOptions.length > 0 && (
+                    <p style={{ fontWeight: 600, fontSize: ".8rem", color: "#888", fontFamily: tokens.font.body, margin: ".8rem 0 .4rem", textTransform: "uppercase", letterSpacing: ".04em" }}>
+                      Tonight's shows
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+
+            {!venuePickerLoading && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const name = venueManualInput.trim();
+                  if (!name) return;
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+                  selectVenue(`custom:${slug}:${todayStr}`, name);
+                  setVenueManualInput("");
+                }}
+                style={{ display: "flex", gap: ".5rem", marginBottom: "1rem" }}
+              >
+                <input
+                  value={venueManualInput}
+                  onChange={(e) => setVenueManualInput(e.target.value)}
+                  placeholder="Or type a venue name…"
+                  style={{
+                    flex: 1,
+                    fontSize: ".9rem",
+                    padding: ".4rem .6rem",
+                    border: `1px solid ${colors.gray?.border || "#ccc"}`,
+                    borderRadius: ".5rem",
+                    fontFamily: tokens.font.body,
+                  }}
+                />
+                <ButtonPrimary type="submit" disabled={!venueManualInput.trim()}>
+                  Go
+                </ButtonPrimary>
+              </form>
+            )}
+
+            {!venuePickerLoading && venuePickerOptions.map((v) => (
+              <Button
+                key={v.venueShowId}
+                onClick={() => selectVenue(v.venueShowId, v.venueName)}
+                style={{
+                  width: "100%",
+                  marginBottom: "0.5rem",
+                  background: venueShowId === v.venueShowId ? colors.accent : undefined,
+                  color: venueShowId === v.venueShowId ? "#fff" : undefined,
+                }}
+              >
+                {v.venueName}
+                {v.showCount > 1 && (
+                  <span style={{ fontSize: ".75em", marginLeft: ".4rem", opacity: 0.7 }}>
+                    ({v.showCount} shows)
+                  </span>
+                )}
+              </Button>
+            ))}
 
             <button
-              onClick={() => setDisplayPickerOpen(false)}
+              onClick={() => setVenuePickerOpen(false)}
               style={{
                 marginTop: "0.5rem",
                 background: "transparent",
@@ -3827,6 +5046,7 @@ export default function App() {
                 cursor: "pointer",
                 fontSize: "0.85rem",
                 width: "100%",
+                fontFamily: tokens.font.body,
               }}
             >
               Cancel

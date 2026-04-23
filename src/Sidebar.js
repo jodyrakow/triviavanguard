@@ -1,20 +1,11 @@
-// Sidebar.js - Collapsible sidebar drawer with hamburger menu
-import React, { useState, useMemo } from "react";
-import { createPortal } from "react-dom";
+// Sidebar.js - Narrow orange strip with Mission Control button + script panel
+import React, { useState, useMemo, useRef } from "react";
+import Draggable from "react-draggable";
 import { tokens, colors as theme } from "./styles/index.js";
 
 export default function Sidebar({
-  children,
-  setShowDetails,
-  displayControlsOpen,
   setDisplayControlsOpen,
-  showTimer,
-  setShowTimer,
-  showAnswerKey,
-  setShowAnswerKey,
-  refreshBundle,
-  getClosestQuestionKey,
-  questionRefs,
+  onOpenVenuePicker,
   showBundle,
   hostInfo,
   prizes,
@@ -22,11 +13,20 @@ export default function Sidebar({
   pubPoints,
   poolPerQuestion,
   poolContribution,
-  sendToDisplay,
+  scriptPanelOpen,
+  setScriptPanelOpen,
+  navIndex,
+  navStarted,
+  navRulesLength,
+  onResetNav,
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  // Script modal state (moved from QuestionsMode)
-  const [scriptOpen, setScriptOpen] = useState(false);
+  const scriptPanelRef = useRef(null);
+  const [scriptPanelPosition, setScriptPanelPosition] = useState(() => {
+    try {
+      const saved = localStorage.getItem("scriptPanelPosition");
+      return saved ? JSON.parse(saved) : { x: 80, y: 80 };
+    } catch { return { x: 80, y: 80 }; }
+  });
 
   // ========== HOST SCRIPT GENERATION (moved from QuestionsMode) ==========
 
@@ -195,11 +195,17 @@ export default function Sidebar({
       }
     }
 
-    // Calculate questions per spoken category (most common size)
-    const questionsPerSpokenCategory =
-      spokenCategorySizes.length > 0
-        ? Math.round(spokenQuestionCount / spokenCategoryCount)
-        : 0;
+    // Calculate questions per spoken category (mode — most common size)
+    const questionsPerSpokenCategory = (() => {
+      if (spokenCategorySizes.length === 0) return 0;
+      const freq = {};
+      let best = spokenCategorySizes[0], bestCount = 0;
+      for (const n of spokenCategorySizes) {
+        freq[n] = (freq[n] || 0) + 1;
+        if (freq[n] > bestCount) { best = n; bestCount = freq[n]; }
+      }
+      return best;
+    })();
 
     // --- Intro ---
     const triviaType = isTipsy ? "tipsy team trivia" : "team trivia";
@@ -348,74 +354,92 @@ export default function Sidebar({
     allRounds,
   ]);
 
+  // Which RULES_ITEMS index is currently highlighted (null if not in rules section)
+  const activeRulesIndex = navStarted && navIndex < navRulesLength ? navIndex : null;
+
+  // Split hostScript into segments for per-rule highlighting
+  // The rules section starts with "\nNow before we get going"
+  // Bullets map: 0→ruleIdx1, 1→ruleIdx2, 2→ruleIdx3, 3+4→ruleIdx4, 5→ruleIdx5, 6→ruleIdx5, closing→ruleIdx6
+  const scriptSections = useMemo(() => {
+    const rulesMarker = "\nNow before we get going";
+    const rulesStart = hostScript.indexOf(rulesMarker);
+    if (rulesStart === -1) return [{ text: hostScript, ruleIndex: null }];
+
+    const preRules = hostScript.slice(0, rulesStart);
+    const rulesBody = hostScript.slice(rulesStart);
+
+    // Find all ● positions
+    const bulletPos = [];
+    let from = 0;
+    while (true) {
+      const pos = rulesBody.indexOf("●", from);
+      if (pos === -1) break;
+      bulletPos.push(pos);
+      from = pos + 1;
+    }
+
+    if (bulletPos.length < 6) return [{ text: preRules, ruleIndex: null }, { text: rulesBody, ruleIndex: null }];
+
+    const seg = (start, end) => rulesBody.slice(start, end);
+
+    // ruleIndex 0 = "Get ready" (intro before first bullet)
+    // ruleIndex 1 = No devices (bullet 0)
+    // ruleIndex 2 = Don't shout (bullet 1)
+    // ruleIndex 3 = Spelling (bullet 2)
+    // ruleIndex 4 = Names (bullets 3+4)
+    // ruleIndex 5 = Our answer + be generous (bullets 5+6)
+    // ruleIndex 6 = Phones away (closing paragraph after last bullet)
+    const sections = [
+      { text: preRules, ruleIndex: null },
+      { text: seg(0, bulletPos[0]), ruleIndex: 0 },
+      { text: seg(bulletPos[0], bulletPos[1]), ruleIndex: 1 },
+      { text: seg(bulletPos[1], bulletPos[2]), ruleIndex: 2 },
+      { text: seg(bulletPos[2], bulletPos[3]), ruleIndex: 3 },
+      { text: seg(bulletPos[3], bulletPos[5]), ruleIndex: 4 },
+      { text: seg(bulletPos[5], undefined), ruleIndex: 5 },
+    ];
+
+    // If there's a closing paragraph (visual round text), split it off as ruleIndex 6
+    const lastSec = sections[sections.length - 1];
+    const closingMarker = "\n\n";
+    const closingPos = lastSec.text.lastIndexOf(closingMarker);
+    if (closingPos !== -1) {
+      sections[sections.length - 1] = { text: lastSec.text.slice(0, closingPos), ruleIndex: 5 };
+      sections.push({ text: lastSec.text.slice(closingPos), ruleIndex: 6 });
+    }
+
+    return sections;
+  }, [hostScript]);
+
   return (
     <>
-      {/* Sidebar with hamburger button always visible */}
+      {/* Narrow orange strip — Mission Control button only */}
       <div
         style={{
           position: "fixed",
-          top: "80px", // Below the header
+          top: "80px",
           left: 0,
-          width: isOpen ? "250px" : "50px", // Narrow tab when closed
+          width: "50px",
           height: "calc(100vh - 80px)",
-          backgroundColor: theme.accent, // Orange
-          color: "#fff",
-          transition: "width 0.3s ease",
+          backgroundColor: theme.accent,
           zIndex: 1000,
-          overflowY: isOpen ? "auto" : "hidden",
-          boxShadow: isOpen ? "2px 0 8px rgba(0,0,0,0.2)" : "none",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          paddingTop: "10px",
+          gap: "8px",
         }}
       >
-        {/* Hamburger button inside sidebar */}
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          style={{
-            position: "absolute",
-            top: "10px",
-            right: "8px",
-            backgroundColor: "rgba(255,255,255,0.2)",
-            border: "none",
-            borderRadius: "4px",
-            padding: "6px",
-            cursor: "pointer",
-            color: "#fff",
-            fontSize: "20px",
-            width: "35px",
-            height: "35px",
-            boxSizing: "border-box",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "all 0.3s ease",
-          }}
-          aria-label={isOpen ? "Close menu" : "Open menu"}
-          title={isOpen ? "Close menu" : "Open menu"}
-        >
-          {isOpen ? "×" : "☰"}
-        </button>
-
-        {/* Ninja button - Show/hide all answers */}
+        {/* Mission Control button */}
         <button
           onClick={() => {
-            // Preserve scroll position
-            const closestKey = getClosestQuestionKey?.();
-            setShowDetails((prev) => !prev);
-            if (closestKey && questionRefs?.current?.[closestKey]?.current) {
-              // Use requestAnimationFrame to wait for DOM update, then scroll instantly
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  questionRefs.current[closestKey]?.current?.scrollIntoView({
-                    behavior: "instant",
-                    block: "center",
-                  });
-                });
-              });
+            if (onOpenVenuePicker) {
+              onOpenVenuePicker();
+            } else {
+              setDisplayControlsOpen((prev) => !prev);
             }
           }}
           style={{
-            position: "absolute",
-            top: "55px",
-            right: "8px",
             backgroundColor: "rgba(255,255,255,0.2)",
             border: "none",
             borderRadius: "4px",
@@ -429,444 +453,106 @@ export default function Sidebar({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            transition: "all 0.3s ease",
           }}
-          aria-label="Toggle all answers"
-          title="Show/hide all answers"
-        >
-          🥷
-        </button>
-
-        {/* TV button - Show/hide display controls */}
-        <button
-          onClick={() => {
-            // Preserve scroll position
-            const closestKey = getClosestQuestionKey?.();
-            setDisplayControlsOpen((prev) => !prev);
-            if (closestKey && questionRefs?.current?.[closestKey]?.current) {
-              // Use requestAnimationFrame to wait for DOM update, then scroll instantly
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  questionRefs.current[closestKey]?.current?.scrollIntoView({
-                    behavior: "instant",
-                    block: "center",
-                  });
-                });
-              });
-            }
-          }}
-          style={{
-            position: "absolute",
-            top: "190px",
-            right: "8px",
-            backgroundColor: "rgba(255,255,255,0.2)",
-            border: "none",
-            borderRadius: "4px",
-            padding: "6px",
-            cursor: "pointer",
-            color: "#fff",
-            fontSize: "20px",
-            width: "35px",
-            height: "35px",
-            boxSizing: "border-box",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "all 0.3s ease",
-          }}
-          aria-label="Toggle display controls"
-          title="Show/hide display controls"
+          aria-label="Toggle Mission Control"
+          title="Toggle Mission Control"
         >
           📺
         </button>
-
-        {/* Stopwatch button - Show/hide timer */}
-        <button
-          onClick={() => setShowTimer((prev) => !prev)}
-          style={{
-            position: "absolute",
-            top: "280px",
-            right: "8px",
-            backgroundColor: "rgba(255,255,255,0.2)",
-            border: "none",
-            borderRadius: "4px",
-            padding: "6px",
-            cursor: "pointer",
-            color: "#fff",
-            fontSize: "20px",
-            width: "35px",
-            height: "35px",
-            boxSizing: "border-box",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "all 0.3s ease",
-          }}
-          aria-label="Toggle timer"
-          title="Show/hide timer"
-        >
-          ⏱️
-        </button>
-
-        {/* Clipboard button - Show/hide answer key */}
-        <button
-          onClick={() => setShowAnswerKey((prev) => !prev)}
-          style={{
-            position: "absolute",
-            top: "100px",
-            right: "8px",
-            backgroundColor: "rgba(255,255,255,0.2)",
-            border: "none",
-            borderRadius: "4px",
-            padding: "6px",
-            cursor: "pointer",
-            color: "#fff",
-            fontSize: "20px",
-            width: "35px",
-            height: "35px",
-            boxSizing: "border-box",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "all 0.3s ease",
-          }}
-          aria-label="Toggle answer key"
-          title="Show/hide answer key"
-        >
-          📋
-        </button>
-
-        {/* Refresh button - Refresh questions */}
-        <button
-          onClick={refreshBundle}
-          style={{
-            position: "absolute",
-            top: "145px",
-            right: "8px",
-            backgroundColor: "rgba(255,255,255,0.2)",
-            border: "none",
-            borderRadius: "4px",
-            padding: "6px",
-            cursor: "pointer",
-            color: "#fff",
-            fontSize: "20px",
-            width: "35px",
-            height: "35px",
-            boxSizing: "border-box",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "all 0.3s ease",
-          }}
-          aria-label="Refresh questions"
-          title="Refresh questions"
-        >
-          🔄
-        </button>
-
-        {/* Speech bubble button - Show host script */}
-        <button
-          onClick={() => setScriptOpen(true)}
-          style={{
-            position: "absolute",
-            top: "235px",
-            right: "8px",
-            backgroundColor: "rgba(255,255,255,0.2)",
-            border: "none",
-            borderRadius: "4px",
-            padding: "6px",
-            cursor: "pointer",
-            color: "#fff",
-            fontSize: "20px",
-            width: "35px",
-            height: "35px",
-            boxSizing: "border-box",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "all 0.3s ease",
-          }}
-          aria-label="Show script"
-          title="Show script"
-        >
-          💬
-        </button>
-
-        {/* Menu content - only visible when open */}
-        {isOpen && (
-          <div style={{ padding: "12rem 3.5rem 1rem 1rem" }}>{children}</div>
-        )}
       </div>
 
-      {/* Overlay when drawer is open */}
-      {isOpen && (
-        <div
-          onClick={() => setIsOpen(false)}
-          style={{
-            position: "fixed",
-            top: "80px",
-            left: "250px",
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.3)",
-            zIndex: 999,
-          }}
-        />
-      )}
-
-      {/* Script Modal */}
-      {scriptOpen &&
-        createPortal(
-          <div
-            onMouseDown={() => setScriptOpen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(43,57,74,.65)",
-              zIndex: 9999,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "1rem",
+      {/* Script Panel — draggable, stays open while host uses Mission Control */}
+      {scriptPanelOpen && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9000 }}>
+          <Draggable
+            nodeRef={scriptPanelRef}
+            position={scriptPanelPosition}
+            onStop={(e, data) => {
+              const pos = { x: data.x, y: data.y };
+              setScriptPanelPosition(pos);
+              localStorage.setItem("scriptPanelPosition", JSON.stringify(pos));
             }}
           >
             <div
-              onMouseDown={(e) => e.stopPropagation()}
+              ref={scriptPanelRef}
               style={{
-                width: "75vw",
-                height: "75vh",
-                maxWidth: "100vw",
-                maxHeight: "100vh",
-                background: "#fff",
-                borderRadius: ".6rem",
-                border: `1px solid ${theme.accent}`,
-                overflow: "auto",
-                resize: "both",
-                boxShadow: "0 10px 30px rgba(0,0,0,.25)",
-                fontFamily: tokens.font.body,
+                position: "absolute",
+                pointerEvents: "auto",
+                width: "680px",
+                maxWidth: "90vw",
+                height: "88vh",
+                minHeight: "200px",
                 display: "flex",
                 flexDirection: "column",
+                backgroundColor: "#fff",
+                borderRadius: ".6rem",
+                border: `1px solid ${theme.accent}`,
+                boxShadow: "0 10px 30px rgba(0,0,0,.25)",
+                overflow: "auto",
+                resize: "vertical",
               }}
             >
-              <div
-                style={{
-                  background: theme.dark,
-                  color: "#fff",
-                  padding: ".6rem .8rem",
-                  borderBottom: `2px solid ${theme.accent}`,
-                  fontFamily: tokens.font.display,
-                  fontSize: "1.5rem",
-                  letterSpacing: ".01em",
-                }}
-              >
-                Host Script
+              {/* Header */}
+              <div style={{
+                background: theme.dark,
+                color: "#fff",
+                padding: ".5rem .75rem",
+                borderBottom: `2px solid ${theme.accent}`,
+                cursor: "grab",
+                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: ".5rem",
+                flexShrink: 0,
+              }}>
+                <span style={{ opacity: 0.5, fontSize: ".9rem" }}>⋮⋮</span>
+                <span style={{ flex: 1, fontFamily: tokens.font.display, fontSize: "1.1rem" }}>Host Script</span>
+                <button
+                  onClick={onResetNav}
+                  title="Reset nav to start"
+                  style={{
+                    fontSize: ".78rem", padding: ".2rem .5rem", borderRadius: ".3rem",
+                    border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.1)",
+                    color: "#fff", cursor: "pointer",
+                  }}
+                >↺ Reset to start</button>
+                <button
+                  onClick={() => setScriptPanelOpen(false)}
+                  title="Close"
+                  style={{
+                    fontSize: ".78rem", padding: ".2rem .45rem", borderRadius: ".3rem",
+                    border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.1)",
+                    color: "#fff", cursor: "pointer",
+                  }}
+                >✕</button>
               </div>
 
-              <textarea
-                readOnly
-                value={hostScript}
-                style={{
-                  width: "100%",
-                  flex: 1,
-                  resize: "none",
-                  padding: "1rem",
-                  border: "none",
-                  borderTop: "1px solid #ddd",
-                  borderBottom: "1px solid #ddd",
-                  fontFamily: tokens.font.body,
-                  lineHeight: 1.35,
-                  fontSize: "1.25rem",
-                  whiteSpace: "pre-wrap",
-                  wordWrap: "break-word",
-                  boxSizing: "border-box",
-                }}
-              />
-
-              <div
-                style={{
-                  padding: ".8rem .9rem",
-                  borderTop: "1px solid #eee",
-                }}
-              >
-                {/* Push to Display buttons - only show when display controls are open */}
-                {sendToDisplay && displayControlsOpen && (
-                  <>
-                    <div
-                      style={{
-                        marginBottom: ".75rem",
-                        fontWeight: 600,
-                        fontSize: ".9rem",
-                        color: theme.dark,
-                      }}
-                    >
-                      Push to Display:
-                    </div>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: ".5rem",
-                        marginBottom: ".75rem",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Get ready to play!",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 Get ready to play!
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "No electronic devices may be out during the round",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 No devices
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Don't shout out the answers",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 Don't shout
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Spelling doesn't count unless we say it does",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 Spelling
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Real people: Last names\nFictional people: First or last names\n(unless we say otherwise!)",
-                            fontSize: 119,
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 Names
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Our answer is the\ncorrect answer",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                        }}
-                      >
-                        📺 Our answer
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendToDisplay("message", {
-                            text: "Put those phones away, because the contest starts NOW!",
-                          })
-                        }
-                        style={{
-                          padding: ".5rem .75rem",
-                          border: `1px solid ${theme.accent}`,
-                          background: theme.white,
-                          borderRadius: ".35rem",
-                          cursor: "pointer",
-                          fontSize: ".85rem",
-                          gridColumn: "1 / -1",
-                        }}
-                      >
-                        📺 Contest starts NOW!
-                      </button>
-                    </div>
-                  </>
-                )}
-
-                {/* Close button */}
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setScriptOpen(false)}
-                    style={{
-                      padding: ".5rem .75rem",
-                      border: "1px solid #ccc",
-                      background: "#f7f7f7",
-                      borderRadius: ".35rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Close
-                  </button>
-                </div>
+              {/* Script body with rule highlighting */}
+              <div style={{
+                flex: 1,
+                overflow: "auto",
+                padding: "1rem",
+                fontFamily: tokens.font.body,
+                fontSize: "1.15rem",
+                lineHeight: 1.4,
+                whiteSpace: "pre-wrap",
+                wordWrap: "break-word",
+              }}>
+                {scriptSections.map((section, i) => (
+                  <span
+                    key={i}
+                    style={
+                      activeRulesIndex !== null && activeRulesIndex === section.ruleIndex
+                        ? { background: "#ffe066", color: "#1a1a1a", borderRadius: "2px" }
+                        : undefined
+                    }
+                  >{section.text}</span>
+                ))}
               </div>
             </div>
-          </div>,
-          document.body
-        )}
+          </Draggable>
+        </div>
+      )}
     </>
   );
 }
