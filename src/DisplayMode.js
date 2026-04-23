@@ -6,18 +6,23 @@ import { marked } from "marked";
 import { supabase } from "./supabaseClient.js";
 marked.setOptions({ breaks: true });
 export default function DisplayMode() {
-  const [displayState, setDisplayState] = useState({
-    type: "standby", // "standby" | "question" | "standings" | "message" | "break"
-    content: null,
-  });
+  const params = new URLSearchParams(window.location.search);
+  const urlVenueShowId = params.get("venueShowId");
+
+  // venue_id: strip trailing ":YYYY-MM-DD" date suffix so all hosts resolve to the same display_state row
+  const urlVenueId = urlVenueShowId
+    ? urlVenueShowId.replace(/:\d{4}-\d{2}-\d{2}$/, "")
+    : null;
+
+  const [displayState, setDisplayState] = useState({ type: "standby", content: null });
   const [fontSize, setFontSize] = useState(190); // percentage
   const [inlineImageIndex, setInlineImageIndex] = useState(0); // Current inline image index
   const [questionCarousel, setQuestionCarousel] = useState(null); // { questions: [], currentIndex: 0, autoCycle: true }
 
   const [showGuide, setShowGuide] = useState(false);
 
-  // Read params from URL (?display&hostId=xxx&hostName=yyy&viewer=1)
-  const params = new URLSearchParams(window.location.search);
+  // Read remaining params from URL
+  const urlVenueName = decodeURIComponent(params.get("venueName") || "");
   const urlHostId = params.get("hostId");
   const urlHostName = decodeURIComponent(params.get("hostName") || "");
   const isViewer = params.get("viewer") === "1";
@@ -27,36 +32,74 @@ export default function DisplayMode() {
     document.title = "TriviaVanguard display";
   }, []);
 
-  // Listen for display updates via Supabase Realtime broadcast
-  useEffect(() => {
-    if (!supabase || !urlHostId) return;
-
-    const handleMessage = ({ type, content }) => {
-      console.log("[DisplayMode] Received update:", type, content);
-
-      if (type === "fontSize") {
-        setFontSize(content.size);
-      } else if (type === "toggleGuide") {
-        setShowGuide((v) => !v);
-      } else if (type === "setGuide") {
-        setShowGuide(!!content?.show);
-      } else if (type === "questionCarousel") {
-        setQuestionCarousel(content);
-      } else if (type === "closeQuestionCarousel") {
-        setQuestionCarousel(null);
-      } else if (type === "updateInlineImageIndex") {
-        setInlineImageIndex(content.currentIndex || 0);
-      } else {
-        setDisplayState({ type, content });
-        if (type === "question" && content?.currentInlineImageIndex != null) {
-          setInlineImageIndex(content.currentInlineImageIndex);
-        }
+  const handleMessage = ({ type, content }) => {
+    console.log("[DisplayMode] Received update:", type, content);
+    if (type === "fontSize") {
+      setFontSize(content.size);
+    } else if (type === "toggleGuide") {
+      setShowGuide((v) => !v);
+    } else if (type === "setGuide") {
+      setShowGuide(!!content?.show);
+    } else if (type === "questionCarousel") {
+      setQuestionCarousel(content);
+    } else if (type === "closeQuestionCarousel") {
+      setQuestionCarousel(null);
+    } else if (type === "updateInlineImageIndex") {
+      setInlineImageIndex(content.currentIndex || 0);
+    } else {
+      setDisplayState({ type, content });
+      if (type === "question" && content?.currentInlineImageIndex != null) {
+        setInlineImageIndex(content.currentInlineImageIndex);
       }
-    };
+    }
+  };
 
-    // Subscribe to broadcast channel for display commands
+  // On mount: load current display state from Supabase (the one source of truth)
+  useEffect(() => {
+    if (!urlVenueId) return;
+    fetch(`/.netlify/functions/supaLoadDisplayState?venueId=${encodeURIComponent(urlVenueId)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.state?.type) {
+          handleMessage(data.state);
+        }
+      })
+      .catch((err) => console.error("[DisplayMode] Failed to load display state:", err));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlVenueId]);
+
+  // Subscribe to Supabase Realtime on display_state table for persistent state changes
+  useEffect(() => {
+    if (!supabase || !urlVenueId) return;
+
+    const realtimeCh = supabase
+      .channel(`display_state:${urlVenueId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "display_state",
+          filter: `venue_id=eq.${urlVenueId}`,
+        },
+        (payload) => {
+          const state = payload.new?.state;
+          if (state?.type) handleMessage(state);
+        },
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(realtimeCh);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlVenueId]);
+
+  // Subscribe to broadcast channel for ephemeral signals (fontSize, guide toggle, image index)
+  // and for instant display updates (broadcast arrives before the Realtime DB event)
+  useEffect(() => {
+    if (!supabase || !urlVenueShowId) return;
+
     const broadcastCh = supabase
-      .channel(`tv:display:${urlHostId}`)
+      .channel(`tv:display:${urlVenueShowId}`)
       .on("broadcast", { event: "display_update" }, (msg) => {
         handleMessage(msg.payload || {});
       })
@@ -68,7 +111,7 @@ export default function DisplayMode() {
       presenceCh = supabase.channel("tv:displays");
       presenceCh.subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await presenceCh.track({ hostId: urlHostId, hostName: urlHostName });
+          await presenceCh.track({ venueShowId: urlVenueShowId, venueName: urlVenueName, hostId: urlHostId, hostName: urlHostName });
         }
       });
     }
@@ -77,7 +120,7 @@ export default function DisplayMode() {
       supabase.removeChannel(broadcastCh);
       if (presenceCh) supabase.removeChannel(presenceCh);
     };
-  }, [urlHostId, urlHostName]);
+  }, [urlVenueShowId, urlHostId, urlHostName]);
 
   const displayContent = (
     <div
@@ -117,13 +160,22 @@ export default function DisplayMode() {
         <CategoryDisplay content={displayState.content} fontSize={fontSize} />
       )}
       {displayState.type === "message" && (
-        <MessageDisplay content={displayState.content} fontSize={fontSize} />
+        <MessageDisplay key={displayState.content?.text} content={displayState.content} fontSize={fontSize} />
       )}
       {displayState.type === "standings" && (
         <StandingsDisplay content={displayState.content} />
       )}
       {displayState.type === "results" && (
         <ResultsDisplay content={displayState.content} fontSize={fontSize} />
+      )}
+      {displayState.type === "results-splash" && (
+        <ResultsSplashDisplay fontSize={fontSize} />
+      )}
+      {displayState.type === "results-tb-question" && (
+        <ResultsTbDisplay content={displayState.content} showAnswer={false} fontSize={fontSize} />
+      )}
+      {displayState.type === "results-tb-answer" && (
+        <ResultsTbDisplay content={displayState.content} showAnswer={true} fontSize={fontSize} />
       )}
 
       {showGuide && <DesignGuideOverlay />}
@@ -191,7 +243,7 @@ function StandbyScreen() {
 }
 
 function CategoryDisplay({ content, fontSize = 100 }) {
-  const { categoryName, categoryDescription } = content || {};
+  const { categoryName, categoryDescription, superSecret } = content || {};
   const scale = fontSize / 100;
 
   return (
@@ -213,6 +265,22 @@ function CategoryDisplay({ content, fontSize = 100 }) {
     >
       {/* Spacer to push content down ~1/4–1/3 of screen */}
       <div style={{ height: "33vh" }} />
+
+      {/* Super Secret label */}
+      {superSecret && (
+        <div style={{
+          fontSize: `${1.4 * scale}rem`,
+          fontFamily: tokens.font.display,
+          color: theme.accent,
+          fontWeight: 800,
+          textTransform: "uppercase",
+          letterSpacing: "0.12rem",
+          marginBottom: "1.5vh",
+          opacity: 0.75,
+        }}>
+          Super Secret Category
+        </div>
+      )}
 
       {/* Category name */}
       {categoryName && (
@@ -247,6 +315,46 @@ function CategoryDisplay({ content, fontSize = 100 }) {
           }}
         />
       )}
+    </div>
+  );
+}
+
+// Renders each name on its own line, all at the same font size — sized so the longest name fits one line.
+function AutoFitLines({ names, maxRem = 4.75, minRem = 1.5, style = {} }) {
+  const containerRef = React.useRef(null);
+  const [fontRem, setFontRem] = React.useState(maxRem);
+
+  React.useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const spans = Array.from(container.querySelectorAll("span"));
+    if (!spans.length) return;
+
+    let size = maxRem;
+    const measure = () => {
+      spans.forEach(s => { s.style.fontSize = `${size}rem`; });
+      return spans.some(s => s.scrollWidth > container.clientWidth);
+    };
+
+    while (size > minRem && measure()) {
+      size = Math.max(minRem, size - 0.05);
+    }
+    measure();
+    setFontRem(size);
+  }, [names, maxRem, minRem]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", ...style }}
+    >
+      {names.map((name, i) => (
+        <span
+          key={i}
+          style={{ fontSize: `${fontRem}rem`, whiteSpace: "nowrap", lineHeight: 1.2 }}
+          dangerouslySetInnerHTML={{ __html: String(name).replace(/</g, "&lt;").replace(/>/g, "&gt;") }}
+        />
+      ))}
     </div>
   );
 }
@@ -311,6 +419,7 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
     totalTeams,
     inlineImages,
     bonusBreakdown,
+    partialBreakdown,
   } = content || {};
 
   const scale = fontSize / 100;
@@ -347,8 +456,8 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
 
   return (
     <>
-      {/* Category bar at top - gray bar behind logo */}
-      {categoryName && (
+      {/* Category bar at top - gray bar behind logo — hidden for tiebreaker questions */}
+      {categoryName && questionNumber !== "TB" && (
         <div
           style={{
             position: "absolute",
@@ -561,10 +670,11 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
           </div>
         )}
 
-      {/* Stats wrapper #2 (points per team / bonus breakdown) */}
+      {/* Stats wrapper #2 (points per team / bonus breakdown / partial breakdown) */}
       {answer &&
         (pointsPerTeam != null ||
-          (bonusBreakdown && bonusBreakdown.length > 0)) && (
+          (bonusBreakdown && bonusBreakdown.length > 0) ||
+          (partialBreakdown && partialBreakdown.length > 0)) && (
           <div
             style={{
               position: "absolute",
@@ -581,7 +691,7 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
           >
             <div
               style={{
-                fontSize: `${(bonusBreakdown && bonusBreakdown.length > 1 ? 1.8 : 2.25) * scale}rem`,
+                fontSize: `${((bonusBreakdown && bonusBreakdown.length > 1) || (partialBreakdown && partialBreakdown.length > 1) ? 1.8 : 2.25) * scale}rem`,
                 color: theme.dark,
                 fontFamily: tokens.font.body,
               }}
@@ -601,6 +711,25 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
                         {"bonus" + (level.bonusLevel > 1 ? "es" : "")})
                       </span>
                     )}
+                  </span>
+                ))
+              ) : partialBreakdown && partialBreakdown.length > 0 ? (
+                partialBreakdown.map((level, i) => (
+                  <span key={level.partialCount}>
+                    {i > 0 && " · "}
+                    <span style={{ color: theme.accent, fontWeight: 700 }}>
+                      {level.teamCount}
+                    </span>
+                    {" " + (level.teamCount === 1 ? "team" : "teams")}
+                    <span style={{ opacity: 0.7 }}>
+                      {" ("}
+                      {level.partialCount === level.numParts
+                        ? "full"
+                        : `${level.partialCount}/${level.numParts}`}
+                      {" · "}
+                      {level.pointsPerTeam}
+                      {" pts)"}
+                    </span>
                   </span>
                 ))
               ) : (
@@ -869,14 +998,10 @@ function ResultsDisplay({ content, fontSize = 100 }) {
   const TOP_TEAMS = `calc(${H_TOP} + ${H_PLACE} + ${H_POINTS})`;
   const TOP_PRIZE = `calc(${H_TOP} + ${H_PLACE} + ${H_POINTS} + ${H_TEAMS})`;
 
-  // Build HTML for teams with line breaks; escape < >
-  const teamsHtml = (teams || [])
-    .map((t) => String(t).replace(/</g, "&lt;").replace(/>/g, "&gt;"))
-    .join("<br/>");
-
   return (
     <>
       {/* PLACE */}
+      {place != null && (
       <div
         style={{
           position: "absolute",
@@ -906,9 +1031,10 @@ function ResultsDisplay({ content, fontSize = 100 }) {
         >
           {isTied
             ? `TIED FOR ${place} place`
-            : `${place} place` || "".toUpperCase()}
+            : `${place} place`}
         </div>
       </div>
+      )}
 
       {/* POINTS */}
       {points != null && (
@@ -942,7 +1068,7 @@ function ResultsDisplay({ content, fontSize = 100 }) {
         </div>
       )}
 
-      {/* TEAM NAMES (AUTO-FIT inside fixed box) */}
+      {/* TEAM NAMES — each on its own line, all same font size */}
       {teams && teams.length > 0 && (
         <div
           style={{
@@ -954,34 +1080,21 @@ function ResultsDisplay({ content, fontSize = 100 }) {
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            textAlign: "center",
             zIndex: 50,
             padding: "0 6vw",
             boxSizing: "border-box",
           }}
         >
-          <div
+          <AutoFitLines
+            names={teams}
+            maxRem={4.75 * scale}
+            minRem={1.5 * scale}
             style={{
-              width: "90vw",
-              height: "100%",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
+              color: theme.dark,
+              fontFamily: tokens.font.body,
+              fontWeight: 700,
             }}
-          >
-            <AutoFitText
-              html={teamsHtml}
-              maxRem={4.75 * scale}
-              minRem={1.5 * scale}
-              style={{
-                color: theme.dark,
-                fontFamily: tokens.font.body,
-                fontWeight: 700,
-                lineHeight: 1.15,
-                textAlign: "center",
-              }}
-            />
-          </div>
+          />
         </div>
       )}
 
@@ -1017,5 +1130,84 @@ function ResultsDisplay({ content, fontSize = 100 }) {
         </div>
       )}
     </>
+  );
+}
+
+function ResultsSplashDisplay({ fontSize = 100 }) {
+  const scale = fontSize / 100;
+  return (
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", flexDirection: "column",
+      justifyContent: "center", alignItems: "center",
+      zIndex: 50,
+    }}>
+      <div style={{
+        fontSize: `${7 * scale}rem`,
+        fontFamily: tokens.font.display,
+        color: theme.accent,
+        fontWeight: 800,
+        textTransform: "uppercase",
+        letterSpacing: "0.2rem",
+        lineHeight: 1.05,
+        textAlign: "center",
+      }}>
+        Results
+      </div>
+    </div>
+  );
+}
+
+function ResultsTbDisplay({ content, showAnswer = false, fontSize = 100 }) {
+  if (!content) return null;
+  const { tbQuestion, tbAnswer } = content;
+  const scale = fontSize / 100;
+
+  return (
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", flexDirection: "column",
+      justifyContent: "center", alignItems: "center",
+      padding: "4vh 6vw",
+      boxSizing: "border-box",
+      zIndex: 50,
+      gap: "3vh",
+    }}>
+      <div style={{
+        fontSize: `${1.4 * scale}rem`,
+        fontFamily: tokens.font.display,
+        color: theme.accent,
+        fontWeight: 800,
+        textTransform: "uppercase",
+        letterSpacing: "0.12rem",
+      }}>
+        Tiebreaker
+      </div>
+      {tbQuestion && (
+        <div
+          style={{
+            fontSize: `${2.2 * scale}rem`,
+            fontFamily: tokens.font.body,
+            color: theme.dark,
+            fontWeight: 600,
+            textAlign: "center",
+            lineHeight: 1.3,
+          }}
+          dangerouslySetInnerHTML={{ __html: marked.parseInline(tbQuestion) }}
+        />
+      )}
+      {showAnswer && tbAnswer && (
+        <div
+          style={{
+            fontSize: `${3 * scale}rem`,
+            fontFamily: tokens.font.display,
+            color: theme.accent,
+            fontWeight: 800,
+            textAlign: "center",
+          }}
+          dangerouslySetInnerHTML={{ __html: marked.parseInline(tbAnswer) }}
+        />
+      )}
+    </div>
   );
 }
