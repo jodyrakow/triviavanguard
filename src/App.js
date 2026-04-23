@@ -2831,6 +2831,17 @@ export default function App() {
   );
 
   // Grid click handlers
+  const handleGridResultsClick = useCallback((step) => {
+    if (!step) return;
+    const idx = navAnswersModeList.indexOf(step);
+    if (idx < 0) return;
+    setNavIndex(idx);
+    setNavAnswerStage(0);
+    setNavStarted(true);
+    pushResultsStep(step);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navAnswersModeList, pushResultsStep]);
+
   const handleGridCategoryClick = useCallback((catItem) => {
     if (!catItem) return;
     const idx = navWithRules.indexOf(catItem);
@@ -3718,7 +3729,7 @@ export default function App() {
                       <div style={{ flex: 1, overflowY: "auto", padding: ".3rem .5rem", display: "flex", flexDirection: "column", gap: ".25rem" }}>
                         {(() => {
                           let spokenCatCount = 0;
-                          return navGrid.map((row, rowIdx) => {
+                          const catRows = navGrid.map((row, rowIdx) => {
                             const catItem = row.catItem;
                             const isCatActive = navCurrentItem === catItem ||
                               (navCurrentItem?.type === "carousel" && catItem?.type === "carousel" && navCurrentItem?.categoryName === catItem?.categoryName);
@@ -3800,6 +3811,54 @@ export default function App() {
                               </div>
                             );
                           });
+
+                          // Results entry-point buttons — only in answers mode
+                          const resultsEntrySteps = navIsAnswerMode
+                            ? resultsNavSequence.filter(s => s.type === "results-splash" || s.type === "results-place-pts")
+                            : [];
+                          const resultsSection = resultsEntrySteps.length > 0 ? (() => {
+                            const entryIndices = resultsEntrySteps.map(s => navAnswersModeList.indexOf(s));
+                            return (
+                              <div key="results-section">
+                                <div style={{ fontSize: ".65rem", fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", fontFamily: tokens.font.body, margin: ".4rem 0 .25rem", paddingTop: ".35rem", borderTop: "1px solid rgba(255,255,255,0.15)" }}>
+                                  Results
+                                </div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: ".25rem" }}>
+                                  {resultsEntrySteps.map((step, i) => {
+                                    const stepIdx = entryIndices[i];
+                                    const nextIdx = entryIndices[i + 1] ?? Infinity;
+                                    const isActive = navStarted && navIsAnswerMode && navIndex >= stepIdx && navIndex < nextIdx;
+                                    const label = step.type === "results-splash" ? "Splash" : step.place;
+                                    return (
+                                      <button
+                                        key={i}
+                                        onClick={() => handleGridResultsClick(step)}
+                                        title={step.type === "results-splash" ? "Results splash screen" : `${step.place} place — ${step.points} pts`}
+                                        style={{
+                                          fontSize: ".85rem",
+                                          fontFamily: tokens.font.body,
+                                          padding: ".2rem .45rem",
+                                          borderRadius: ".35rem",
+                                          border: "1px solid #888",
+                                          background: isActive ? colors.accent : "transparent",
+                                          color: "#fff",
+                                          fontWeight: isActive ? 700 : 400,
+                                          cursor: "pointer",
+                                          minWidth: "2.5rem",
+                                          textAlign: "center",
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        {label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })() : null;
+
+                          return [...catRows, resultsSection];
                         })()}
                       </div>
                     </div>
