@@ -2636,8 +2636,14 @@ export default function App() {
           item.type === "category" && item.categoryName === content?.categoryName,
       ) ?? null;
     }
+    if (type === "results" && content?.place != null) {
+      const stepType = content.teams == null ? "results-place-pts" : "results-place-reveal";
+      return navAnswersModeList.find(
+        (item) => item.type === stepType && item.place === content.place && item.points === content.points,
+      ) ?? null;
+    }
     return null;
-  }, [liveDisplayState, navFlatList]);
+  }, [liveDisplayState, navFlatList, navAnswersModeList]);
 
   const navForward = useCallback(() => {
     if (!navStarted) {
@@ -4316,8 +4322,25 @@ export default function App() {
         <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 600 }}>
           <Draggable nodeRef={scriptPanelRef} position={scriptPanelPosition} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setScriptPanelPosition(p); localStorage.setItem("scriptPanelPosition", JSON.stringify(p)); }}>
             <div ref={scriptPanelRef} style={{ position: "absolute", background: colors.dark, borderRadius: "8px", boxShadow: "0 4px 24px rgba(0,0,0,0.35)", width: "min(96vw, 520px)", maxHeight: "75vh", display: "flex", flexDirection: "column", pointerEvents: "auto", border: `1px solid rgba(255,255,255,0.12)` }}>
-              <div style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: "1px solid rgba(255,255,255,0.1)", cursor: "grab", userSelect: "none" }}>
+              <div style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: "1px solid rgba(255,255,255,0.1)", cursor: "grab", userSelect: "none", gap: ".5rem" }}>
                 <span style={{ color: "#fff", fontWeight: 700, fontSize: ".9rem", flex: 1, fontFamily: tokens.font.body }}>💬 Host Script</span>
+                {(() => {
+                  const atStart = navIsAnswerMode ? navIndex === 0 && navAnswerStage === 0 : navIndex === 0;
+                  const atEnd = navStarted && (navIsAnswerMode
+                    ? navIndex >= navAnswersModeList.length - 1 && (navAnswersModeList[navIndex]?.type !== "question" || navAnswerStage >= 2)
+                    : navIndex >= navWithRules.length - 1);
+                  const btnStyle = (disabled) => ({
+                    background: "none", border: "1px solid rgba(255,255,255,0.3)", borderRadius: ".35rem",
+                    color: disabled ? "rgba(255,255,255,0.25)" : "#fff", cursor: disabled ? "default" : "pointer",
+                    fontSize: ".9rem", padding: ".2rem .55rem", fontFamily: tokens.font.body, lineHeight: 1,
+                  });
+                  return (
+                    <>
+                      <button onClick={() => !atStart && navBackward()} disabled={atStart} style={btnStyle(atStart)}>←</button>
+                      <button onClick={() => !atEnd && navForward()} disabled={atEnd} style={btnStyle(atEnd)}>{navStarted ? "→" : "▶"}</button>
+                    </>
+                  );
+                })()}
                 <button onClick={() => setScriptPanelOpen(false)} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "1.1rem", lineHeight: 1, padding: "0 .25rem" }}>✕</button>
               </div>
               <div style={{ overflowY: "auto", flex: 1, padding: ".75rem 1rem" }}>
