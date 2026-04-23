@@ -314,17 +314,13 @@ export default function App() {
   const [stripEditing, setStripEditing] = useState(false);
   const [stripEditDraft, setStripEditDraft] = useState({});
 
-  // Preview width — computed from viewport; updated on resize
-  const _computePreviewW = () => {
-    const topBarH = 48, utilityH = 44, controlH = 54, contextH = 38, padding = 8;
-    const usedH = 80 + topBarH + utilityH + controlH + contextH + padding;
-    const availH = window.innerHeight - usedH;
-    const wFromH = Math.round(availH * 1920 / 1080);
-    const wFromW = window.innerWidth - 40;
-    return Math.max(320, Math.min(wFromH, wFromW, 1600));
-  };
-  const [previewW, setPreviewW] = useState(_computePreviewW);
-  const previewH = Math.round((previewW * 1080) / 1920);
+  // Preview dimensions — driven by actual measured height of the flex-1 preview row
+  const previewRowRef = useRef(null);
+  const [previewRowH, setPreviewRowH] = useState(0);
+  const previewW = previewRowH > 0
+    ? Math.max(320, Math.min(Math.round(previewRowH * 1920 / 1080), window.innerWidth - 40, 1600))
+    : 0;
+  const previewH = previewW > 0 ? Math.round(previewW * 1080 / 1920) : 0;
 
   // Answer Key state
   const [showAnswerKey, setShowAnswerKey] = useState(false);
@@ -1038,12 +1034,12 @@ export default function App() {
     return () => clearTimeout(t);
   }, [timerRunning, timeLeft, timerDuration]);
 
-  // Keep previewW in sync with viewport size
+  // Keep previewRowH in sync with actual rendered height of the preview row
   useEffect(() => {
-    const onResize = () => setPreviewW(_computePreviewW());
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!previewRowRef.current) return;
+    const ro = new ResizeObserver(([entry]) => setPreviewRowH(entry.contentRect.height));
+    ro.observe(previewRowRef.current);
+    return () => ro.disconnect();
   }, []);
 
   const handleStartPause = () => setTimerRunning((p) => !p);
@@ -3667,8 +3663,8 @@ export default function App() {
                     </div>
                   );
                 })()}
-                {/* Preview + grid sub-row */}
-                <div style={{ display: "flex", flexDirection: gridOnRight ? "row" : "row-reverse", flexShrink: 0 }}>
+                {/* Preview + grid sub-row — flex:1 so it fills remaining body space; height measured by ResizeObserver */}
+                <div ref={previewRowRef} style={{ display: "flex", flexDirection: gridOnRight ? "row" : "row-reverse", flex: 1, minHeight: 0, overflow: "hidden" }}>
                   {/* Preview iframe */}
                   <div
                     style={{
