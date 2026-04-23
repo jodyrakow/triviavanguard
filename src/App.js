@@ -314,11 +314,13 @@ export default function App() {
   const [stripEditing, setStripEditing] = useState(false);
   const [stripEditDraft, setStripEditDraft] = useState({});
 
-  // Preview dimensions — driven by actual measured height of the flex-1 preview row
+  // Preview dimensions — height of preview cell + width of left stack drive previewW.
   const previewRowRef = useRef(null);
+  const leftStackRef = useRef(null);
   const [previewRowH, setPreviewRowH] = useState(0);
-  const previewW = previewRowH > 0
-    ? Math.max(320, Math.min(Math.round(previewRowH * 1920 / 1080), window.innerWidth - 40, 1600))
+  const [leftStackW, setLeftStackW] = useState(0);
+  const previewW = (previewRowH > 0 && leftStackW > 0)
+    ? Math.max(320, Math.min(Math.round(previewRowH * 1920 / 1080), leftStackW, 1600))
     : 0;
   const previewH = previewW > 0 ? Math.round(previewW * 1080 / 1920) : 0;
 
@@ -1039,6 +1041,13 @@ export default function App() {
     if (!previewRowRef.current) return;
     const ro = new ResizeObserver(([entry]) => setPreviewRowH(entry.contentRect.height));
     ro.observe(previewRowRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!leftStackRef.current) return;
+    const ro = new ResizeObserver(([entry]) => setLeftStackW(entry.contentRect.width));
+    ro.observe(leftStackRef.current);
     return () => ro.disconnect();
   }, []);
 
@@ -3524,8 +3533,10 @@ export default function App() {
                 </div>
               )}
 
-              {/* ── body column ── */}
-              <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden", background: colors.dark }}>
+              {/* ── body row: left stack + grid column ── */}
+              <div style={{ display: "flex", flexDirection: gridOnRight ? "row" : "row-reverse", flex: 1, minHeight: 0, overflow: "hidden", background: colors.dark }}>
+                {/* Left stack: control bar, preview, remote audio, context panel */}
+                <div ref={leftStackRef} style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden" }}>
 
                 {/* Control bar — 2-row layout */}
                 {(() => {
@@ -3657,9 +3668,8 @@ export default function App() {
                     </div>
                   );
                 })()}
-                {/* Preview + grid sub-row — flex:1 so it fills remaining body space; height measured by ResizeObserver */}
-                <div ref={previewRowRef} style={{ display: "flex", flexDirection: gridOnRight ? "row" : "row-reverse", flex: 1, minHeight: 0, overflow: "hidden" }}>
-                  {/* Preview iframe */}
+                {/* Preview cell — flex:1, height measured by ResizeObserver to drive previewW */}
+                <div ref={previewRowRef} style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
                   <div
                     style={{
                       width: previewW,
@@ -3684,19 +3694,258 @@ export default function App() {
                     />
                   </div>
 
-                  {/* Grid — fills all space to the right of preview */}
-                  {navGrid.length > 0 && (
+                </div>{/* end preview cell */}
+
+                {/* Remote audio status — shown when another host is playing audio */}
+                {remoteAudioStatus?.playing && (
+                  <div style={{ background: "#1a2a1a", borderTop: "1px solid #2a4a2a", padding: ".25rem .6rem", fontSize: ".75rem", color: "#7fc97f", fontFamily: tokens.font.body, fontStyle: "italic", width: previewW, flexShrink: 0 }}>
+                    {remoteAudioStatus.hostName} is playing audio
+                  </div>
+                )}
+
+                {/* Context panel — always rendered so preview position doesn't jump */}
+                {(() => {
+                  const enrichedItem = contextPanelItem;
+                  const hasAudio = currentNavAudio.length > 0;
+                  const audioObj = currentNavAudio[navAudioIndex] || currentNavAudio[0];
+                  const isCurrentAudio = hasAudio && !!audioObj && sharedAudioUrl === audioObj.url;
+
+                  let categoryNumber = null, totalCategories = 0;
+                  if (enrichedItem?.type === "category") {
+                    const catItems = navQuestionsMode.filter(i => i.type === "category" && !i.isTiebreaker);
+                    totalCategories = catItems.length;
+                    const catIdx = catItems.indexOf(enrichedItem);
+                    if (catIdx !== -1) categoryNumber = catIdx + 1;
+                  }
+
+                  const hasQuestionNotes = !!(enrichedItem?.questionNotes?.trim());
+                  const hasPronunciation = !!(enrichedItem?.pronunciationGuide?.trim());
+                  const hasAnswerNotes = !!(enrichedItem?.answerNotes?.trim());
+                  const isTbStep = enrichedItem?.type === "results-tb-question" || enrichedItem?.type === "results-tb-answer";
+
+                  // Solo: exactly one team answered correctly
+                  let soloTeamName = null;
+                  if (enrichedItem?.type === "question" && enrichedItem.showQuestionId) {
+                    const sqid = enrichedItem.showQuestionId;
+                    const grid = composedCachedState?.grid || {};
+                    const teams = composedCachedState?.teams || [];
+                    const correctTeams = teams.filter(t => grid[t.showTeamId]?.[sqid]?.isCorrect === true);
+                    if (correctTeams.length === 1) soloTeamName = correctTeams[0].teamName || correctTeams[0].name || null;
+                  }
+                  const tbTeamsAndGuesses = isTbStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
+
+                  // Next place info: find the next results-place-pts or results-place-reveal step after current
+                  const isResultsPlaceStep = enrichedItem?.type === "results-place-pts" || enrichedItem?.type === "results-place-reveal";
+                  let nextPlaceInfo = null;
+                  if (isResultsPlaceStep) {
+                    for (let i = navIndex + 1; i < navAnswersModeList.length; i++) {
+                      const s = navAnswersModeList[i];
+                      if (s.type === "results-place-pts" || s.type === "results-place-reveal") {
+                        nextPlaceInfo = s;
+                        break;
+                      }
+                    }
+                  }
+
+                  const hasContent = (hasQuestionNotes && !navIsAnswerMode) || hasPronunciation || (hasAnswerNotes && navIsAnswerMode) || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
+
+                  const formatTime = (s) => {
+                    if (!s || !isFinite(s)) return "--:--";
+                    const m = Math.floor(s / 60);
+                    const sec = Math.floor(s % 60);
+                    return `${m}:${sec.toString().padStart(2, "0")}`;
+                  };
+
+                  const labelStyle = {
+                    fontSize: ".72rem",
+                    fontWeight: 700,
+                    letterSpacing: ".05em",
+                    textTransform: "uppercase",
+                    color: colors.accent,
+                    fontFamily: tokens.font.body,
+                    flexShrink: 0,
+                    lineHeight: 1.5,
+                    paddingTop: "1px",
+                    width: "3.8rem",
+                    textAlign: "right",
+                  };
+                  const textStyle = {
+                    fontSize: "1rem",
+                    color: "#ddd",
+                    fontFamily: tokens.font.body,
+                    lineHeight: 1.45,
+                  };
+                  const rowStyle = { display: "flex", gap: ".5rem", alignItems: "flex-start" };
+
+                  return (
                     <div style={{
-                      flex: 1,
-                      minWidth: 0,
-                      height: previewH,
-                      background: colors.dark,
-                      borderLeft: gridOnRight ? `1px solid rgba(255,255,255,0.1)` : "none",
-                      borderRight: !gridOnRight ? `1px solid rgba(255,255,255,0.1)` : "none",
+                      background: "#182030",
+                      borderTop: "1px solid #2a3a4a",
+                      padding: ".4rem .6rem",
                       display: "flex",
                       flexDirection: "column",
-                      overflow: "hidden",
+                      gap: ".3rem",
+                      height: "5.5rem",
+                      overflowY: "auto",
+                      justifyContent: hasContent ? "flex-start" : "center",
                     }}>
+                      {!hasContent && (
+                        <div style={{ ...textStyle, color: "#2e4050", textAlign: "center", fontSize: ".78rem", fontStyle: "italic" }}>
+                          no context
+                        </div>
+                      )}
+
+                      {categoryNumber !== null && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Cat</span>
+                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
+                            {categoryNumber} of {totalCategories}
+                          </span>
+                          {enrichedItem?.superSecret && (
+                            <span style={{ fontSize: ".7rem", color: colors.accent, fontWeight: 700, fontStyle: "italic", letterSpacing: ".03em", alignSelf: "center" }}>
+                              Super Secret
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {isResultsPlaceStep && enrichedItem && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Now</span>
+                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
+                            {enrichedItem.place} · {enrichedItem.points} {enrichedItem.points === 1 ? "pt" : "pts"}
+                          </span>
+                        </div>
+                      )}
+                      {nextPlaceInfo && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Next</span>
+                          <span style={{ ...textStyle, color: colors.accent }}>
+                            {nextPlaceInfo.place} · {nextPlaceInfo.points} pts
+                            {enrichedItem?.points != null ? ` (+${nextPlaceInfo.points - enrichedItem.points})` : ""}
+                          </span>
+                        </div>
+                      )}
+
+                      {soloTeamName && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Solo</span>
+                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>{soloTeamName}</span>
+                        </div>
+                      )}
+
+                      {enrichedItem?.type === "category" && enrichedItem?.superSecret && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>🔎</span>
+                          <span style={{ ...textStyle, color: "#ddd" }}>
+                            <strong style={{ color: colors.accent }}>This is the Super Secret category of the week!</strong>{" "}
+                            If you follow us on Facebook, you'll see a post at the start of each week letting you know where around central Minnesota you can find us that week. That post also tells you the super secret category for the week, so that you can study up before the contest to have a leg up on the competition!
+                          </span>
+                        </div>
+                      )}
+
+                      {hasQuestionNotes && !navIsAnswerMode && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Notes</span>
+                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.questionNotes) }} />
+                        </div>
+                      )}
+
+                      {hasPronunciation && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Pron.</span>
+                          <span style={{ ...textStyle, fontStyle: "italic" }} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.pronunciationGuide) }} />
+                        </div>
+                      )}
+
+                      {hasAnswerNotes && navIsAnswerMode && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Ans. notes</span>
+                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.answerNotes) }} />
+                        </div>
+                      )}
+
+                      {isTbStep && tbTeamsAndGuesses.length > 0 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
+                          <div style={rowStyle}>
+                            <span style={labelStyle}>TB</span>
+                            <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
+                              {enrichedItem.tbQuestion || ""}
+                            </span>
+                          </div>
+                          {enrichedItem.tbAnswer && (
+                            <div style={rowStyle}>
+                              <span style={labelStyle}>Ans.</span>
+                              <span style={{ ...textStyle, color: colors.accent }}>{enrichedItem.tbAnswer}</span>
+                            </div>
+                          )}
+                          {tbTeamsAndGuesses.map((tg, i) => (
+                            <div key={i} style={{ ...rowStyle, paddingLeft: "4.3rem" }}>
+                              <span style={{ ...textStyle, color: "#aaa", flex: 1 }}>{tg.teamName}</span>
+                              <span style={{ ...textStyle, color: "#fff", flexShrink: 0, marginLeft: ".5rem" }}>
+                                {tg.guess !== null && tg.guess !== undefined ? `guessed ${tg.guess}` : "no guess"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {hasAudio && audioObj && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: ".25rem" }}>
+                          <div style={{ display: "flex", gap: ".5rem", alignItems: "center" }}>
+                            <span style={labelStyle}>Audio</span>
+                            <span style={{ ...textStyle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {audioObj.filename || "audio file"}
+                            </span>
+                            <span style={{ ...textStyle, color: "#888", flexShrink: 0, fontSize: ".78rem" }}>
+                              {isCurrentAudio && audioCurrentTime > 0
+                                ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}`
+                                : formatTime(audioDuration)}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              height: "5px",
+                              background: "#2a3a4a",
+                              borderRadius: "3px",
+                              cursor: isCurrentAudio && audioDuration ? "pointer" : "default",
+                              overflow: "hidden",
+                            }}
+                            onClick={(e) => {
+                              if (!sharedAudioRef.current || !audioDuration) return;
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                              sharedAudioRef.current.currentTime = ratio * audioDuration;
+                            }}
+                          >
+                            <div style={{
+                              height: "100%",
+                              width: isCurrentAudio && audioDuration
+                                ? `${Math.min(100, (audioCurrentTime / audioDuration) * 100)}%`
+                                : "0%",
+                              background: colors.accent,
+                              borderRadius: "3px",
+                            }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                </div>{/* end left stack */}
+
+                {/* Grid column — fixed width, spans full body height */}
+                {navGrid.length > 0 && (
+                  <div style={{
+                    width: "300px",
+                    flexShrink: 0,
+                    background: colors.dark,
+                    borderLeft: gridOnRight ? `1px solid rgba(255,255,255,0.1)` : "none",
+                    borderRight: !gridOnRight ? `1px solid rgba(255,255,255,0.1)` : "none",
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
+                  }}>
                       {/* Q/A mode toggle */}
                       <div style={{ display: "flex", gap: ".25rem", padding: ".3rem .5rem", flexShrink: 0, borderBottom: `1px solid rgba(255,255,255,0.08)` }}>
                         {[
@@ -3863,247 +4112,8 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                </div>{/* end preview+grid sub-row */}
 
-                {/* Remote audio status — shown when another host is playing audio */}
-                {remoteAudioStatus?.playing && (
-                  <div style={{ background: "#1a2a1a", borderTop: "1px solid #2a4a2a", padding: ".25rem .6rem", fontSize: ".75rem", color: "#7fc97f", fontFamily: tokens.font.body, fontStyle: "italic", width: previewW, flexShrink: 0 }}>
-                    {remoteAudioStatus.hostName} is playing audio
-                  </div>
-                )}
-
-                {/* Context panel — always rendered so preview position doesn't jump */}
-                {(() => {
-                  const enrichedItem = contextPanelItem;
-                  const hasAudio = currentNavAudio.length > 0;
-                  const audioObj = currentNavAudio[navAudioIndex] || currentNavAudio[0];
-                  const isCurrentAudio = hasAudio && !!audioObj && sharedAudioUrl === audioObj.url;
-
-                  let categoryNumber = null, totalCategories = 0;
-                  if (enrichedItem?.type === "category") {
-                    const catItems = navQuestionsMode.filter(i => i.type === "category" && !i.isTiebreaker);
-                    totalCategories = catItems.length;
-                    const catIdx = catItems.indexOf(enrichedItem);
-                    if (catIdx !== -1) categoryNumber = catIdx + 1;
-                  }
-
-                  const hasQuestionNotes = !!(enrichedItem?.questionNotes?.trim());
-                  const hasPronunciation = !!(enrichedItem?.pronunciationGuide?.trim());
-                  const hasAnswerNotes = !!(enrichedItem?.answerNotes?.trim());
-                  const isTbStep = enrichedItem?.type === "results-tb-question" || enrichedItem?.type === "results-tb-answer";
-
-                  // Solo: exactly one team answered correctly
-                  let soloTeamName = null;
-                  if (enrichedItem?.type === "question" && enrichedItem.showQuestionId) {
-                    const sqid = enrichedItem.showQuestionId;
-                    const grid = composedCachedState?.grid || {};
-                    const teams = composedCachedState?.teams || [];
-                    const correctTeams = teams.filter(t => grid[t.showTeamId]?.[sqid]?.isCorrect === true);
-                    if (correctTeams.length === 1) soloTeamName = correctTeams[0].teamName || correctTeams[0].name || null;
-                  }
-                  const tbTeamsAndGuesses = isTbStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
-
-                  // Next place info: find the next results-place-pts or results-place-reveal step after current
-                  const isResultsPlaceStep = enrichedItem?.type === "results-place-pts" || enrichedItem?.type === "results-place-reveal";
-                  let nextPlaceInfo = null;
-                  if (isResultsPlaceStep) {
-                    for (let i = navIndex + 1; i < navAnswersModeList.length; i++) {
-                      const s = navAnswersModeList[i];
-                      if (s.type === "results-place-pts" || s.type === "results-place-reveal") {
-                        nextPlaceInfo = s;
-                        break;
-                      }
-                    }
-                  }
-
-                  const hasContent = (hasQuestionNotes && !navIsAnswerMode) || hasPronunciation || (hasAnswerNotes && navIsAnswerMode) || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
-
-                  const formatTime = (s) => {
-                    if (!s || !isFinite(s)) return "--:--";
-                    const m = Math.floor(s / 60);
-                    const sec = Math.floor(s % 60);
-                    return `${m}:${sec.toString().padStart(2, "0")}`;
-                  };
-
-                  const labelStyle = {
-                    fontSize: ".72rem",
-                    fontWeight: 700,
-                    letterSpacing: ".05em",
-                    textTransform: "uppercase",
-                    color: colors.accent,
-                    fontFamily: tokens.font.body,
-                    flexShrink: 0,
-                    lineHeight: 1.5,
-                    paddingTop: "1px",
-                    width: "3.8rem",
-                    textAlign: "right",
-                  };
-                  const textStyle = {
-                    fontSize: "1rem",
-                    color: "#ddd",
-                    fontFamily: tokens.font.body,
-                    lineHeight: 1.45,
-                  };
-                  const rowStyle = { display: "flex", gap: ".5rem", alignItems: "flex-start" };
-
-                  return (
-                    <div style={{
-                      background: "#182030",
-                      borderTop: "1px solid #2a3a4a",
-                      padding: ".4rem .6rem",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: ".3rem",
-                      height: "5.5rem",
-                      overflowY: "auto",
-                      justifyContent: hasContent ? "flex-start" : "center",
-                      width: previewW,
-                      flexShrink: 0,
-                    }}>
-                      {!hasContent && (
-                        <div style={{ ...textStyle, color: "#2e4050", textAlign: "center", fontSize: ".78rem", fontStyle: "italic" }}>
-                          no context
-                        </div>
-                      )}
-
-                      {categoryNumber !== null && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>Cat</span>
-                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
-                            {categoryNumber} of {totalCategories}
-                          </span>
-                          {enrichedItem?.superSecret && (
-                            <span style={{ fontSize: ".7rem", color: colors.accent, fontWeight: 700, fontStyle: "italic", letterSpacing: ".03em", alignSelf: "center" }}>
-                              Super Secret
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {isResultsPlaceStep && enrichedItem && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>Now</span>
-                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
-                            {enrichedItem.place} · {enrichedItem.points} {enrichedItem.points === 1 ? "pt" : "pts"}
-                          </span>
-                        </div>
-                      )}
-                      {nextPlaceInfo && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>Next</span>
-                          <span style={{ ...textStyle, color: colors.accent }}>
-                            {nextPlaceInfo.place} · {nextPlaceInfo.points} pts
-                            {enrichedItem?.points != null ? ` (+${nextPlaceInfo.points - enrichedItem.points})` : ""}
-                          </span>
-                        </div>
-                      )}
-
-                      {soloTeamName && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>Solo</span>
-                          <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>{soloTeamName}</span>
-                        </div>
-                      )}
-
-                      {enrichedItem?.type === "category" && enrichedItem?.superSecret && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>🔎</span>
-                          <span style={{ ...textStyle, color: "#ddd" }}>
-                            <strong style={{ color: colors.accent }}>This is the Super Secret category of the week!</strong>{" "}
-                            If you follow us on Facebook, you'll see a post at the start of each week letting you know where around central Minnesota you can find us that week. That post also tells you the super secret category for the week, so that you can study up before the contest to have a leg up on the competition!
-                          </span>
-                        </div>
-                      )}
-
-                      {hasQuestionNotes && !navIsAnswerMode && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>Notes</span>
-                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.questionNotes) }} />
-                        </div>
-                      )}
-
-                      {hasPronunciation && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>Pron.</span>
-                          <span style={{ ...textStyle, fontStyle: "italic" }} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.pronunciationGuide) }} />
-                        </div>
-                      )}
-
-                      {hasAnswerNotes && navIsAnswerMode && (
-                        <div style={rowStyle}>
-                          <span style={labelStyle}>Ans. notes</span>
-                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.answerNotes) }} />
-                        </div>
-                      )}
-
-                      {isTbStep && tbTeamsAndGuesses.length > 0 && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
-                          <div style={rowStyle}>
-                            <span style={labelStyle}>TB</span>
-                            <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
-                              {enrichedItem.tbQuestion || ""}
-                            </span>
-                          </div>
-                          {enrichedItem.tbAnswer && (
-                            <div style={rowStyle}>
-                              <span style={labelStyle}>Ans.</span>
-                              <span style={{ ...textStyle, color: colors.accent }}>{enrichedItem.tbAnswer}</span>
-                            </div>
-                          )}
-                          {tbTeamsAndGuesses.map((tg, i) => (
-                            <div key={i} style={{ ...rowStyle, paddingLeft: "4.3rem" }}>
-                              <span style={{ ...textStyle, color: "#aaa", flex: 1 }}>{tg.teamName}</span>
-                              <span style={{ ...textStyle, color: "#fff", flexShrink: 0, marginLeft: ".5rem" }}>
-                                {tg.guess !== null && tg.guess !== undefined ? `guessed ${tg.guess}` : "no guess"}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {hasAudio && audioObj && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: ".25rem" }}>
-                          <div style={{ display: "flex", gap: ".5rem", alignItems: "center" }}>
-                            <span style={labelStyle}>Audio</span>
-                            <span style={{ ...textStyle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {audioObj.filename || "audio file"}
-                            </span>
-                            <span style={{ ...textStyle, color: "#888", flexShrink: 0, fontSize: ".78rem" }}>
-                              {isCurrentAudio && audioCurrentTime > 0
-                                ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}`
-                                : formatTime(audioDuration)}
-                            </span>
-                          </div>
-                          <div
-                            style={{
-                              height: "5px",
-                              background: "#2a3a4a",
-                              borderRadius: "3px",
-                              cursor: isCurrentAudio && audioDuration ? "pointer" : "default",
-                              overflow: "hidden",
-                            }}
-                            onClick={(e) => {
-                              if (!sharedAudioRef.current || !audioDuration) return;
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                              sharedAudioRef.current.currentTime = ratio * audioDuration;
-                            }}
-                          >
-                            <div style={{
-                              height: "100%",
-                              width: isCurrentAudio && audioDuration
-                                ? `${Math.min(100, (audioCurrentTime / audioDuration) * 100)}%`
-                                : "0%",
-                              background: colors.accent,
-                              borderRadius: "3px",
-                            }} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>{/* end body column */}
+                </div>{/* end body row */}
       </div>
 
       {/* Question Edit Modal */}
