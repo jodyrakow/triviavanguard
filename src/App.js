@@ -3287,31 +3287,11 @@ export default function App() {
   // UI
   return (
     <>
-      {/* Fixed header bar */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "80px",
-          backgroundColor: "#fff",
-          borderBottom: "2px solid " + colors.accent,
-          zIndex: 998,
-          display: "flex",
-          alignItems: "center",
-          padding: "0 2rem",
-          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-        }}
-      >
-        <img src={logo} alt="TriviaVanguard" style={{ height: "68px" }} />
-      </div>
-
       {/* ── Mission Control — fixed full-page layout ── */}
       <div
         style={{
           position: "fixed",
-          top: "80px",
+          top: 0,
           left: 0,
           right: 0,
           bottom: 0,
@@ -3333,6 +3313,8 @@ export default function App() {
           flexWrap: "wrap",
           minHeight: "48px",
         }}>
+          <img src={logo} alt="TriviaVanguard" style={{ height: "36px", flexShrink: 0, marginRight: ".25rem" }} />
+
           {/* Venue button */}
           <Button
             onClick={openVenuePicker}
