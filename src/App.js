@@ -2083,10 +2083,11 @@ export default function App() {
       const anyTbBroken = isFinalRound && group.some(r => r._tbGroupBroken);
 
       if (anyTbBroken && resultsTiebreakerWasUsed) {
-        // Scramble, then TB question, then TB answer, then individual sub-place reveals
+        // Place+pts first (no names), then scramble, TB question, TB answer, sub-place reveals
         const tbAnswerText = resultsTbQ ? (
           Array.isArray(resultsTbQ.answer) ? resultsTbQ.answer[0] : (resultsTbQ.answer || resultsTbQ.answerText || resultsTbQ.correctAnswer || "")
         ) : "";
+        steps.push({ type: "results-place-pts", place: placeStr, points: total, isTied, prize: prize || null });
         steps.push({
           type: "results-scramble",
           place: placeStr,

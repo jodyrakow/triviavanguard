@@ -1196,18 +1196,17 @@ function ResultsTbDisplay({ content, showAnswer = false, fontSize = 100 }) {
           dangerouslySetInnerHTML={{ __html: marked.parseInline(tbQuestion) }}
         />
       )}
-      {showAnswer && tbAnswer && (
-        <div
-          style={{
-            fontSize: `${3 * scale}rem`,
-            fontFamily: tokens.font.display,
-            color: theme.accent,
-            fontWeight: 800,
-            textAlign: "center",
-          }}
-          dangerouslySetInnerHTML={{ __html: marked.parseInline(tbAnswer) }}
-        />
-      )}
+      <div
+        style={{
+          fontSize: `${3 * scale}rem`,
+          fontFamily: tokens.font.display,
+          color: theme.accent,
+          fontWeight: 800,
+          textAlign: "center",
+          visibility: showAnswer && tbAnswer ? "visible" : "hidden",
+        }}
+        dangerouslySetInnerHTML={{ __html: tbAnswer ? marked.parseInline(tbAnswer) : "&nbsp;" }}
+      />
     </div>
   );
 }
