@@ -2781,22 +2781,6 @@ export default function App() {
     pushResultsStep,
   ]);
 
-  // Keyboard arrow nav (only when enabled) — placed after navForward/navBackward are defined
-  useEffect(() => {
-    if (!navKeyboardEnabled) return;
-    const handler = (e) => {
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-        e.preventDefault();
-        navForward();
-      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-        e.preventDefault();
-        navBackward();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [navKeyboardEnabled, navForward, navBackward]);
-
   const toggleNavMode = useCallback(() => {
     setNavIsAnswerMode((prev) => !prev);
     setNavIndex(0);
@@ -2982,6 +2966,41 @@ export default function App() {
     },
     [currentNavAudio, navAudioIndex, sharedAudioPlaying, sharedAudioUrl, playAudio],
   );
+
+  // Keyboard shortcuts (only when enabled)
+  // ArrowRight/ArrowDown → forward  |  ArrowLeft → backward
+  // ArrowUp → timer start/pause  |  Space → play/stop audio  |  i → toggle image
+  useEffect(() => {
+    if (!navKeyboardEnabled) return;
+    const handler = (e) => {
+      const tag = e.target?.tagName;
+      const inInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target?.isContentEditable;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navForward();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        navBackward();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setTimerRunning((p) => !p);
+      } else if (e.key === " " && !inInput) {
+        e.preventDefault();
+        const cur = currentNavAudio[navAudioIndex] || currentNavAudio[0];
+        if (cur) {
+          if (sharedAudioUrl === cur.url) toggleAudio();
+          else playAudio(cur.url);
+        }
+      } else if ((e.key === "i" || e.key === "I") && !inInput) {
+        e.preventDefault();
+        if (navCurrentItem?.type === "question" && navCurrentItem.inlineImages?.length > 0) {
+          toggleNavImage();
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [navKeyboardEnabled, navForward, navBackward, currentNavAudio, navAudioIndex, sharedAudioUrl, toggleAudio, playAudio, navCurrentItem, toggleNavImage]);
 
   const navGoTo = useCallback(() => {
     const input = navGoToInput.trim();
