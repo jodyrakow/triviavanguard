@@ -3669,7 +3669,7 @@ export default function App() {
                   );
                 })()}
                 {/* Preview cell — flex:1, height measured by ResizeObserver to drive previewW */}
-                <div ref={previewRowRef} style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
+                <div ref={previewRowRef} style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
                   <div
                     style={{
                       width: previewW,
