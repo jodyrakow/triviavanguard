@@ -314,13 +314,14 @@ export default function App() {
   const [stripEditing, setStripEditing] = useState(false);
   const [stripEditDraft, setStripEditDraft] = useState({});
 
-  // Preview dimensions — height of preview cell + width of left stack drive previewW.
+  // Preview dimensions — driven by measured height of preview cell.
+  // Left stack is set to exactly previewW so context panel always aligns.
+  // Grid takes all remaining space.
   const previewRowRef = useRef(null);
-  const leftStackRef = useRef(null);
   const [previewRowH, setPreviewRowH] = useState(0);
-  const [leftStackW, setLeftStackW] = useState(0);
-  const previewW = (previewRowH > 0 && leftStackW > 0)
-    ? Math.max(320, Math.min(Math.round(previewRowH * 1920 / 1080), leftStackW, 1600))
+  const [windowW, setWindowW] = useState(() => window.innerWidth);
+  const previewW = previewRowH > 0
+    ? Math.max(320, Math.min(Math.round(previewRowH * 1920 / 1080), windowW - 240, 1600))
     : 0;
   const previewH = previewW > 0 ? Math.round(previewW * 1080 / 1920) : 0;
 
@@ -1045,10 +1046,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!leftStackRef.current) return;
-    const ro = new ResizeObserver(([entry]) => setLeftStackW(entry.contentRect.width));
-    ro.observe(leftStackRef.current);
-    return () => ro.disconnect();
+    const onResize = () => setWindowW(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   const handleStartPause = () => setTimerRunning((p) => !p);
@@ -3536,7 +3536,7 @@ export default function App() {
               {/* ── body row: left stack + grid column ── */}
               <div style={{ display: "flex", flexDirection: gridOnRight ? "row" : "row-reverse", flex: 1, minHeight: 0, overflow: "hidden", background: colors.dark }}>
                 {/* Left stack: control bar, preview, remote audio, context panel */}
-                <div ref={leftStackRef} style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden" }}>
+                <div style={{ display: "flex", flexDirection: "column", width: previewW || 0, flexShrink: 0, overflow: "hidden" }}>
 
                 {/* Control bar — 2-row layout */}
                 {(() => {
@@ -3937,8 +3937,8 @@ export default function App() {
                 {/* Grid column — fixed width, spans full body height */}
                 {navGrid.length > 0 && (
                   <div style={{
-                    width: "300px",
-                    flexShrink: 0,
+                    flex: 1,
+                    minWidth: 0,
                     background: colors.dark,
                     borderLeft: gridOnRight ? `1px solid rgba(255,255,255,0.1)` : "none",
                     borderRight: !gridOnRight ? `1px solid rgba(255,255,255,0.1)` : "none",
