@@ -7,6 +7,8 @@ import {
   buildTeamTotals,
   computePlaces,
   computeCellPoints,
+  computeSolosForRound,
+  computeSocialsForRound,
 } from "./scoring/compute.js";
 
 // Normalize team shapes coming from cache (same as ScoringMode)
@@ -117,6 +119,23 @@ export default function ResultsMode({
     },
     [cachedByRound],
   );
+
+  // ---- Solos / Socials for the full show ----
+  const solosData = useMemo(() => {
+    const grid = cachedByRound?.grid || {};
+    const result = computeSolosForRound(teams, questions, grid);
+    return {
+      count: result.count,
+      teams: result.teams
+        .map((t) => ({ teamName: t.teamName, display: `${t.teamName} (#${t.questionLabels.join(", #")})` }))
+        .sort((a, b) => a.teamName.localeCompare(b.teamName)),
+    };
+  }, [teams, questions, cachedByRound]);
+
+  const socialsData = useMemo(() => {
+    const grid = cachedByRound?.grid || {};
+    return computeSocialsForRound(teams, questions, grid);
+  }, [teams, questions, cachedByRound]);
 
   // ---- Show-wide TB detection (one per show) ----
   const tbQ = useMemo(() => {
@@ -1062,6 +1081,17 @@ export default function ResultsMode({
         >
           Results {usingCumulative ? "— Show Total" : ""}
         </h2>
+        {solosData.count > 0 && (
+          <div style={{ color: "#fff", fontFamily: tokens.font.body, fontSize: "0.95rem", marginLeft: "0.5rem", marginTop: "0.25rem", marginRight: "1rem" }}>
+            {solosData.count} solo{solosData.count !== 1 ? "s" : ""} this show:{" "}
+            {solosData.teams.map((t) => t.display).join(", ")}
+          </div>
+        )}
+        {socialsData.count > 0 && (
+          <div style={{ color: "#fff", fontFamily: tokens.font.body, fontSize: "0.95rem", marginLeft: "0.5rem", marginTop: "0.25rem", marginRight: "1rem" }}>
+            {socialsData.count} social{socialsData.count !== 1 ? "s" : ""} this show: #{socialsData.questionLabels.join(", #")}
+          </div>
+        )}
       </div>
 
       {(isPublishing || publishStatus) && (

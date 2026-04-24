@@ -25,7 +25,7 @@ import {
   ui,
   Button,
 } from "./styles/index.js";
-import { computeAutoEarned, computeBonusBreakdown, computePartialBreakdown, buildCorrectCountMap, buildTeamTotals, computePlaces } from "./scoring/compute.js";
+import { computeAutoEarned, computeBonusBreakdown, computePartialBreakdown, buildCorrectCountMap, buildTeamTotals, computePlaces, computeSolosForRound, computeSocialsForRound } from "./scoring/compute.js";
 import { supabase } from "./supabaseClient.js";
 export { supabase };
 
@@ -72,6 +72,7 @@ export default function App() {
   const fileInputRef = useRef(null); // For importing archived shows from JSON
   const [showDropZone, setShowDropZone] = useState(false); // Show drag-and-drop modal for archived files
   const [showDetails, setshowDetails] = useState(true);
+  const [navAnswerHidden, setNavAnswerHidden] = useState(false);
   const [visibleImages, setVisibleImages] = useState({});
   const questionRefs = useRef({});
   const [visibleCategoryImages, setVisibleCategoryImages] = useState({});
@@ -1705,6 +1706,25 @@ export default function App() {
     return qs;
   }, [showBundle]);
 
+  // Show-wide solos / socials (used in MC context panel and results)
+  const showSolosData = useMemo(() => {
+    const teams = composedCachedState?.teams || [];
+    const grid = composedCachedState?.grid || {};
+    const result = computeSolosForRound(teams, resultsAllQuestions, grid);
+    return {
+      count: result.count,
+      teams: result.teams
+        .map((t) => ({ teamName: t.teamName, display: `${t.teamName} (#${t.questionLabels.join(", #")})` }))
+        .sort((a, b) => a.teamName.localeCompare(b.teamName)),
+    };
+  }, [composedCachedState, resultsAllQuestions]);
+
+  const showSocialsData = useMemo(() => {
+    const teams = composedCachedState?.teams || [];
+    const grid = composedCachedState?.grid || {};
+    return computeSocialsForRound(teams, resultsAllQuestions, grid);
+  }, [composedCachedState, resultsAllQuestions]);
+
   // Detect show-wide tiebreaker question
   const resultsTbQ = useMemo(() => {
     if (!showBundle?.rounds) return null;
@@ -2442,9 +2462,9 @@ export default function App() {
     if (scoringMode==="pub") { const pp=Number.isFinite(pubPoints)?pubPoints:10; text+=`\nEach question is worth ${pp} point${pp===1?"":"s"}, for a total of ${X*pp} possible points${isMultiGame?" in each game":""}.\n`; }
     else if (scoringMode==="pooled") { const ps=Number.isFinite(poolPerQuestion)?poolPerQuestion:150; text+=`\nEach question tonight has a point pool of ${ps} points that will be divided up evenly among the teams that answer it correctly; in other words, you'll be rewarded if you know stuff that nobody else knows.\n`; }
     else if (scoringMode==="pooled-adaptive") { const pc=Number.isFinite(poolContribution)?poolContribution:10; text+=`\nEach question tonight has a point pool that contains ${pc} point${pc===1?"":"s"} for each team that is playing the game. The pool for each question will be divided up evenly among the teams that answer it correctly; in other words, you'll be rewarded if you know stuff that nobody else knows.\n`; }
-    if (_scriptPrizeList.length>0) { text+=`\n${loc} is awarding prizes for the top ${_scriptPrizeList.length} team${_scriptPrizeList.length===1?"":"s"}:\n`; _scriptPrizeList.forEach((p,i)=>{text+=`  • ${_ordinal(i+1)}: ${p}\n`;}); }
-    text += `\nNow before we get going with the game, here are the rules.\n● To keep things fair, no electronic devices may be out during the round. And that's not just when you're with your team at your table. If you have to step away from your table for any reason, please return with only your charming personality, and NOT with answers that you looked up while you were away. Because there are prizes at stake, if it looks like cheating, we have to treat it like cheating.\n● Don't shout out the answers; you might accidentally give answers away to other teams. Use those handy dandy notepads to share ideas with your team instead.\n● Spelling doesn't count unless we say it does.\n● Unless we say otherwise, when we ask for someone's name, we want their last name. Give us the first name, too, if you like, but just remember that if any part of your answer is wrong, the whole thing is wrong. It's always safest to just give us last names.\n● For fictional characters, either the first or last name is okay unless we say otherwise.\n● Our answer is the correct answer. Dispute if you like and we'll consider it, but our decisions are final.\n● Finally, be generous to the staff; they're working hard to ensure you have a great time. Don't be afraid to ask them for answers to our questions; they may know some that you don't.`;
-    if (visualQ > 0) { text += "\n\n"; const hasCohost = cName && cName !== "your co-host"; const vd = isMultiGame ? (visualCat>1?"the first visual round for game #1":"the visual round for game #1") : (visualCat>1?"the first visual round":"the visual round"); text += hasCohost ? `${cName} is coming around with ${vd}. That's your signal to put those phones away because the contest starts now. Good luck!` : `I'll be coming around in just a moment with ${vd}. That's your signal to put those phones away because the contest starts now. Good luck!`; }
+    if (_scriptPrizeList.length>0) { text+=`\n${loc} is awarding prizes for the top ${_scriptPrizeList.length} team${_scriptPrizeList.length===1?"":"s"}:\n`; [..._scriptPrizeList].reverse().forEach((p,i)=>{const rank=_scriptPrizeList.length-i;text+=`  • ${_ordinal(rank)}: ${p}\n`;}); }
+    text += `\nNow before we get going with the game, here are the rules.\n● To keep things fair, no electronic devices may be out during the round. And that's not just when you're with your team at your table. If you have to step away from your table for any reason, please return with only your charming personality, and NOT with answers that you looked up while you were away.\n● Don't shout out the answers; you might accidentally give answers away to other teams. Use those handy dandy notepads to share ideas with your team instead.\n● Spelling doesn't count unless we say it does.\n● When we ask for the name of a real person, we want their last name. Give us the first name, too, if you like, but just remember that if any part of your answer is wrong, the whole thing is wrong.\n● For fictional characters, either the first or last name is okay.\n● Our answer is the correct answer. Dispute if you like and we'll consider it, but our decisions are final.\n● Finally, be generous to the staff; they're working hard to ensure you have a great time. Don't be afraid to ask them for answers to our questions; they may know some that you don't.`;
+    if (visualQ > 0) { text += "\n\n"; const hasCohost = cName && cName !== "your co-host"; const vd = isMultiGame ? (visualCat>1?"the first visual questions for game #1":"the visual questions for game #1") : (visualCat>1?"the first visual questions":"the visual questions"); text += hasCohost ? `${cName} is coming around with ${vd}. That's your signal to put those phones away because the contest starts now. Good luck!` : `I'll be coming around in just a moment with ${vd}. That's your signal to put those phones away because the contest starts now. Good luck!`; }
     return text;
   }, [_scriptTotalQ, _scriptPrizeList, composedCachedState?.hostInfo, _scriptMultiGame, showBundleWithEdits, scoringMode, pubPoints, poolPerQuestion, poolContribution, _scriptAllRounds]);
   const activeRulesIndex = navStarted && navIndex < navRulesPrefix.length ? navIndex : null;
@@ -2455,7 +2475,7 @@ export default function App() {
     const bps=[]; let f=0; while(true){const p=body.indexOf("●",f);if(p===-1)break;bps.push(p);f=p+1;}
     if(bps.length<6) return [{text:pre,ruleIndex:null},{text:body,ruleIndex:null}];
     const seg=(s,e)=>body.slice(s,e);
-    const sections=[{text:pre,ruleIndex:null},{text:seg(0,bps[0]),ruleIndex:0},{text:seg(bps[0],bps[1]),ruleIndex:1},{text:seg(bps[1],bps[2]),ruleIndex:2},{text:seg(bps[2],bps[3]),ruleIndex:3},{text:seg(bps[3],bps[5]),ruleIndex:4},{text:seg(bps[5]),ruleIndex:5}];
+    const sections=[{text:pre,ruleIndex:0},{text:seg(0,bps[0]),ruleIndex:0},{text:seg(bps[0],bps[1]),ruleIndex:1},{text:seg(bps[1],bps[2]),ruleIndex:2},{text:seg(bps[2],bps[3]),ruleIndex:3},{text:seg(bps[3],bps[5]),ruleIndex:4},{text:seg(bps[5]),ruleIndex:5}];
     const last=sections[sections.length-1]; const cp=last.text.lastIndexOf("\n\n");
     if(cp!==-1){sections[sections.length-1]={text:last.text.slice(0,cp),ruleIndex:5};sections.push({text:last.text.slice(cp),ruleIndex:6});}
     return sections;
@@ -3359,7 +3379,7 @@ export default function App() {
           <Button
             onClick={openVenuePicker}
             title="Select display venue"
-            style={{ fontSize: ".85rem", padding: ".3rem .6rem", borderRadius: ".4rem", whiteSpace: "nowrap", ...(venueShowId && { background: colors.accent, color: "#fff" }) }}
+            style={{ fontSize: "1rem", padding: ".3rem .6rem", borderRadius: ".4rem", whiteSpace: "nowrap", ...(venueShowId && { background: colors.accent, color: "#fff" }) }}
           >
             📺 {venueName || "Set venue"}
           </Button>
@@ -3378,7 +3398,7 @@ export default function App() {
               setSelectedRoundId(""); setVisibleImages({}); setVisibleCategoryImages({}); setCurrentImageIndex({});
               setSelectedShowId(newId);
             }}
-            style={{ fontSize: ".9rem", fontFamily: tokens.font.body, padding: ".3rem .4rem", borderRadius: ".4rem", border: `1px solid ${colors.gray?.border || "#ccc"}`, maxWidth: "260px" }}
+            style={{ fontSize: "1rem", fontFamily: tokens.font.body, padding: ".3rem .4rem", borderRadius: ".4rem", border: `1px solid ${colors.gray?.border || "#ccc"}`, maxWidth: "260px" }}
           >
             <option value="">— Select a show —</option>
             {shows.map((s) => (<option key={s.id} value={s.id}>{s.Show?.Show}</option>))}
@@ -3389,14 +3409,14 @@ export default function App() {
           {/* Round selector */}
           {roundNumbers.length > 1 && (
             <select value={selectedRoundId} onChange={(e) => setSelectedRoundId(e.target.value)}
-              style={{ fontSize: ".9rem", fontFamily: tokens.font.body, padding: ".3rem .4rem", borderRadius: ".4rem", border: `1px solid ${colors.gray?.border || "#ccc"}` }}>
+              style={{ fontSize: "1rem", fontFamily: tokens.font.body, padding: ".3rem .4rem", borderRadius: ".4rem", border: `1px solid ${colors.gray?.border || "#ccc"}` }}>
               {roundNumbers.map((n) => (<option key={n} value={String(n)}>{`Round ${n}`}</option>))}
             </select>
           )}
 
           {/* Bundle status */}
-          {bundleLoading && <span style={{ fontSize: ".8rem", color: "#888", fontFamily: tokens.font.body }}>Loading…</span>}
-          {bundleError && <span style={{ fontSize: ".8rem", color: colors.error, fontFamily: tokens.font.body }}>Error loading show</span>}
+          {bundleLoading && <span style={{ fontSize: "1rem", color: "#888", fontFamily: tokens.font.body }}>Loading…</span>}
+          {bundleError && <span style={{ fontSize: "1rem", color: colors.error, fontFamily: tokens.font.body }}>Error loading show</span>}
 
           {/* Sync status dot */}
           <span title={`Multi-host sync: ${rtStatus}`} style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0, backgroundColor: rtStatus === "SUBSCRIBED" ? "#22c55e" : rtStatus === "SUBSCRIBING" ? "#eab308" : "#ef4444" }} />
@@ -3404,15 +3424,15 @@ export default function App() {
           {/* Mode panel toggle buttons */}
           <div style={{ marginLeft: "auto", display: "flex", gap: ".35rem", flexShrink: 0 }}>
             <Button onClick={() => setQuestionsOpen(v => !v)} title="Questions & Answers panel"
-              style={{ fontSize: ".85rem", padding: ".3rem .65rem", borderRadius: ".4rem", ...(questionsOpen && { background: colors.accent, color: "#fff" }) }}>
+              style={{ fontSize: "1rem", padding: ".3rem .65rem", borderRadius: ".4rem", ...(questionsOpen && { background: colors.accent, color: "#fff" }) }}>
               Questions
             </Button>
             <Button onClick={() => setScoringOpen(v => !v)} title="Scoring panel"
-              style={{ fontSize: ".85rem", padding: ".3rem .65rem", borderRadius: ".4rem", ...(scoringOpen && { background: colors.accent, color: "#fff" }) }}>
+              style={{ fontSize: "1rem", padding: ".3rem .65rem", borderRadius: ".4rem", ...(scoringOpen && { background: colors.accent, color: "#fff" }) }}>
               Scores
             </Button>
             <Button onClick={() => setResultsOpen(v => !v)} title="Results panel"
-              style={{ fontSize: ".85rem", padding: ".3rem .65rem", borderRadius: ".4rem", ...(resultsOpen && { background: colors.accent, color: "#fff" }) }}>
+              style={{ fontSize: "1rem", padding: ".3rem .65rem", borderRadius: ".4rem", ...(resultsOpen && { background: colors.accent, color: "#fff" }) }}>
               Results
             </Button>
           </div>
@@ -3480,17 +3500,9 @@ export default function App() {
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
                 >⇄</Button>
                 <Button
-                  onClick={() => {
-                    const closestKey = getClosestQuestionKey?.();
-                    setshowDetails((prev) => !prev);
-                    if (closestKey && questionRefs?.current?.[closestKey]?.current) {
-                      requestAnimationFrame(() => requestAnimationFrame(() => {
-                        questionRefs.current[closestKey]?.current?.scrollIntoView({ behavior: "instant", block: "center" });
-                      }));
-                    }
-                  }}
-                  title="Show/hide all answers"
-                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
+                  onClick={() => setNavAnswerHidden((prev) => !prev)}
+                  title={navAnswerHidden ? "Show answer in context panel" : "Hide answer from context panel"}
+                  style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", opacity: navAnswerHidden ? 0.5 : 1 }}
                 >🥷</Button>
                 <Button
                   onClick={() => setShowAnswerKey((prev) => !prev)}
@@ -3503,7 +3515,10 @@ export default function App() {
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
                 >🔄</Button>
                 <Button
-                  onClick={() => setScriptPanelOpen((prev) => !prev)}
+                  onClick={() => setScriptPanelOpen((prev) => {
+                    if (!prev && hostScript) resetNav();
+                    return !prev;
+                  })}
                   title="Show/hide host script"
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem", ...(scriptPanelOpen && { background: colors.accent }) }}
                 >💬</Button>
@@ -3524,11 +3539,11 @@ export default function App() {
                   overflowY: "auto",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: ".5rem", marginBottom: ".5rem" }}>
-                    <span style={{ fontSize: ".75rem", color: "#aaa", fontFamily: tokens.font.body }}>Timer widget</span>
+                    <span style={{ fontSize: "1rem", color: "#aaa", fontFamily: tokens.font.body }}>Timer widget</span>
                     <Button
                       onClick={() => setShowTimer((prev) => !prev)}
                       title={showTimer ? "Hide timer" : "Show timer"}
-                      style={{ fontSize: ".8rem", padding: ".2rem .5rem", borderRadius: ".3rem", ...(showTimer && { background: colors.accent }) }}
+                      style={{ fontSize: "1rem", padding: ".2rem .5rem", borderRadius: ".3rem", ...(showTimer && { background: colors.accent }) }}
                     >⏱️ {showTimer ? "Hide" : "Show"}</Button>
                   </div>
                   <SidebarMenu
@@ -3572,7 +3587,7 @@ export default function App() {
                   const imgCount = hasImg ? item.inlineImages.length : 0;
                   const btnBase = {
                     padding: ".22rem .45rem",
-                    fontSize: ".8rem",
+                    fontSize: "1rem",
                     fontFamily: tokens.font.body,
                     borderRadius: ".35rem",
                     border: "1px solid #888",
@@ -3589,7 +3604,7 @@ export default function App() {
                       style={{
                         ...btnBase,
                         padding: ".15rem .3rem",
-                        fontSize: ".75rem",
+                        fontSize: "1rem",
                         minWidth: "1.4rem",
                         opacity: disabled ? 0.25 : 1,
                         cursor: disabled ? "default" : "pointer",
@@ -3604,15 +3619,15 @@ export default function App() {
                     ? navIndex >= navAnswersModeList.length - 1 && (navAnswersModeList[navIndex]?.type !== "question" || navAnswerStage >= 2)
                     : navIndex >= navWithRules.length - 1);
                   return (
-                    <div style={{ background: colors.dark, display: "flex", gap: ".4rem", padding: ".35rem .5rem", alignItems: "stretch", width: previewW, flexShrink: 0 }}>
+                    <div style={{ background: colors.dark, display: "flex", gap: ".4rem", padding: ".35rem .5rem", alignItems: "stretch", boxSizing: "border-box", width: "100%" }}>
 
                       {/* White now-playing panel — tall, spans full control bar height */}
                       <div style={{ flex: 1, background: "#fff", borderRadius: ".5rem", padding: ".3rem .6rem", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                        <div style={{ fontWeight: 700, fontSize: ".85rem", color: colors.dark, fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center", width: "100%" }}>
+                        <div style={{ fontWeight: 700, fontSize: "1rem", color: colors.dark, fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center", width: "100%" }}>
                           {navStarted ? navCurrentLabel : `▶ ${navCurrentLabel}`}
                         </div>
                         {navStarted && navNextLabel && (
-                          <div style={{ fontSize: ".72rem", color: "#888", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center", width: "100%" }}>
+                          <div style={{ fontSize: "1rem", color: "#888", fontFamily: tokens.font.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center", width: "100%" }}>
                             next: {navNextLabel}
                           </div>
                         )}
@@ -3717,7 +3732,7 @@ export default function App() {
 
                 {/* Remote audio status — shown when another host is playing audio */}
                 {remoteAudioStatus?.playing && (
-                  <div style={{ background: "#1a2a1a", borderTop: "1px solid #2a4a2a", padding: ".25rem .6rem", fontSize: ".75rem", color: "#7fc97f", fontFamily: tokens.font.body, fontStyle: "italic", width: previewW, flexShrink: 0 }}>
+                  <div style={{ background: "#1a2a1a", borderTop: "1px solid #2a4a2a", padding: ".25rem .6rem", fontSize: "1rem", color: "#7fc97f", fontFamily: tokens.font.body, fontStyle: "italic" }}>
                     {remoteAudioStatus.hostName} is playing audio
                   </div>
                 )}
@@ -3766,7 +3781,8 @@ export default function App() {
                     }
                   }
 
-                  const hasContent = (hasQuestionNotes && !navIsAnswerMode) || hasPronunciation || (hasAnswerNotes && navIsAnswerMode) || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
+                  const showAnswerInContext = !navAnswerHidden && enrichedItem?.type === "question" && !liveDisplayState?.content?.answer && !!(enrichedItem?.answer);
+                  const hasContent = showAnswerInContext || (hasQuestionNotes && !navIsAnswerMode) || hasPronunciation || (hasAnswerNotes && navIsAnswerMode) || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
 
                   const formatTime = (s) => {
                     if (!s || !isFinite(s)) return "--:--";
@@ -3776,7 +3792,7 @@ export default function App() {
                   };
 
                   const labelStyle = {
-                    fontSize: ".72rem",
+                    fontSize: "1rem",
                     fontWeight: 700,
                     letterSpacing: ".05em",
                     textTransform: "uppercase",
@@ -3809,7 +3825,7 @@ export default function App() {
                       justifyContent: hasContent ? "flex-start" : "center",
                     }}>
                       {!hasContent && (
-                        <div style={{ ...textStyle, color: "#2e4050", textAlign: "center", fontSize: ".78rem", fontStyle: "italic" }}>
+                        <div style={{ ...textStyle, color: "#2e4050", textAlign: "center", fontSize: "1rem", fontStyle: "italic" }}>
                           no context
                         </div>
                       )}
@@ -3821,7 +3837,7 @@ export default function App() {
                             {categoryNumber} of {totalCategories}
                           </span>
                           {enrichedItem?.superSecret && (
-                            <span style={{ fontSize: ".7rem", color: colors.accent, fontWeight: 700, fontStyle: "italic", letterSpacing: ".03em", alignSelf: "center" }}>
+                            <span style={{ fontSize: "1rem", color: colors.accent, fontWeight: 700, fontStyle: "italic", letterSpacing: ".03em", alignSelf: "center" }}>
                               Super Secret
                             </span>
                           )}
@@ -3850,6 +3866,13 @@ export default function App() {
                         <div style={rowStyle}>
                           <span style={labelStyle}>Solo</span>
                           <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>{soloTeamName}</span>
+                        </div>
+                      )}
+
+                      {showAnswerInContext && (
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Ans.</span>
+                          <span style={{ ...textStyle, color: colors.accent, fontWeight: 600 }}>{enrichedItem.answer}</span>
                         </div>
                       )}
 
@@ -3916,7 +3939,7 @@ export default function App() {
                             <span style={{ ...textStyle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {audioObj.filename || "audio file"}
                             </span>
-                            <span style={{ ...textStyle, color: "#888", flexShrink: 0, fontSize: ".78rem" }}>
+                            <span style={{ ...textStyle, color: "#888", flexShrink: 0, fontSize: "1rem" }}>
                               {isCurrentAudio && audioCurrentTime > 0
                                 ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}`
                                 : formatTime(audioDuration)}
@@ -3977,7 +4000,7 @@ export default function App() {
                             disabled={navActiveList.length === 0 || isActive}
                             style={{
                               flex: 1,
-                              fontSize: ".88rem",
+                              fontSize: "1rem",
                               fontFamily: tokens.font.body,
                               padding: ".2rem .4rem",
                               borderRadius: ".35rem",
@@ -4029,7 +4052,7 @@ export default function App() {
                                   onClick={() => handleGridCategoryClick(catItem)}
                                   title={plainName}
                                   style={{
-                                    fontSize: ".85rem",
+                                    fontSize: "1rem",
                                     fontFamily: tokens.font.body,
                                     padding: ".2rem 0",
                                     borderRadius: ".35rem",
@@ -4088,7 +4111,7 @@ export default function App() {
                             const entryIndices = resultsEntrySteps.map(s => navAnswersModeList.indexOf(s));
                             return (
                               <div key="results-section">
-                                <div style={{ fontSize: ".65rem", fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", fontFamily: tokens.font.body, margin: ".4rem 0 .25rem", paddingTop: ".35rem", borderTop: "1px solid rgba(255,255,255,0.15)" }}>
+                                <div style={{ fontSize: "1rem", fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", fontFamily: tokens.font.body, margin: ".4rem 0 .25rem", paddingTop: ".35rem", borderTop: "1px solid rgba(255,255,255,0.15)" }}>
                                   Results
                                 </div>
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: ".25rem" }}>
@@ -4129,6 +4152,28 @@ export default function App() {
                           return [...catRows, resultsSection];
                         })()}
                       </div>
+
+                      {/* Solos / Socials footer */}
+                      {(showSolosData.count > 0 || showSocialsData.count > 0) && (
+                        <div style={{ borderTop: "1px solid rgba(255,255,255,0.15)", padding: ".3rem .5rem", flexShrink: 0, display: "flex", flexDirection: "column", gap: ".2rem" }}>
+                          {showSolosData.count > 0 && (
+                            <div style={{ fontSize: "1rem", fontFamily: tokens.font.body, color: "#ccc" }}>
+                              <span style={{ color: colors.accent, fontWeight: 700, marginRight: ".35rem" }}>
+                                {showSolosData.count} solo{showSolosData.count !== 1 ? "s" : ""}
+                              </span>
+                              {showSolosData.teams.map((t) => t.display).join(", ")}
+                            </div>
+                          )}
+                          {showSocialsData.count > 0 && (
+                            <div style={{ fontSize: "1rem", fontFamily: tokens.font.body, color: "#ccc" }}>
+                              <span style={{ color: colors.accent, fontWeight: 700, marginRight: ".35rem" }}>
+                                {showSocialsData.count} social{showSocialsData.count !== 1 ? "s" : ""}
+                              </span>
+                              #{showSocialsData.questionLabels.join(", #")}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -4192,8 +4237,8 @@ export default function App() {
                 </div>
               ))}
               <div style={{ display: "flex", gap: ".5rem", justifyContent: "flex-end", marginTop: ".25rem" }}>
-                <button onClick={() => setStripEditing(false)} style={{ fontFamily: tokens.font.body, fontSize: ".85rem", padding: ".4rem .9rem", borderRadius: ".35rem", border: `1px solid ${colors.gray?.border || "#ccc"}`, background: "transparent", cursor: "pointer", color: colors.dark }}>Cancel</button>
-                <button onClick={saveEdits} style={{ fontFamily: tokens.font.body, fontSize: ".85rem", padding: ".4rem .9rem", borderRadius: ".35rem", border: `1px solid ${colors.accent}`, background: colors.accent, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
+                <button onClick={() => setStripEditing(false)} style={{ fontFamily: tokens.font.body, fontSize: "1rem", padding: ".4rem .9rem", borderRadius: ".35rem", border: `1px solid ${colors.gray?.border || "#ccc"}`, background: "transparent", cursor: "pointer", color: colors.dark }}>Cancel</button>
+                <button onClick={saveEdits} style={{ fontFamily: tokens.font.body, fontSize: "1rem", padding: ".4rem .9rem", borderRadius: ".35rem", border: `1px solid ${colors.accent}`, background: colors.accent, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
               </div>
             </div>
           </div>
@@ -4388,10 +4433,10 @@ export default function App() {
       {/* ── Floating Script panel ── */}
       {scriptPanelOpen && scriptSections.length > 0 && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 600 }}>
-          <Draggable nodeRef={scriptPanelRef} position={scriptPanelPosition} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setScriptPanelPosition(p); localStorage.setItem("scriptPanelPosition", JSON.stringify(p)); }}>
-            <div ref={scriptPanelRef} style={{ position: "absolute", background: colors.dark, borderRadius: "8px", boxShadow: "0 4px 24px rgba(0,0,0,0.35)", width: "min(96vw, 520px)", maxHeight: "75vh", display: "flex", flexDirection: "column", pointerEvents: "auto", border: `1px solid rgba(255,255,255,0.12)` }}>
-              <div style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: "1px solid rgba(255,255,255,0.1)", cursor: "grab", userSelect: "none", gap: ".5rem" }}>
-                <span style={{ color: "#fff", fontWeight: 700, fontSize: ".9rem", flex: 1, fontFamily: tokens.font.body }}>💬 Host Script</span>
+          <Draggable handle=".script-panel-header" nodeRef={scriptPanelRef} position={scriptPanelPosition} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setScriptPanelPosition(p); localStorage.setItem("scriptPanelPosition", JSON.stringify(p)); }}>
+            <div ref={scriptPanelRef} style={{ position: "absolute", background: colors.dark, borderRadius: "8px", boxShadow: "0 4px 24px rgba(0,0,0,0.35)", width: "min(96vw, 1040px)", height: "75vh", display: "flex", flexDirection: "column", pointerEvents: "auto", border: `1px solid rgba(255,255,255,0.12)`, resize: "both", overflow: "hidden" }}>
+              <div className="script-panel-header" style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: "1px solid rgba(255,255,255,0.1)", cursor: "grab", userSelect: "none", gap: ".5rem", flexShrink: 0 }}>
+                <span style={{ color: "#fff", fontWeight: 700, fontSize: "1rem", flex: 1, fontFamily: tokens.font.body }}>💬 Host Script</span>
                 {(() => {
                   const atStart = navIsAnswerMode ? navIndex === 0 && navAnswerStage === 0 : navIndex === 0;
                   const atEnd = navStarted && (navIsAnswerMode
@@ -4416,7 +4461,7 @@ export default function App() {
                   const isActive = activeRulesIndex !== null && section.ruleIndex === activeRulesIndex;
                   return (
                     <div key={idx} style={{ marginBottom: ".75rem", padding: ".4rem .6rem", borderRadius: ".35rem", background: isActive ? "rgba(255,140,0,0.18)" : "transparent", border: isActive ? `1px solid ${colors.accent}` : "1px solid transparent", transition: "background 0.2s" }}>
-                      <p style={{ margin: 0, fontSize: ".88rem", fontFamily: tokens.font.body, color: "#ddd", whiteSpace: "pre-wrap", lineHeight: 1.55 }}>{section.text}</p>
+                      <p style={{ margin: 0, fontSize: "1.3rem", fontFamily: tokens.font.body, color: "#ddd", whiteSpace: "pre-wrap", lineHeight: 1.55 }}>{section.text}</p>
                     </div>
                   );
                 })}
