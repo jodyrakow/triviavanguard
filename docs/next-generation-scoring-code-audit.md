@@ -55,3 +55,43 @@
 4. Identify tests and setup needed to exercise keyboard navigation, two-host updates, point calculations and review completion in the real app.
 
 **This audit records existing dependencies. It does not propose new user-facing scoring behavior.**
+
+
+## Additional traced dependencies — verified against current code
+
+### Airtable Answer provenance: currently missing from bundle
+
+`netlify/functions/fetchShowBundle.js:228–325` fetches `ShowQuestions`, gets linked `Question` record ID and sets `showQuestionId`, `questionId`, `answer` (display text from the `Answer` field or host edit), bonus/partial configuration. **It does not fetch the Airtable `Answers` table or expose Answer record IDs.** Therefore the new grid cannot correctly use Answer IDs from today's show bundle. First extend the content-fetch path to retrieve the linked Answer records and preserve their IDs and actual text, including multiple Answers. Do not manufacture Answer IDs from question order or text. Check Airtable linkage in the real base before coding a field name.
+
+### Results: multiple consumers, not only ResultsMode
+
+- `src/ResultsMode.js:393–436`: adapts Question cells to `isCorrect/bonusCount/partialCount`, uses `buildCorrectCountMap` and `buildTeamTotals` for standings.
+- `src/ResultsMode.js:310–367`: faction accuracy currently increments `correctAnswers` from `cell.isCorrect`; must use derived Question success and consistent review/readiness semantics, without losing faction feature.
+- `src/App.js:1672+`: **duplicates Results standings calculations** for the Mission Control/navigation results display; must migrate to same scoring engine, not leave old top-level reads.
+- `src/App.js:130+`: independently subscribes to `public.scoring_cells` to update `scoringCache`; migrating only the `ScoringMode.js` realtime listener is insufficient.
+- `src/ResultsMode.js:1168–1188`: publish button disabled only while publishing, **not by review completion**. Current code has no reviewed-all gate there. New Results readiness must gate Results availability upstream, and publish should remain dependent on that single readiness condition.
+
+### Actual publishing behavior — confirmed
+
+- `src/ResultsMode.js:823–975` builds an Airtable payload, computing `pointsEarned` from `computeCellPoints` and **exporting `isCorrect: !!cell.isCorrect` directly**. This is not yet the agreed Question-points-positive mapping. The adapted cell in this publish path includes `bonusCount` but **omits `partialCount`**, so partial credit points are not reliably exported.
+- `netlify/functions/writeShowResults.js:140–154, 216–290` writes Airtable `Scores` records linked to Show, Team, ShowTeam, Question and ShowQuestion; fields `Is correct` and `Points earned`. It deletes previous Scores for the show and recreates them. This endpoint **does not derive correctness**; the client must send the agreed derived Question outcome. It skips tiebreakers and rows with missing/invalid linked IDs.
+- `netlify/functions/supaMarkPublished.js` only updates `public.archived_shows.published_to_airtable` and `published_at`; not a correctness or readiness calculation.
+- Publishing also exports a JSON backup and writes host question edits. Preserve both.
+
+### Scope and isolation
+
+The legacy live consumers reference `public.scoring_cells` explicitly in two separate React realtime subscriptions, while Netlify load/save uses default `public`. New-generation database calls and realtime must explicitly target `next_generation`, and the new schema must be exposed to the relevant Supabase API/realtime mechanisms as appropriate. No Supabase migration has been executed here.
+
+## Concrete implementation sequence (not yet executed)
+
+1. **Content contract:** inspect the actual Airtable Answer linkage; extend the show-bundle fetch/normalization to include real Answer IDs, texts and grouping. Preserve existing `answer` text for legacy display until new views are migrated. Verify an ordinary Question has exactly its real Answer ID.
+2. **Pure scoring core and tests:** build a single unit-to-Question points calculation with all-or-nothing, threshold, independent partial and base-plus-bonus cases; derive correct-team count for pooled modes, Question positive-points outcome, team totals, review completion, solo/social and Results readiness. Keep Question occurrence IDs distinct from reusable Question IDs. Test edge cases and legacy formulas before wiring React.
+3. **Schema and atomic persistence:** create isolated `next_generation` tables/policies/functions (only after schema design review). Store per-unit `isCorrect` and `isReviewed` keyed by actual Answer ID/group-unit ID. Support atomic unit-level writes and realtime without blind whole-row overwrites. Preserve team/tiebreaker/bonus features.
+4. **Grid integration:** migrate `ScoringMode.js` rendering, actual Answer words, per-unit focus/navigation, click/review, cell appearance, totals and keyboard shortcuts together; preserve existing layout and behavior. Fix reviewed-circle fill to tile background.
+5. **Other realtime and Results consumers:** migrate `App.js` cache listener and duplicate standings, `ResultsMode.js` standings, faction accuracy, tiebreaker and Results readiness to the shared core. Keep focus local across hosts.
+6. **Publishing:** derive each Airtable Question-level `Is correct` as **Question points > 0** and `Points earned` from the shared core; preserve JSON backup, existing linked record IDs, host edits and republish behavior.
+7. **Validation:** unit tests across all scoring modes and Answer configurations; manual end-to-end tests in real app for keyboard/visual state, two-host concurrent edits, review completion, Results and Airtable export. Verify production `rebuild` untouched.
+
+### Explicitly unresolved external dependency
+
+The repo shows only a display-text `Answer` field in `ShowQuestions`. The exact Airtable **Answers** table linked-field name and records are **not established by the repository code**. This must be inspected in Airtable before implementing Answer-ID keys; guessing would violate the agreed design.
