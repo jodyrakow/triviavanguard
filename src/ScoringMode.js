@@ -407,6 +407,7 @@ export default function ScoringMode({
             show_team_id,
             show_question_id,
             is_correct,
+            is_reviewed,
             bonus_count,
             partial_count,
             tiebreaker_guess,
@@ -417,6 +418,7 @@ export default function ScoringMode({
             const byTeam = prev[show_team_id] ? { ...prev[show_team_id] } : {};
             byTeam[show_question_id] = {
               isCorrect: is_correct,
+              isReviewed: is_reviewed ?? false,
               bonusCount: bonus_count || 0,
               partialCount: partial_count ?? 0,
               tiebreakerGuess: tiebreaker_guess,
