@@ -37,6 +37,14 @@ Status: working decisions, 2026-10-11. This document records agreed product requ
 - Scoring scopes remain independent of segments, Category Blocks, Answers Blocks, and Results Blocks. Answers Blocks may refer to multiple earlier Category Blocks without duplicating questions.
 - Normal grid selection is private inspection; REPEATS can temporarily show selected content live while preserving the production position. Keep Program, Up Next, and host-local Preview distinct.
 
+
+## BACK / GO — confirmed behavior
+- **GO** advances one production step in the authored Rundown; **BACK** returns one production step. BACK is not a generic undo operation or a private selection change.
+- A production step can update audience-visible Display content, host-only HUD information, or both. Two consecutive steps may show identical audience content while differing in HUD context.
+- Navigating BACK/GO restores the appropriate production-step context; the Display changes only if the step's audience presentation differs.
+- Keep **current production step** distinct from **currently audience-visible presentation**, while both are driven by the same authoritative live production state.
+- Edge cases (e.g., timer/audio side effects when revisiting a step) remain to be designed; do not assume BACK reverses arbitrary side effects.
+
 ## Production controls — not yet reviewed in this icon pass
 - Back, GO, Timer, Audio, Image: icons/labels and detailed interactions still to be decided.
 
