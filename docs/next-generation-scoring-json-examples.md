@@ -26,13 +26,13 @@ Show-specific config is stored with QuestionOccurrence, **not copied into every 
   "questionOccurrenceId": "occ-q12-show42",
   "revision": 4,
   "units": {
-    "answer-a": {"reviewed": true, "credited": true},
-    "answer-b": {"reviewed": true, "credited": false}
+    "answer-a": {"reviewed": true, "isCorrect": true},
+    "answer-b": {"reviewed": true, "isCorrect": false}
   }
 }
 ```
 
-`credited` means host awarded credit for that unit. Derived points are calculated from configuration; not manually stored as authoritative data. `revision` is a concurrency design candidate.
+`isCorrect` records the host correctness decision for that unit; Question points are derived separately. Derived points are calculated from configuration; not manually stored as authoritative data. `revision` is a concurrency design candidate.
 
 ## A. All-or-nothing, multiple possible Answers
 
@@ -47,7 +47,7 @@ Config:
 
 Team units:
 ```json
-{"base": {"reviewed": true, "credited": true}}
+{"base": {"reviewed": true, "isCorrect": true}}
 ```
 
 **UI:** one cell displaying the correct Answer text (or the appropriate combined Answer content), not an artificial part label. Host judges whether all required Answers are correct. **Points:** full or zero.
@@ -71,14 +71,14 @@ Config:
 Team units:
 ```json
 {
-  "a": {"reviewed": true, "credited": true},
-  "b": {"reviewed": true, "credited": false},
-  "c": {"reviewed": true, "credited": true},
-  "d": {"reviewed": true, "credited": true}
+  "a": {"reviewed": true, "isCorrect": true},
+  "b": {"reviewed": true, "isCorrect": false},
+  "c": {"reviewed": true, "isCorrect": true},
+  "d": {"reviewed": true, "isCorrect": true}
 }
 ```
 
-**UI:** four cells in sequence, each displaying its actual correct Answer text, not A/B/C/D labels. **Points:** full Question points only after 3+ credited; otherwise zero. Completion still requires all four cells reviewed unless explicit optional-unit rules are adopted.
+**UI:** four cells in sequence, each displaying its actual correct Answer text, not A/B/C/D labels. **Points:** full Question points only after 3+ correct; otherwise zero. Completion still requires all four cells reviewed unless explicit optional-unit rules are adopted.
 
 ## C. Independent partial credit: two Answers
 
@@ -96,8 +96,8 @@ Config:
 Team units:
 ```json
 {
-  "a": {"reviewed": true, "credited": true},
-  "b": {"reviewed": true, "credited": false}
+  "a": {"reviewed": true, "isCorrect": true},
+  "b": {"reviewed": true, "isCorrect": false}
 }
 ```
 
@@ -120,8 +120,8 @@ Config:
 Team units:
 ```json
 {
-  "base": {"reviewed": true, "credited": true},
-  "bonus-a": {"reviewed": true, "credited": false}
+  "base": {"reviewed": true, "isCorrect": true},
+  "bonus-a": {"reviewed": true, "isCorrect": false}
 }
 ```
 
