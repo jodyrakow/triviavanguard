@@ -1,3 +1,2 @@
-export default function App() {
-  return <main className="app"><h1>TriviaVanguard</h1><p>A fresh start.</p></main>;
-}
+import StyleGuide from "./StyleGuide.jsx";
+export default function App() { return <StyleGuide />; }
