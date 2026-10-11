@@ -50,6 +50,7 @@ export const handler = async (event) => {
       show_question_id: showQuestionId,
       updated_by: updatedBy || null,
       is_correct: cell?.isCorrect ?? null,
+      is_reviewed: cell?.isReviewed ?? false,
       tiebreaker_guess: cell?.tiebreakerGuess ?? null,
       tiebreaker_guess_raw: cell?.tiebreakerGuessRaw ?? null,
       bonus_count: cell?.bonusCount ?? 0,
