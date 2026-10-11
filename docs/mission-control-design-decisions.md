@@ -52,3 +52,10 @@ Status: working decisions, 2026-10-11. This document records agreed product requ
 ## Implementation integrity
 - A standalone HTML visual shell or iframe is **not** proof of an implemented live Display, realtime synchronization, permissions, or final React architecture.
 - Review/approve design before significant speculative implementation; keep the `rebuild` branch untouched unless explicitly authorized.
+
+## Timer and keyboard-driven hosting — observed workflow (2026-10-11)
+- The host routinely uses **Right Arrow** to advance to the next question/production step, reads the question aloud twice with a pause, and presses **Up Arrow** near the end of the second reading to start the countdown.
+- Timer start is **host-triggered**, not automatic on GO/question activation. Timer expiration cues the host to advance; do not assume automatic advancement.
+- Keyboard shortcuts are a primary live-hosting workflow and must be first-class, predictable, and usable without reaching for the mouse.
+- Existing timer UI has Reset, countdown, and a visually awkward **Pause** control hanging off the end; redesign as one coherent timer control group with readable time and intentionally integrated actions.
+- Preserve/clarify shortcut semantics for timer start, pause/resume, reset, and step navigation before implementing; avoid hijacking shortcuts while editing text.
