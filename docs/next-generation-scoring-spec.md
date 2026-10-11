@@ -5,7 +5,7 @@ Status: **Design proposal, not implementation**. Confirmed requirements are sepa
 ## Confirmed requirements
 
 - Preserve the real scoring grid's visual structure, team and question navigation, scrolling, keyboard shortcuts, and Team Scoring Mode unless explicitly changed.
-- One **visible cell per independently reviewable/scorable unit**. A Question may produce one or multiple cells. A multi-Answer all-or-nothing Question produces one cell; threshold, independent partial credit, and base-plus-bonus Questions may produce several.
+- One **visible cell per independently reviewable/scorable unit**. The host-facing content for each answer/bonus cell is the **actual correct Answer text**, never an artificial part label (A/B/C, 'Answer 1', 'Bonus A', etc.). Stable unit IDs are internal only. A Question may produce one or multiple cells. A multi-Answer all-or-nothing Question produces one cell; threshold, independent partial credit, and base-plus-bonus Questions may produce several.
 - Navigation progresses through visible cells in display order using existing forward Tab / Down Arrow behavior; no separate key to navigate Answer parts. Backward navigation does not mark a cell reviewed.
 - Review state is **per team, per visible cell**, independent of correctness. Advancing forward marks the cell being left reviewed; clicking to score marks it reviewed; changing a scored cell back to incorrect retains review state. Unreviewed circles are white; reviewed-but-not-correct circles fill to match the cell's light orange/blue (or other actual tile) background with a visible outline. Correct cells retain their established styling.
 - Review state persists and synchronizes between hosts; keyboard focus is local to each host.
@@ -42,7 +42,7 @@ The table specifies conceptual behavior, **not** a final points formula. Existin
 
 ### Invariants
 
-- Every rendered cell maps to one stable scoring-unit ID and one TeamQuestionScore record (in the candidate JSONB design).
+- Every rendered cell maps to one stable scoring-unit ID and one TeamQuestionScore record (in the candidate JSONB design). Its host-visible content comes from the actual correct Answer text, not a generated label; bonus cells likewise display their actual Answer text.
 - The scoring configuration and its ordered units are show-specific and must not be inferred from legacy `partialCount`, `bonusCount`, or Airtable Round IDs.
 - Review and correctness are separate. `reviewed: true, correct: false` is valid; `reviewed: false` must not be silently interpreted as incorrect for results readiness.
 - Readiness derives from required unit reviews across all participating teams and all occurrences in the scoring scope.
@@ -55,7 +55,7 @@ The table specifies conceptual behavior, **not** a final points formula. Existin
 1. Forward Tab / Down Arrow reviews only the cell being left, including multi-cell Questions; backward Shift+Tab / Up Arrow never changes review state.
 2. A click scores and reviews that cell; clicking back to incorrect retains reviewed.
 3. Unreviewed circle white; reviewed-no-credit circle matches actual tile background with visible outline; credited cells retain existing correct/partial/bonus styling.
-4. Sequence Q10, Q11, Q12 answer A, Q12 answer B, Q13 works with the **same** keys and scrolls predictably.
+4. Sequence Q10, Q11, Q12's first Answer text, Q12's second Answer text, Q13 works with the **same** keys and scrolls predictably. No artificial part labels appear.
 5. Refresh restores each unit's reviewed/credited state; two hosts see updates; each host keeps its own focus.
 6. A team with partial positive points counts as earning points for solos/socials; no statistics until **all teams and required cells** of that Question reviewed.
 7. Results unavailable while any required cell unreviewed; totals may remain visible in grid as provisional.
