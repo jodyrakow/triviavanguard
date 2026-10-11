@@ -36,12 +36,13 @@ The table specifies conceptual behavior, **not** a final points formula. Existin
 2. `QuestionOccurrence` (Rundown): unique stable ID for this placement/use of the Question; references the Airtable Question; owns an immutable-or-versioned **scoring configuration snapshot** and stable ordered scoring-unit IDs. Avoid using bare Question ID if the same Question can appear twice in one show.
 3. `ScoringScope` (Rundown): explicitly references relevant QuestionOccurrence IDs, potentially across blocks; not implied by Answers/Results Blocks.
 4. `TeamParticipation`: show-specific participation record linked optionally to a persistent Team identity. Team lifecycle and Airtable/Supabase ownership **not yet decided**.
-5. `TeamQuestionScore` (Supabase): proposed single row per TeamParticipation + QuestionOccurrence, with JSONB `units` keyed by stable scoring-unit IDs. One row may render as multiple grid cells. This is a **candidate**, not a settled table design.
+5. `TeamQuestionScore` (Supabase): proposed single row per TeamParticipation + QuestionOccurrence, with JSONB `units` keyed by stable scoring-unit IDs. One row may render as multiple grid cells. **Key each individually scored unit by its existing Airtable Answer ID, including ordinary one-Answer Questions.** For a multi-Answer all-or-nothing group, use a stable internal group-unit ID referencing the included Answer IDs; do not arbitrarily choose one Answer ID to represent the group. This is a **candidate**, not a settled table design.
 6. Pure scoring engine: takes occurrence scoring config, team scoring units, scope membership, and scoring mode; returns unit/question/team points, completion, totals, solos, socials, placements. Grid and Results share the same engine.
 7. Persistence/realtime: save review and scoring changes safely. A single JSONB row must not be blindly overwritten with stale state; prefer atomic unit updates or optimistic concurrency (revision) with conflict resolution. Hard focus locks are **not** a requirement.
 
 ### Invariants
 
+- For ordinary Questions, the sole scoring unit is keyed by the real Answer ID, not a synthetic `question` or `base` key. For independently scored Answers and bonuses, use their Answer IDs. Only a grouped all-or-nothing decision requires its own stable group-unit ID referencing multiple Answer IDs.
 - Every rendered cell maps to one stable scoring-unit ID and one TeamQuestionScore record (in the candidate JSONB design). Its host-visible content comes from the actual correct Answer text, not a generated label; bonus cells likewise display their actual Answer text.
 - The scoring configuration and its ordered units are show-specific and must not be inferred from legacy `partialCount`, `bonusCount`, or Airtable Round IDs.
 - Preserve the existing `isCorrect` field name for unit correctness (do not rename it). Review and correctness are separate. `reviewed: true, correct: false` is valid; `reviewed: false` must not be silently interpreted as incorrect for results readiness.
@@ -62,6 +63,17 @@ The table specifies conceptual behavior, **not** a final points formula. Existin
 8. Grid and Results calculate identical points from identical inputs.
 9. One show's Question configuration changes do not alter another use of the same Airtable Question.
 10. No read/write path on `next-generation` unintentionally targets production `public` scoring data.
+
+## Migration impact: audit before implementing
+
+The existing grid and scoring engine currently read **top-level** `cell.isCorrect`. The proposed JSONB structure instead stores `cell.units[unitId].isCorrect`. This is a coordinated data-model migration, not a UI-only rename.
+
+- **Grid rendering and click behavior:** update lookup and toggles to target the currently rendered unit ID; preserve `isCorrect` and `isReviewed` names, existing visual states, and keyboard navigation.
+- **Persistence and realtime:** update load/save and subscriptions together; do not drop older fields or overwrite other unit states via full-row upserts; establish compatibility/migration strategy for existing scores.
+- **Scoring engine:** adapt `buildCorrectCountMap`, `computeAutoEarned`, `computeCellPoints`, team totals, pooled/adaptive scoring, partial/bonus rules and placements to derive Question points from all required unit states and the Rundown config. Avoid double-counting a multi-Answer group.
+- **Answer/Question stats:** ordinary one-Answer Questions still yield one Question outcome; threshold and partial-credit Questions must use derived Question points for solos/socials and Question-level summaries. Separately decide whether any Answer-level stats are required. Incomplete review must never count as a completed zero.
+- **Results/publishing:** readiness derives from all required unit reviews; export one binary outcome per team per Question based on derived points, not raw individual Answer correctness.
+- **Data sources:** verify Answer IDs are always available, stable, unique within the intended Question occurrence, and present for bonuses; determine stable group IDs for multi-Answer all-or-nothing.
 
 ## Existing-code findings to audit
 
