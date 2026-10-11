@@ -48,6 +48,7 @@ export const handler = async (event) => {
       if (!grid[teamId]) grid[teamId] = {};
       grid[teamId][questionId] = {
         isCorrect: cell.is_correct,
+        isReviewed: cell.is_reviewed ?? false,
         tiebreakerGuess: cell.tiebreaker_guess,
         tiebreakerGuessRaw: cell.tiebreaker_guess_raw,
         bonusCount: cell.bonus_count,
