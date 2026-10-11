@@ -76,3 +76,14 @@ Status: working decisions, 2026-10-11. This document records agreed product requ
 ## Active colors and HUD information — 2026-10-11
 - **Orange is the active-state color** throughout Mission Control, including the RUN lifecycle state. Do not use green to signal the running timer; its Start/Pause/Resume label indicates its state.
 - **Do not duplicate Up Next details in the Host HUD.** The separate Up Next panel already provides that information. Reserve the HUD for useful current-step host context such as notes, script, and pronunciation.
+
+## Toolbar and interactive preview refinements — 2026-10-11
+- In the shared toolbar **Display/utility controls belong on the left** and **BACK, GO, and Timer belong on the right**. Keep their grouping stable; do not rearrange other panes while refining the toolbar.
+- Use the agreed **consistent line icons**: monitor/play for Open Display; chain link for Link to Display; clipboard for Print Answer Key (icon-only with tooltip); gear for Show Settings (icon-only with tooltip). Avoid emoji/placeholder symbols.
+- The countdown module must have **fixed geometry**: changing Start/Pause/Resume labels or countdown state must not shift adjacent buttons or toolbar items.
+- RUN and other active states use **orange**, not green. Timer running state should not turn its button green.
+- The Host HUD must not repeat information already shown in the dedicated Up Next panel.
+- Clicking a Rundown content item when REPEATS is off opens **private host-only inspection**; clicking the **same item again closes** that inspection; clicking a different item updates the inspected details; retain the explicit Close button. Inspection does not change the audience Display or production step.
+- **Expand preview** in Up Next opens a larger host-only preview and retains its Close button; it does not change the audience Display or production step.
+- Safari testing of the standalone HTML exposed nonfunctional custom overlays. Switching both inspection and Up Next to **native HTML dialog elements** restored their operation in the user's Safari. Preserve this working implementation rather than reverting to the earlier custom overlay. The user explicitly confirmed both panels work and approved second-click-to-close.
+- This HTML is still an interactive **prototype**, not a live integrated Display, scoring, or Builder implementation.
