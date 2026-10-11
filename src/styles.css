@@ -1,1 +1,7 @@
-:root { font-family: system-ui, sans-serif; color: #f8fafc; background: #111827; } body { margin: 0; } .app { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; } p { color: #cbd5e1; }
+@import url('https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&family=Lora:ital,wght@0,400;0,600;1,400&family=Questrial&display=swap');
+:root { font-family: "Questrial", sans-serif; color: #2B394A; background: #EEF1F4; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, input, select, textarea { font: inherit; }
+:focus-visible { outline: 3px solid rgba(220,106,36,.55); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
