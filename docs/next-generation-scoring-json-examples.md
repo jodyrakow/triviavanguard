@@ -1,6 +1,6 @@
 # Proposed scoring JSON examples — draft 1
 
-These are **illustrations for review, not an approved database schema**. They intentionally separate reusable Airtable Answers, show-specific scoring configuration, and per-team score state.
+These are **illustrations for review, not an approved database schema**. **Host-facing cells display the actual correct Answer words.** The `id` and `answerId` fields are internal identifiers only; do not render letter/number labels for parts or bonuses. They intentionally separate reusable Airtable Answers, show-specific scoring configuration, and per-team score state.
 
 ## Shared record pattern
 
@@ -11,8 +11,8 @@ These are **illustrations for review, not an approved database schema**. They in
   "scoring": {
     "kind": "independent_partial",
     "units": [
-      {"id": "answer-a", "answerId": "recANSWER_A", "label": "12 A", "required": true},
-      {"id": "answer-b", "answerId": "recANSWER_B", "label": "12 B", "required": true}
+      {"id": "answer-a", "answerId": "recANSWER_A", "required": true},
+      {"id": "answer-b", "answerId": "recANSWER_B", "required": true}
     ]
   }
 }
@@ -41,7 +41,7 @@ Config:
 {
   "kind": "all_or_nothing",
   "answerIds": ["recA", "recB", "recC"],
-  "units": [{"id": "base", "label": "12", "required": true}]
+  "units": [{"id": "base", "required": true}]
 }
 ```
 
@@ -50,7 +50,7 @@ Team units:
 {"base": {"reviewed": true, "credited": true}}
 ```
 
-**UI:** one cell, Q12. Host judges whether all required Answers are correct. **Points:** full or zero.
+**UI:** one cell displaying the correct Answer text (or the appropriate combined Answer content), not an artificial part label. Host judges whether all required Answers are correct. **Points:** full or zero.
 
 ## B. Threshold: any 3 of 4 Answers
 
@@ -60,10 +60,10 @@ Config:
   "kind": "threshold",
   "threshold": 3,
   "units": [
-    {"id": "a", "answerId": "recA", "label": "12 A", "required": true},
-    {"id": "b", "answerId": "recB", "label": "12 B", "required": true},
-    {"id": "c", "answerId": "recC", "label": "12 C", "required": true},
-    {"id": "d", "answerId": "recD", "label": "12 D", "required": true}
+    {"id": "a", "answerId": "recA", "required": true},
+    {"id": "b", "answerId": "recB", "required": true},
+    {"id": "c", "answerId": "recC", "required": true},
+    {"id": "d", "answerId": "recD", "required": true}
   ]
 }
 ```
@@ -78,7 +78,7 @@ Team units:
 }
 ```
 
-**UI:** four cells in sequence. **Points:** full Question points only after 3+ credited; otherwise zero. Completion still requires all four cells reviewed unless explicit optional-unit rules are adopted.
+**UI:** four cells in sequence, each displaying its actual correct Answer text, not A/B/C/D labels. **Points:** full Question points only after 3+ credited; otherwise zero. Completion still requires all four cells reviewed unless explicit optional-unit rules are adopted.
 
 ## C. Independent partial credit: two Answers
 
@@ -87,8 +87,8 @@ Config:
 {
   "kind": "independent_partial",
   "units": [
-    {"id": "a", "answerId": "recA", "label": "12 A", "required": true},
-    {"id": "b", "answerId": "recB", "label": "12 B", "required": true}
+    {"id": "a", "answerId": "recA", "required": true},
+    {"id": "b", "answerId": "recB", "required": true}
   ]
 }
 ```
@@ -101,7 +101,7 @@ Team units:
 }
 ```
 
-**UI:** two cells. **Points:** one of two shares, using the show's scoring mode and a yet-to-be-confirmed integer rounding rule. Unlike threshold, credit is not all-or-nothing.
+**UI:** two cells displaying the two correct Answer texts, not letter labels. **Points:** one of two shares, using the show's scoring mode and a yet-to-be-confirmed integer rounding rule. Unlike threshold, credit is not all-or-nothing.
 
 ## D. Base + bonus (no independent partial answers)
 
@@ -111,8 +111,8 @@ Config:
   "kind": "base_plus_bonus",
   "bonusRule": {"type": "flat", "pointsPerCreditedBonus": 1},
   "units": [
-    {"id": "base", "label": "12", "required": true},
-    {"id": "bonus-a", "answerId": "recBONUS_A", "label": "12 Bonus", "required": true}
+    {"id": "base", "required": true},
+    {"id": "bonus-a", "answerId": "recBONUS_A", "required": true}
   ]
 }
 ```
@@ -125,7 +125,7 @@ Team units:
 }
 ```
 
-**UI:** base cell then bonus cell, same navigation keys. **Points:** show-specific base scoring plus configured bonus. This flat bonus rule is **only an example**, not a confirmed replacement for existing percentage/flat behavior.
+**UI:** base Answer text then bonus Answer text in separate cells, same navigation keys; no artificial bonus labels. **Points:** show-specific base scoring plus configured bonus. This flat bonus rule is **only an example**, not a confirmed replacement for existing percentage/flat behavior.
 
 ## Explicitly out of v1 scope
 
