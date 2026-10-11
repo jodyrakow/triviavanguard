@@ -48,7 +48,7 @@ export const Button = ({
     }}
     {...props}
   >
-    {icon && <span>{icon}</span>}
+    {icon && <span className="tv-button-icon">{icon}</span>}
     {children}
   </button>
 );
@@ -194,20 +194,10 @@ export const SearchInput = (props) => (
 );
 
 export const Select = ({ children, style, ...props }) => (
-  <select
-    style={{
-      ...baseControl,
-      width: "100%",
-      padding: "0.5rem 0.65rem",
-      border: `${tokens.border.thin} ${colors.gray}`,
-      background: colors.white,
-      color: colors.dark,
-      ...style,
-    }}
-    {...props}
-  >
-    {children}
-  </select>
+  <span className="tv-select-wrap" style={{ width: style?.width || style?.maxWidth || "100%", maxWidth: style?.maxWidth }}>
+    <select className="tv-select" style={{ ...style, width: "100%" }} {...props}>{children}</select>
+    <svg className="tv-select-chevron" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  </span>
 );
 
 export const Textarea = ({ style, ...props }) => (
@@ -368,14 +358,9 @@ export const Pill = ({ children, active = false, style }) => (
 );
 
 export const Tooltip = ({ label, children }) => (
-  <span
-    title={label}
-    style={{
-      display: "inline-flex",
-      alignItems: "center",
-    }}
-  >
+  <span className="tv-tooltip" tabIndex={0} aria-label={label}>
     {children}
+    <span className="tv-tooltip-content" role="tooltip">{label}</span>
   </span>
 );
 
@@ -567,152 +552,16 @@ export const SegmentButton = ({
   </button>
 );
 
-// ---------- Image overlay ----------
-
-export const ImageOverlay = ({ isOpen, onClose, src, alt }) => {
-  if (!isOpen) return null;
-
-  return (
-    <div
-      onMouseDown={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: effects.overlay,
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        zIndex: 9500,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: tokens.spacing.md,
-        cursor: "pointer",
-      }}
-    >
-      <img
-        src={src}
-        alt={alt || ""}
-        style={{
-          maxWidth: "90vw",
-          maxHeight: "80vh",
-          objectFit: "contain",
-          border: `${tokens.border.thick} ${colors.white}`,
-          boxShadow: effects.shadowMd,
-          marginBottom: tokens.spacing.md,
-        }}
-      />
-
-      <ButtonPrimary
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          onClose?.();
-        }}
-      >
-        Close
-      </ButtonPrimary>
-    </div>
-  );
-};
-
-// ---------- Modal ----------
-
-export const Modal = ({
-  isOpen,
-  onClose,
-  title,
-  children,
-  style,
-  contentStyle,
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div
-      onMouseDown={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: effects.overlay,
-        zIndex: 9000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: tokens.spacing.md,
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title || "Dialog"}
-        onMouseDown={(e) => e.stopPropagation()}
-        style={{
-          background: colors.white,
-          borderRadius: tokens.radius.md,
-          maxWidth: "90vw",
-          maxHeight: "90vh",
-          overflow: "auto",
-          boxShadow: effects.shadowMd,
-          ...style,
-        }}
-      >
-        {title && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              background: colors.dark,
-              color: colors.white,
-              padding: "0.65rem 0.85rem",
-              borderBottom: `${tokens.border.medium} ${colors.accent}`,
-            }}
-          >
-            <div
-              style={{ fontFamily: tokens.font.display, fontSize: "1.25rem" }}
-            >
-              {title}
-            </div>
-
-            <div style={{ flex: 1 }} />
-
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                style={{
-                  border: "none",
-                  background: "transparent",
-                  color: colors.white,
-                  fontSize: "1.25rem",
-                  cursor: "pointer",
-                }}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        )}
-
-        <div style={{ padding: tokens.spacing.md, ...contentStyle }}>
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // ---------- Scoring grid ----------
 
 export const NumberInput = ({ style, ...props }) => (
-  <Input
-    type="number"
-    inputMode="numeric"
-    style={{
-      textAlign: "center",
-      ...style,
-    }}
-    {...props}
-  />
+  <Input type="number" inputMode="decimal" className="tv-number-input" style={{ textAlign: "center", ...style }} {...props} />
+);
+
+// Long-form numeric answers (e.g. tiebreakers) are text, not HTML number inputs.
+// Keep typed commas intact; normalize separately in scoring logic.
+export const NumericAnswerInput = ({ style, ...props }) => (
+  <Input type="text" inputMode="decimal" className="tv-numeric-answer" style={{ textAlign: "center", ...style }} {...props} />
 );
 
 export const ToggleCell = ({
