@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { colors, effects, tokens } from "./styles/theme";
-import Display from "./Display";
 import {
   Button,
   ButtonPrimary,
@@ -14,6 +13,7 @@ import {
   Select,
   Textarea,
   NumberInput,
+  NumericAnswerInput,
   Field,
   Checkbox,
   Row,
@@ -30,8 +30,6 @@ import {
   Segmented,
   SegmentButton,
   ToggleCell,
-  Modal,
-  ImageOverlay,
 } from "./styles/ui";
 
 // ---------- Style guide scaffolding ----------
@@ -111,10 +109,7 @@ export default function StyleGuide() {
   const [activeTab, setActiveTab] = useState("scoring");
   const [activeSegment, setActiveSegment] = useState("list");
   const [toggleStates, setToggleStates] = useState({});
-  const [modalOpen, setModalOpen] = useState(false);
-  const [overlayOpen, setOverlayOpen] = useState(false);
   const [checked, setChecked] = useState(false);
-  const [displayPreviewMode, setDisplayPreviewMode] = useState(0);
 
   const toggleCell = (key) =>
     setToggleStates((s) => ({ ...s, [key]: !s[key] }));
@@ -281,6 +276,9 @@ export default function StyleGuide() {
           <Row2 label="NumberInput">
             <NumberInput defaultValue={3} style={{ maxWidth: 80 }} />
           </Row2>
+          <Row2 label="Long numeric answer (tiebreaker)">
+            <NumericAnswerInput defaultValue="1,234,567,890" style={{ maxWidth: 300 }} />
+          </Row2>
           <Row2 label="Select">
             <Select style={{ maxWidth: 300 }}>
               <option>Round 1 — General Knowledge</option>
@@ -391,7 +389,7 @@ export default function StyleGuide() {
             </Stack>
           </Row2>
           <Row2 label="Tooltip">
-            <Tooltip label="This shows a native tooltip on hover">
+            <Tooltip label="This tooltip appears immediately on hover or focus">
               <ButtonSecondary>Hover me</ButtonSecondary>
             </Tooltip>
           </Row2>
@@ -436,39 +434,6 @@ export default function StyleGuide() {
           </Row2>
         </Section>
 
-        {/* ── Overlays ── */}
-        <Section title="Overlays">
-          <Row2 label="Modal">
-            <ButtonSecondary onClick={() => setModalOpen(true)}>
-              Open Modal
-            </ButtonSecondary>
-            <Modal
-              isOpen={modalOpen}
-              onClose={() => setModalOpen(false)}
-              title="Confirm Archive"
-              style={{ width: 400 }}
-            >
-              <Stack>
-                <div>Are you sure you want to archive this show? This cannot be undone from the host app.</div>
-                <Row style={{ justifyContent: "flex-end", gap: tokens.spacing.sm }}>
-                  <ButtonSecondary onClick={() => setModalOpen(false)}>Cancel</ButtonSecondary>
-                  <ButtonDanger onClick={() => setModalOpen(false)}>Archive</ButtonDanger>
-                </Row>
-              </Stack>
-            </Modal>
-          </Row2>
-          <Row2 label="ImageOverlay">
-            <ButtonSecondary onClick={() => setOverlayOpen(true)}>
-              Open Image Overlay
-            </ButtonSecondary>
-            <ImageOverlay
-              isOpen={overlayOpen}
-              onClose={() => setOverlayOpen(false)}
-              src="https://via.placeholder.com/800x500/2B394A/DC6A24?text=Question+Image"
-              alt="Example question image"
-            />
-          </Row2>
-        </Section>
 
         {/* ── Spacing & Radius tokens ── */}
         <Section title="Spacing & Radius Tokens">
@@ -504,119 +469,6 @@ export default function StyleGuide() {
           </Row2>
         </Section>
 
-        {/* ── Display ── */}
-        <Section title="Display">
-          {(() => {
-            const SCALE = 0.44;
-            const modes = [
-              { label: "Standby", state: { mode: "standby" } },
-              {
-                label: "Category",
-                state: {
-                  mode: "category",
-                  item: {
-                    category: "Music of the 80s",
-                    text: "Name the artist, band, album, or song — whatever the question asks for. No partial credit unless stated.",
-                  },
-                },
-              },
-              {
-                label: "Question (no image)",
-                state: {
-                  mode: "question",
-                  item: {
-                    category: "Music of the 80s",
-                    label: "3",
-                    text: 'Which British rock band released the album "The Joshua Tree" in 1987?',
-                    answer: "U2",
-                    imageAttachments: null,
-                  },
-                },
-              },
-              {
-                label: "Question + Answer",
-                state: {
-                  mode: "question_answer",
-                  item: {
-                    category: "Music of the 80s",
-                    label: "3",
-                    text: 'Which British rock band released the album "The Joshua Tree" in 1987?',
-                    answer: "U2",
-                    imageAttachments: null,
-                  },
-                },
-              },
-              {
-                label: "Question + Answer + Stats",
-                state: {
-                  mode: "question_answer_stats",
-                  item: {
-                    category: "Music of the 80s",
-                    label: "3",
-                    text: 'Which British rock band released the album "The Joshua Tree" in 1987?',
-                    answer: "U2",
-                    imageAttachments: null,
-                  },
-                  stats: { correct: 6, total: 9, pointValue: 10 },
-                },
-              },
-              {
-                label: "Question with image",
-                state: {
-                  mode: "question",
-                  item: {
-                    category: "Visual Round",
-                    label: "B",
-                    text: "Name this album.",
-                    answer: "The Joshua Tree",
-                    imageAttachments: [{ url: "https://placehold.co/960x650/2B394A/DC6A24?text=Question+Image" }],
-                  },
-                },
-              },
-            ];
-
-            const current = modes[displayPreviewMode];
-
-            return (
-              <>
-                <div style={{ display: "flex", gap: tokens.spacing.sm, flexWrap: "wrap", marginBottom: tokens.spacing.md }}>
-                  {modes.map((m, i) => (
-                    <button
-                      key={m.label}
-                      onClick={() => setDisplayPreviewMode(i)}
-                      style={{
-                        fontFamily: tokens.font.body,
-                        fontSize: "0.8rem",
-                        padding: "0.35rem 0.75rem",
-                        border: `1px solid ${i === displayPreviewMode ? colors.accent : colors.gray}`,
-                        borderRadius: tokens.radius.sm,
-                        background: i === displayPreviewMode ? colors.accent : colors.white,
-                        color: i === displayPreviewMode ? colors.white : colors.dark,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div
-                  style={{
-                    width: 1920 * SCALE,
-                    height: 1080 * SCALE,
-                    overflow: "hidden",
-                    border: `1px solid ${colors.gray}`,
-                    borderRadius: tokens.radius.md,
-                  }}
-                >
-                  <div style={{ transform: `scale(${SCALE})`, transformOrigin: "top left", width: 1920, height: 1080 }}>
-                    <Display state={current.state} />
-                  </div>
-                </div>
-              </>
-            );
-          })()}
-        </Section>
 
       </div>
     </div>
