@@ -42,3 +42,16 @@ body {
   .tv-button, .tv-grid-cell { transition: none; }
   .tv-button:hover:not(:disabled), .tv-button:active:not(:disabled) { transform: none; }
 }
+
+/* Shared interactive controls */
+.tv-button { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; line-height: 1.2; gap: 6px; }
+.tv-button-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+.tv-number-input::-webkit-inner-spin-button, .tv-number-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.tv-number-input { appearance: textfield; -moz-appearance: textfield; }
+.tv-select-wrap { position: relative; display: inline-flex; align-items: center; vertical-align: middle; }
+.tv-select { appearance: none; -webkit-appearance: none; border: 1px solid #B9C6CF; background: #fff; border-radius: 10px; padding: 11px 42px 11px 14px; color: #2B394A; font: inherit; min-height: 42px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.tv-select:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(220,106,36,.35); border-color: #DC6A24; }
+.tv-select-chevron { position: absolute; right: 13px; pointer-events: none; color: #2B394A; }
+.tv-tooltip { display: inline-flex; align-items: center; position: relative; outline-offset: 3px; }
+.tv-tooltip-content { pointer-events: none; position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); white-space: nowrap; z-index: 20; background: #2B394A; color: white; font-size: 12px; padding: 6px 9px; border-radius: 6px; opacity: 0; visibility: hidden; transition: opacity .08s ease; }
+.tv-tooltip:hover .tv-tooltip-content, .tv-tooltip:focus-visible .tv-tooltip-content, .tv-tooltip:focus-within .tv-tooltip-content { opacity: 1; visibility: visible; }
