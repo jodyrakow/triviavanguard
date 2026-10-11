@@ -72,3 +72,7 @@ Status: working decisions, 2026-10-11. This document records agreed product requ
 - **Host HUD**, including **Up Next**, remains to the **right** of Now Showing.
 - **Rundown content grid** remains **below Now Showing**, as in the recovered mockup, **not** beside the Display as in the old app.
 - Preserve the *toolbar/control placement* familiarity of the old app, not its overall pane arrangement. The prior prototype's far bottom-right production-control area should not remain the primary location for BACK/GO/Timer.
+
+## Active colors and HUD information — 2026-10-11
+- **Orange is the active-state color** throughout Mission Control, including the RUN lifecycle state. Do not use green to signal the running timer; its Start/Pause/Resume label indicates its state.
+- **Do not duplicate Up Next details in the Host HUD.** The separate Up Next panel already provides that information. Reserve the HUD for useful current-step host context such as notes, script, and pronunciation.
