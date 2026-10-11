@@ -59,3 +59,9 @@ Status: working decisions, 2026-10-11. This document records agreed product requ
 - Keyboard shortcuts are a primary live-hosting workflow and must be first-class, predictable, and usable without reaching for the mouse.
 - Existing timer UI has Reset, countdown, and a visually awkward **Pause** control hanging off the end; redesign as one coherent timer control group with readable time and intentionally integrated actions.
 - Preserve/clarify shortcut semantics for timer start, pause/resume, reset, and step navigation before implementing; avoid hijacking shortcuts while editing text.
+
+## Timer shortcut and production-control placement — 2026-10-11 refinement
+- **Up Arrow**: start timer when idle, pause when running, resume when paused. Timer stays paused until explicitly resumed. Timer does not automatically start on GO or automatically advance the Rundown on expiry.
+- Existing host app places BACK/forward navigation and timer together in a compact horizontal strip immediately **above the main audience/display/question area**, with the Rundown grid alongside. The host likes this location and relationship; use it as the design baseline instead of the recovered shell's far bottom-right production panel.
+- Avoid wide unused gaps in the timer controls. Keep Reset, countdown, and Start/Pause/Resume cohesive, aligned, and sized to fit; the Pause button must not dangle off the end.
+- This is a design direction; exact sizes/arrangement have not yet been approved.
