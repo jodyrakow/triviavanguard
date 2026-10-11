@@ -1,6 +1,6 @@
 # Proposed scoring JSON examples — draft 1
 
-These are **illustrations for review, not an approved database schema**. **Host-facing cells display the actual correct Answer words.** The `id` and `answerId` fields are internal identifiers only; do not render letter/number labels for parts or bonuses. They intentionally separate reusable Airtable Answers, show-specific scoring configuration, and per-team score state.
+These are **illustrations for review, not an approved database schema**. **Host-facing cells display the actual correct Answer words.** For individually scored Answers, the scoring-unit `id` is the real Answer ID; grouped all-or-nothing units are the exception. These fields are internal identifiers only; do not render letter/number labels for parts or bonuses. They intentionally separate reusable Airtable Answers, show-specific scoring configuration, and per-team score state.
 
 ## Shared record pattern
 
@@ -34,23 +34,43 @@ Show-specific config is stored with QuestionOccurrence, **not copied into every 
 
 `isCorrect` records the host correctness decision for that unit; Question points are derived separately. Derived points are calculated from configuration; not manually stored as authoritative data. `revision` is a concurrency design candidate.
 
-## A. All-or-nothing, multiple possible Answers
+## A. Ordinary all-or-nothing, one Answer
 
 Config:
 ```json
 {
   "kind": "all_or_nothing",
-  "answerIds": ["recA", "recB", "recC"],
-  "units": [{"id": "base", "required": true}]
+  "units": [{"id": "recA", "answerId": "recA", "required": true}]
 }
 ```
 
 Team units:
 ```json
-{"base": {"reviewed": true, "isCorrect": true}}
+{"recA": {"isReviewed": true, "isCorrect": true}}
 ```
 
-**UI:** one cell displaying the correct Answer text (or the appropriate combined Answer content), not an artificial part label. Host judges whether all required Answers are correct. **Points:** full or zero.
+**UI:** one cell showing the correct Answer text. The real Airtable Answer ID is the scoring key, even for an ordinary Question.
+
+## A2. Multi-Answer all-or-nothing, one scoring decision
+
+Config:
+```json
+{
+  "kind": "all_or_nothing",
+  "units": [{
+    "id": "group-1",
+    "answerIds": ["recA", "recB", "recC"],
+    "required": true
+  }]
+}
+```
+
+Team units:
+```json
+{"group-1": {"isReviewed": true, "isCorrect": true}}
+```
+
+**UI:** one scoring cell presenting the correct Answer words for the grouped Answers, with one host decision. The internal group ID is stable and show-specific; no individual Answer ID is arbitrarily chosen to represent all three. The group ID is not displayed.
 
 ## B. Threshold: any 3 of 4 Answers
 
@@ -60,10 +80,10 @@ Config:
   "kind": "threshold",
   "threshold": 3,
   "units": [
-    {"id": "a", "answerId": "recA", "required": true},
-    {"id": "b", "answerId": "recB", "required": true},
-    {"id": "c", "answerId": "recC", "required": true},
-    {"id": "d", "answerId": "recD", "required": true}
+    {"id": "recA", "answerId": "recA", "required": true},
+    {"id": "recB", "answerId": "recB", "required": true},
+    {"id": "recC", "answerId": "recC", "required": true},
+    {"id": "recD", "answerId": "recD", "required": true}
   ]
 }
 ```
@@ -87,8 +107,8 @@ Config:
 {
   "kind": "independent_partial",
   "units": [
-    {"id": "a", "answerId": "recA", "required": true},
-    {"id": "b", "answerId": "recB", "required": true}
+    {"id": "recA", "answerId": "recA", "required": true},
+    {"id": "recB", "answerId": "recB", "required": true}
   ]
 }
 ```
@@ -111,8 +131,8 @@ Config:
   "kind": "base_plus_bonus",
   "bonusRule": {"type": "flat", "pointsPerCreditedBonus": 1},
   "units": [
-    {"id": "base", "required": true},
-    {"id": "bonus-a", "answerId": "recBONUS_A", "required": true}
+    {"id": "recBASE", "answerId": "recBASE", "required": true},
+    {"id": "recBONUS_A", "answerId": "recBONUS_A", "required": true}
   ]
 }
 ```
@@ -130,6 +150,10 @@ Team units:
 ## Explicitly out of v1 scope
 
 Do **not** create a `kind` that mixes `independent_partial` and `base_plus_bonus` for initial implementation. Their combination is not currently required, although the underlying `units` format intentionally does not forbid a future extension.
+
+## Implementation implications
+
+The existing grid uses top-level `cell.isCorrect`; the new grid must resolve the active scoring unit and read `cell.units[unitId].isCorrect`. Load/save, realtime, scoring calculations, Question statistics, and results must migrate in coordination. For an ordinary Question, its sole Answer unit is still used to derive one Question outcome. Grouped all-or-nothing Questions yield one decision and one Question outcome, not multiple counted Answers. Do not implement a JSON lookup change without updating these consumers.
 
 ## Readiness and reporting pseudocode
 
