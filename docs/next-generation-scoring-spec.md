@@ -24,8 +24,8 @@ Status: **Design proposal, not implementation**. Confirmed requirements are sepa
 | Mode | Visible cells per Question/team | Scoring calculation | Review completion |
 |---|---|---|---|
 | All-or-nothing | One base cell | Full base points if marked correct; otherwise zero. Underlying multiple Answers are evaluated by host as one decision. | Base cell reviewed |
-| Threshold | One cell per required Answer | If number of credited Answers >= threshold N, award full Question points; otherwise zero. Pooled scoring must count threshold-qualified teams as winners of the full Question pool. | Every required Answer cell reviewed |
-| Independent partial credit | One cell per required Answer | Award proportionate credit for credited Answers using explicit integer rounding policy. | Every required Answer cell reviewed |
+| Threshold | One cell per required Answer | If number of correct Answers >= threshold N, award full Question points; otherwise zero. Pooled scoring must count threshold-qualified teams as winners of the full Question pool. | Every required Answer cell reviewed |
+| Independent partial credit | One cell per required Answer | Award proportionate credit for correct Answers using explicit integer rounding policy. | Every required Answer cell reviewed |
 | Base + bonus | One base cell plus separately reviewable bonus cell(s) | Base points plus bonus points according to the show's configured bonus rule. | Base and all required bonus cells reviewed |
 
 The table specifies conceptual behavior, **not** a final points formula. Existing pub/pooled/pooled-adaptive and percentage/flat bonus rules require explicit evaluation before adoption. Threshold and independent partial credit must not be conflated. Bonus-only positive points and whether they count for solos require explicit confirmation.
@@ -44,7 +44,7 @@ The table specifies conceptual behavior, **not** a final points formula. Existin
 
 - Every rendered cell maps to one stable scoring-unit ID and one TeamQuestionScore record (in the candidate JSONB design). Its host-visible content comes from the actual correct Answer text, not a generated label; bonus cells likewise display their actual Answer text.
 - The scoring configuration and its ordered units are show-specific and must not be inferred from legacy `partialCount`, `bonusCount`, or Airtable Round IDs.
-- Review and correctness are separate. `reviewed: true, correct: false` is valid; `reviewed: false` must not be silently interpreted as incorrect for results readiness.
+- Preserve the existing `isCorrect` field name for unit correctness (do not rename it). Review and correctness are separate. `reviewed: true, correct: false` is valid; `reviewed: false` must not be silently interpreted as incorrect for results readiness.
 - Readiness derives from required unit reviews across all participating teams and all occurrences in the scoring scope.
 - A scoring record can exist before any scoring decision, but record existence alone is **not** proof of completed review.
 - Points and question-level binary export are **derived**, not independently maintained writable truth.
@@ -54,9 +54,9 @@ The table specifies conceptual behavior, **not** a final points formula. Existin
 
 1. Forward Tab / Down Arrow reviews only the cell being left, including multi-cell Questions; backward Shift+Tab / Up Arrow never changes review state.
 2. A click scores and reviews that cell; clicking back to incorrect retains reviewed.
-3. Unreviewed circle white; reviewed-no-credit circle matches actual tile background with visible outline; credited cells retain existing correct/partial/bonus styling.
+3. Unreviewed circle white; reviewed-no-credit circle matches actual tile background with visible outline; correct cells retain existing correct/partial/bonus styling.
 4. Sequence Q10, Q11, Q12's first Answer text, Q12's second Answer text, Q13 works with the **same** keys and scrolls predictably. No artificial part labels appear.
-5. Refresh restores each unit's reviewed/credited state; two hosts see updates; each host keeps its own focus.
+5. Refresh restores each unit's reviewed/correct state; two hosts see updates; each host keeps its own focus.
 6. A team with partial positive points counts as earning points for solos/socials; no statistics until **all teams and required cells** of that Question reviewed.
 7. Results unavailable while any required cell unreviewed; totals may remain visible in grid as provisional.
 8. Grid and Results calculate identical points from identical inputs.
