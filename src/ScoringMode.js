@@ -716,6 +716,7 @@ export default function ScoringMode({
         const newCell = {
           ...cell,
           isCorrect: nextOn,
+          isReviewed: true,
           bonusCount: nextBonusCount,
           partialCount: nextPartialCount,
         };
@@ -741,37 +742,23 @@ export default function ScoringMode({
     [teams, questions, selectedShowId, selectedRoundId],
   );
 
-  // Mark all cells in a question row as "passed" (reviewed but not clicked)
-  // This is called when the host navigates forward past a question
-  const markRowPassed = useCallback(
-    (showQuestionId) => {
+  // Review only the cell the host actually leaves; never mark other teams.
+  // Review status is independent of correctness and is persisted for other hosts.
+  const markCellReviewed = useCallback(
+    (showTeamId, showQuestionId) => {
+      if (!showTeamId || !showQuestionId) return;
       setGrid((prev) => {
-        let updated = { ...prev };
-        let anyChanges = false;
-
-        for (const t of teams) {
-          const byTeam = updated[t.showTeamId]
-            ? { ...updated[t.showTeamId] }
-            : {};
-          // Only mark if cell doesn't exist yet
-          if (!byTeam[showQuestionId]) {
-            byTeam[showQuestionId] = { isCorrect: false, passed: true };
-            updated[t.showTeamId] = byTeam;
-            anyChanges = true;
-            // Save to Supabase
-            saveCellToSupabase(
-              selectedShowId,
-              t.showTeamId,
-              showQuestionId,
-              byTeam[showQuestionId],
-            );
-          }
-        }
-
-        return anyChanges ? updated : prev;
+        const existing = prev[showTeamId]?.[showQuestionId];
+        if (existing?.isReviewed) return prev;
+        const cell = { ...existing, isReviewed: true };
+        saveCellToSupabase(selectedShowId, showTeamId, showQuestionId, cell);
+        return {
+          ...prev,
+          [showTeamId]: { ...prev[showTeamId], [showQuestionId]: cell },
+        };
       });
     },
-    [teams, selectedShowId],
+    [selectedShowId],
   );
 
   useEffect(() => {
@@ -797,10 +784,10 @@ export default function ScoringMode({
         }
       } else if (e.key === "Tab" && !e.shiftKey) {
         e.preventDefault();
-        // Mark current row as passed before moving forward
         const currentQuestion = questions[qIdx];
-        if (currentQuestion) {
-          markRowPassed(currentQuestion.showQuestionId);
+        const currentTeam = renderTeams[teamMode ? 0 : teamIdx];
+        if (currentQuestion && currentTeam) {
+          markCellReviewed(currentTeam.showTeamId, currentQuestion.showQuestionId);
         }
         // If we're on the last grid row and there's a TB row, focus its input
         if (focus.qIdx === questions.length - 1 && tiebreaker) {
@@ -854,10 +841,10 @@ export default function ScoringMode({
         }
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        // Mark current row as passed before moving forward
         const currentQuestion = questions[qIdx];
-        if (currentQuestion && qIdx < questions.length - 1) {
-          markRowPassed(currentQuestion.showQuestionId);
+        const currentTeam = renderTeams[teamMode ? 0 : teamIdx];
+        if (currentQuestion && currentTeam && qIdx < questions.length - 1) {
+          markCellReviewed(currentTeam.showTeamId, currentQuestion.showQuestionId);
         }
         // If we're on the last grid row and there's a TB row, focus its input
         if (focus.qIdx === questions.length - 1 && tiebreaker) {
@@ -896,7 +883,7 @@ export default function ScoringMode({
     nextTeam,
     prevTeam,
     toggleCell,
-    markRowPassed,
+    markCellReviewed,
     tiebreaker,
     visibleTeams,
   ]); // 👈 include next/prev
@@ -1832,6 +1819,7 @@ export default function ScoringMode({
 
                   const cell = grid[t.showTeamId]?.[q.showQuestionId];
                   const on = !!cell?.isCorrect;
+                  const reviewed = !!cell?.isReviewed || on || (cell?.partialCount || 0) > 0;
                   const bonusCount = cell?.bonusCount || 0;
                   const partialCount = cell?.partialCount || 0;
                   const numParts = q.numParts || 0;
@@ -1917,7 +1905,7 @@ export default function ScoringMode({
                               : `Correct — ${pts} pts\n(Click to toggle • 1/Space to toggle)`
                             : q.partialCreditAvailable && partialCount > 0
                               ? `Partial credit — ${partialCount}/${numParts} parts — ${pts} pts\n(Click to toggle • 1/Space to toggle)`
-                              : `Incorrect\n(Click to toggle • 1/Space to toggle)`
+                              : `${reviewed ? "Reviewed — no credit" : "Not reviewed"}\n(Click to toggle • 1/Space to toggle)`
                         }
                       >
                         <span
@@ -1933,7 +1921,7 @@ export default function ScoringMode({
                               : `✓ ${pts}`
                             : q.partialCreditAvailable && partialCount > 0
                               ? `${"●".repeat(partialCount)}${"○".repeat(numParts - partialCount)} ${pts}`
-                              : "○"}
+                              : <span style={{ color: reviewed ? "inherit" : "#fff", WebkitTextStroke: reviewed ? "0" : "1px #DC6A24", transition: "color 120ms ease" }}>●</span>}
                         </span>
                       </div>
                     </td>
