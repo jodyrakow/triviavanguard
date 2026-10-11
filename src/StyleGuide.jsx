@@ -158,6 +158,7 @@ export default function StyleGuide() {
           <Row2 label="Semantic">
             <Swatch name="success" value={colors.success} />
             <Swatch name="error" value={colors.error} />
+            <Swatch name="teal (reserved accent)" value={colors.teal} />
           </Row2>
           <Row2 label="Effects">
             <Swatch name="pageBg" value={effects.pageBg} text={colors.dark} />
