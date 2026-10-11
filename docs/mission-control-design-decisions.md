@@ -31,7 +31,7 @@ Status: working decisions, 2026-10-11. This document records agreed product requ
 ## Builder as source of truth; live state boundaries
 - The Show/Rundown Builder is authoritative for content, grid labels, notes, media, structure/order, and show-specific settings.
 - Builder edits during a show should automatically propagate to active hosts and relevant display output without manual refresh.
-- Distinguish (1) show definition, (2) authoritative live production state (on air, queued next, progression), and (3) host-local inspection state.
+- Distinguish (1) show definition, (2) authoritative live production state (current production step, including its audience-visible content and HUD context; queued next; progression), and (3) host-local inspection state.
 - Editing show content or reordering the Rundown must not silently advance, reset, or relocate the live on-air position.
 - Behavior of **Up Next** after live Rundown reordering still needs explicit design.
 - Scoring scopes remain independent of segments, Category Blocks, Answers Blocks, and Results Blocks. Answers Blocks may refer to multiple earlier Category Blocks without duplicating questions.
@@ -39,11 +39,12 @@ Status: working decisions, 2026-10-11. This document records agreed product requ
 
 
 ## BACK / GO — confirmed behavior
-- **GO** advances one production step in the authored Rundown; **BACK** returns one production step. BACK is not a generic undo operation or a private selection change.
-- A production step can update audience-visible Display content, host-only HUD information, or both. Two consecutive steps may show identical audience content while differing in HUD context.
-- Navigating BACK/GO restores the appropriate production-step context; the Display changes only if the step's audience presentation differs.
-- Keep **current production step** distinct from **currently audience-visible presentation**, while both are driven by the same authoritative live production state.
-- Edge cases (e.g., timer/audio side effects when revisiting a step) remain to be designed; do not assume BACK reverses arbitrary side effects.
+- **GO** activates the next authored production step; **BACK** activates the previous authored production step again, executing whatever that step specifies. BACK is not private selection and is not generic undo.
+- **Audience-visible content is a component/property of the current production step**, not an independently navigated position. Each step can specify audience presentation, host-only HUD content, and other step-specific behavior.
+- Two consecutive steps may have identical audience visuals but different HUD content. BACK/GO still navigate those steps, updating all step-specific aspects as defined.
+- Timer starts, playback of an associated question audio file, and similar actions will **generally not be separate production steps**. They are discrete host-operated actions available *while a production step is active*; operating them does not inherently advance the Rundown.
+- Do not assume BACK means merely restoring visuals/HUD or that it suppresses all step behavior. Whether a given action is step-defined or host-triggered matters.
+- Detailed semantics for host-controlled Timer, Audio, and Image controls remain to be designed.
 
 ## Production controls — not yet reviewed in this icon pass
 - Back, GO, Timer, Audio, Image: icons/labels and detailed interactions still to be decided.
