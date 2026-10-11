@@ -65,3 +65,10 @@ Status: working decisions, 2026-10-11. This document records agreed product requ
 - Existing host app places BACK/forward navigation and timer together in a compact horizontal strip immediately **above the main audience/display/question area**, with the Rundown grid alongside. The host likes this location and relationship; use it as the design baseline instead of the recovered shell's far bottom-right production panel.
 - Avoid wide unused gaps in the timer controls. Keep Reset, countdown, and Start/Pause/Resume cohesive, aligned, and sized to fit; the Pause button must not dangle off the end.
 - This is a design direction; exact sizes/arrangement have not yet been approved.
+
+## Confirmed Mission Control spatial layout — 2026-10-11
+- A **single top toolbar strip above Now Showing** contains a compact production cluster (**BACK, GO, Timer**) alongside a distinct utility cluster (**Open Display, Link to Display, Print Answer Key, Show Settings**). The precise order, spacing, and responsive behavior remain to be refined.
+- **Now Showing** remains the large live audience Display view on the **upper left**.
+- **Host HUD**, including **Up Next**, remains to the **right** of Now Showing.
+- **Rundown content grid** remains **below Now Showing**, as in the recovered mockup, **not** beside the Display as in the old app.
+- Preserve the *toolbar/control placement* familiarity of the old app, not its overall pane arrangement. The prior prototype's far bottom-right production-control area should not remain the primary location for BACK/GO/Timer.
