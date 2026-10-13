@@ -68,6 +68,24 @@ export default function DisplayMode() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlVenueId]);
 
+  // Emergency same-origin Safari tab transport; independent of Supabase.
+  useEffect(() => {
+    if (!urlVenueShowId) return;
+    let channel;
+    try {
+      channel = new BroadcastChannel("tv:local-display");
+      channel.onmessage = (event) => {
+        if (event.data?.venueShowId === urlVenueShowId && event.data?.payload) {
+          handleMessage(event.data.payload);
+        }
+      };
+    } catch (error) {
+      console.warn("[local display] listener unavailable", error);
+    }
+    return () => channel?.close();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlVenueShowId]);
+
   // Subscribe to Supabase Realtime on display_state table for persistent state changes
   useEffect(() => {
     if (!supabase || !urlVenueId) return;
