@@ -2273,13 +2273,17 @@ export default function App() {
         questionText: item.questionText,
         categoryName: item.categoryName,
       };
-      if ((item.showImageByDefault || imageVisible) && item.inlineImages?.length > 0) {
+      // For spoken/non-visual questions, reveal the first image with the answer,
+      // even if no image was visible during the question.
+      const revealAnswerOnlyImage =
+        !item.isVisual && item.autoRevealAnswerImage && stage >= 1;
+      if ((item.showImageByDefault || imageVisible || revealAnswerOnlyImage) && item.inlineImages?.length > 0) {
         payload.inlineImages = item.inlineImages;
-        // Auto-reveal answer image overrides manual index; otherwise use current navImageIndex
+        // Preserve the two-image visual question/answer behavior.
         if (item.showImageByDefault && item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
           payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
         } else {
-          payload.currentInlineImageIndex = navImageIndex;
+          payload.currentInlineImageIndex = revealAnswerOnlyImage && !item.showImageByDefault ? 0 : navImageIndex;
         }
       }
       if (stage >= 1) {
@@ -2496,9 +2500,11 @@ export default function App() {
         categoryName: item.categoryName,
       };
 
-      if (withImages && item.inlineImages?.length > 0) {
+      const revealAnswerOnlyImage =
+        !item.isVisual && item.autoRevealAnswerImage && stage >= 1;
+      if ((withImages || revealAnswerOnlyImage) && item.inlineImages?.length > 0) {
         payload.inlineImages = item.inlineImages;
-        if (item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
+        if (withImages && item.autoRevealAnswerImage && item.inlineImages.length >= 2) {
           payload.currentInlineImageIndex = stage >= 1 ? 1 : 0;
         } else {
           payload.currentInlineImageIndex = 0;
