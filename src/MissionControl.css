@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&family=Questrial&display=swap');
 /* Approved laptop cockpit visual baseline — layout prototype, not live Display integration. */
 .cockpit{--navy:#2b394a;--deep:#202c39;--panel:#34475a;--orange:#dc6a24;--line:#708092;--paper:#f7f7f7;box-sizing:border-box;height:100dvh;min-height:600px;display:flex;flex-direction:column;overflow:hidden;background:var(--deep);color:#fff;font-family:Questrial,Arial,sans-serif;font-size:13px}
 .cockpit *{box-sizing:border-box}.cockpit button,.cockpit input{font-family:Questrial,Arial,sans-serif}.cockpit button{cursor:pointer}.cockpit button:focus-visible{outline:3px solid #ffcf79;outline-offset:2px}
@@ -11,3 +12,49 @@
 .cockpit-dock{position:fixed;right:12px;top:137px;width:320px;background:#f8f9fb;color:#2b394a;z-index:15;border:2px solid #dc6a24;box-shadow:0 12px 30px #0006;border-radius:7px;padding:16px}.cockpit-dock>div{display:flex;justify-content:space-between}.cockpit-dock button{background:transparent;border:0;font-size:18px}.cockpit-dock p{font-size:12px;line-height:1.4}.cockpit-dock label{display:block;font-size:12px;margin:12px 0}.cockpit-dock input{display:block;width:100%;padding:8px;margin-top:5px}
 .cockpit-shade{position:fixed;inset:0;background:#07121bc7;z-index:20;display:grid;place-items:center;padding:30px}.cockpit-dialog{width:min(940px,95vw);max-height:90vh;overflow:auto;background:#304357;border:1px solid #8395a5;border-radius:8px;padding:18px;box-shadow:0 20px 55px #0008}.cockpit-dialog header{display:flex;justify-content:space-between;align-items:start;gap:15px;margin-bottom:15px}.cockpit-dialog header small{display:block;margin-top:5px;color:#afc0cf}.cockpit-dialog header button{border:1px solid #8597a8;background:#40576b;color:#fff;border-radius:5px;padding:8px 12px}.cockpit-dialogbody{display:grid;grid-template-columns:1.7fr 1fr;gap:15px}.cockpit-preview{min-height:290px;background:#f0f1f4;color:#2b394a;display:grid;place-items:center;text-align:center;font:600 35px Antonio,Questrial,sans-serif;padding:25px}.cockpit-preview-large{min-height:460px}.cockpit-dialog p{line-height:1.5}.cockpit-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#172736;border:1px solid #dc6a24;color:white;border-radius:6px;padding:13px 16px;z-index:30;box-shadow:0 5px 18px #0007}.cockpit-toast button{background:none;color:white;border:0;margin-left:12px}
 @media(max-width:1050px){.cockpit-toolbar{gap:6px}.cockpit-brand{font-size:17px;margin-right:3px}.cockpit-utilities button,.cockpit-production button{font-size:11px;padding:0 7px}.cockpit-stage-row{grid-template-columns:minmax(0,1.6fr) minmax(230px,1fr)}.cockpit-blocklabel{width:125px}}@media(max-width:740px){.cockpit{height:auto;min-height:100vh;overflow:visible}.cockpit-top{font-size:9px}.cockpit-lifecycle{display:none}.cockpit-workspace{min-height:900px}.cockpit-stage-row{grid-template-columns:1fr;flex:0 0 auto}.cockpit-live{min-height:270px}.cockpit-side{min-height:240px}.cockpit-upnext{min-height:125px}.cockpit-bottom{min-height:420px}.cockpit-toolbar{flex-wrap:wrap}.cockpit-footer{flex-wrap:wrap}}
+
+
+/* Approved October 14 cockpit alignment. Questrial throughout production controls. */
+.cockpit{font-family:Questrial,Arial,sans-serif}
+.cockpit-toolbar{height:54px;min-height:54px;background:#fff;color:#263648;border-bottom:2px solid #dc6a24;gap:9px;padding:0 10px;flex-wrap:nowrap}
+.cockpit-brand{font:600 19px Antonio,sans-serif;color:#263648;letter-spacing:.3px;flex-shrink:0;margin-right:3px}
+.cockpit-utilities{gap:5px;flex-shrink:0}
+.cockpit-utilities button{height:36px;background:#f9fafb;color:#253445;border:1px solid #ccd2d8;font:600 13px Questrial,Arial,sans-serif;border-radius:5px;padding:0 9px}
+.cockpit-production{gap:5px;flex-shrink:0;padding-left:12px;border-left:1px solid #c8d0d8;margin-left:3px}
+.cockpit-production .cockpit-back,.cockpit-production .cockpit-go{height:36px;font:600 16px Questrial,Arial,sans-serif;border-radius:5px;padding:0 13px}
+.cockpit-production .cockpit-back{background:#edf1f4;color:#253445;border:1px solid #a9b4c1}
+.cockpit-production .cockpit-go{background:#dc6a24;color:#fff;border:1px solid #dc6a24}
+.cockpit-timer{width:220px;min-width:220px;max-width:220px;flex:0 0 220px;display:grid;grid-template-columns:38px 70px minmax(0,1fr);height:36px;gap:0;margin-left:0;background:#f8fafb;border:1px solid #a9b4c1;border-radius:5px}
+.cockpit-timer strong{font:600 22px Questrial,Arial,sans-serif;color:#253445;min-width:0;width:70px;text-align:center;font-variant-numeric:tabular-nums}
+.cockpit-production .cockpit-timer button{width:100%;min-width:0;height:34px;background:#edf1f4;color:#253445;border:0;border-radius:0;padding:0 6px;font:600 14px Questrial,Arial,sans-serif;white-space:nowrap}
+.cockpit-production .cockpit-timer button:first-child{border-right:1px solid #d4dbe2;font-size:19px}
+.cockpit-production .cockpit-timer button:last-child{background:#e7eef3;border-left:1px solid #d4dbe2}
+.cockpit-workspace{background:#263648;gap:6px;padding:6px 8px 8px}
+.cockpit-stage-row{grid-template-columns:minmax(0,1.68fr) minmax(270px,1fr);gap:8px;flex:1 1 60%}
+.cockpit-live{background:#1b2836;border:1px solid #536478;display:flex;align-items:center;justify-content:center;position:relative}
+.cockpit-stage{aspect-ratio:16/9;width:min(100%,calc((100dvh - 340px)*1.7778));max-height:100%;flex:0 1 auto;background:#f7f7f7;padding:3%;gap:0}
+.cockpit-stage-logo{top:7px;right:12px}
+.cockpit-stage h1{font:600 clamp(25px,3.2vw,58px) Antonio,sans-serif;line-height:1.13;margin:0 0 10px}
+.cockpit-stage p{font:clamp(12px,1.5vw,25px) Questrial,Arial,sans-serif;max-width:95%}
+.cockpit-stage-flag{position:absolute;bottom:7px;left:7px;height:auto;border-radius:3px;background:#404c59;padding:3px 8px;font-size:10px;z-index:2}
+.cockpit-side{gap:7px}
+.cockpit-hud{background:#2b3b4e;border:1px solid #526478;padding:12px 15px}
+.cockpit-hud .cockpit-note{border-left:3px solid #dc6a24;padding-left:10px;color:#fff}
+.cockpit-upnext{flex:0 0 auto;min-height:86px;grid-template-columns:minmax(0,1fr) 148px;background:#34465a;padding:7px 9px}
+.cockpit-mini{aspect-ratio:16/9;font:600 15px Antonio,sans-serif;border:1px solid #fff;border-radius:2px}
+.cockpit-bottom{flex:0 0 clamp(235px,36%,315px);min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:8px;background:transparent;border:0;border-radius:0;overflow:visible}
+.cockpit-navigation{min-height:0;display:flex;flex-direction:column;background:#2b394a;border:1px solid #667789;border-radius:6px;overflow:hidden}
+.cockpit-bottom-context{border:1px solid #63758a;border-radius:6px;background:#2b394a;padding:12px;display:flex;flex-direction:column;gap:12px;justify-content:center;font-size:14px;line-height:1.5}
+.cockpit-tabs{height:33px;padding:0 6px;border-bottom:0;align-items:end}
+.cockpit-tabs button{height:29px;background:#243245;color:#ffa56d;border:1px solid #dc6a24;border-bottom:0;border-radius:7px 7px 0 0;padding:0 14px}
+.cockpit-tabs button.active{background:#dc6a24;color:white}
+.cockpit-navhead{padding:6px 8px;border-top:2px solid #dc6a24}
+.cockpit-blockrow{min-height:31px;gap:4px;margin-bottom:5px}
+.cockpit-blocklabel{width:132px;padding:5px 7px;background:#243245;border:1px solid #dc6a24;font-size:14px}
+.cockpit-blocklabel.current{background:#dc6a24;border:1px solid #f3a36e;padding-left:7px}
+.cockpit-item{min-width:34px;height:31px;padding:0 8px;background:#29394d;border:1px solid #9cabb8;font-size:14px}
+.cockpit-item.onair{background:#29394d;border:2px solid #dc6a24}
+.cockpit-statuses{padding:5px 8px}
+.cockpit-footer{display:none}
+@media(max-height:790px){.cockpit-top{height:28px}.cockpit-nav{height:29px}.cockpit-toolbar{height:48px;min-height:48px}.cockpit-workspace{gap:5px;padding:5px}.cockpit-bottom{flex-basis:235px}.cockpit-stage{width:min(100%,calc((100dvh - 340px)*1.7778))}.cockpit-upnext{min-height:75px;grid-template-columns:minmax(0,1fr) 124px}}
+@media(max-width:1100px){.cockpit-toolbar{overflow-x:auto}.cockpit-bottom{grid-template-columns:minmax(0,1fr) 205px}.cockpit-stage-row{grid-template-columns:minmax(0,1.5fr) minmax(230px,1fr)}.cockpit-blocklabel{width:95px}}
