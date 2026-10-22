@@ -533,6 +533,15 @@ export default function App() {
       setLiveDisplayState(payload);
     }
 
+    // Emergency same-origin tab transport (works without Supabase Realtime).
+    try {
+      const localDisplayChannel = new BroadcastChannel("tv:local-display");
+      localDisplayChannel.postMessage({ venueShowId, payload });
+      localDisplayChannel.close();
+    } catch (error) {
+      console.warn("[local display] broadcast failed", error);
+    }
+
     // Always broadcast for instant update to display window
     if (displayBroadcastRef.current) {
       displayBroadcastRef.current.send({
