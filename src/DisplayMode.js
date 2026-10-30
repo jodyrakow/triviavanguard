@@ -175,7 +175,7 @@ export default function DisplayMode() {
         <ResultsSplashDisplay fontSize={fontSize} title="Answers" />
       )}
       {displayState.type === "pool-splash" && (
-        <ResultsSplashDisplay fontSize={fontSize}
+        <ResultsSplashDisplay fontSize={fontSize} sizeMultiplier={0.5}
           title={`${displayState.content?.teamCount ?? 0} teams = ${displayState.content?.totalPoints ?? 0} points in the pool`} />
       )}
       {displayState.type === "results-tb-question" && (
@@ -1140,8 +1140,8 @@ function ResultsDisplay({ content, fontSize = 100 }) {
   );
 }
 
-function ResultsSplashDisplay({ fontSize = 100, title = "Results" }) {
-  const scale = fontSize / 100;
+function ResultsSplashDisplay({ fontSize = 100, title = "Results", sizeMultiplier = 1 }) {
+  const scale = (fontSize / 100) * sizeMultiplier;
   return (
     <div style={{
       position: "absolute", inset: 0,
