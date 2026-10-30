@@ -3824,22 +3824,18 @@ export default function App() {
                   }
                   const tbTeamsAndGuesses = isTbStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
 
-                  // Next place info: find the next results-place-pts or results-place-reveal step after current
+                  // Resolve the current placement from the actual shared display, not the local nav cursor.
+                  // Each placement has a points-only and a team-reveal step; those are ONE placement.
                   const isResultsPlaceStep = enrichedItem?.type === "results-place-pts" || enrichedItem?.type === "results-place-reveal";
-                  let nextPlaceInfo = null;
-                  const resultLookahead = isResultsPlaceStep ? navAnswersModeList.slice(navIndex).filter(s => s.type === "results-place-reveal").slice(0, 4) : [];
-                  if (isResultsPlaceStep) {
-                    for (let i = navIndex + 1; i < navAnswersModeList.length; i++) {
-                      const s = navAnswersModeList[i];
-                      if (s.type === "results-place-pts" || s.type === "results-place-reveal") {
-                        nextPlaceInfo = s;
-                        break;
-                      }
-                    }
-                  }
+                  const placementReveals = navAnswersModeList.filter(s => s.type === "results-place-reveal");
+                  const currentPlacementIndex = isResultsPlaceStep
+                    ? placementReveals.findIndex(s => s.place === enrichedItem.place && s.points === enrichedItem.points)
+                    : -1;
+                  const currentPlacement = currentPlacementIndex >= 0 ? placementReveals[currentPlacementIndex] : enrichedItem;
+                  const nextPlaceInfo = currentPlacementIndex >= 0 ? placementReveals[currentPlacementIndex + 1] || null : null;
 
                   const showAnswerInContext = !navAnswerHidden && enrichedItem?.type === "question" && !liveDisplayState?.content?.answer && !!(enrichedItem?.answer);
-                  const hasContent = isAnswerQuestion || showAnswerInContext || hasQuestionNotes || hasPronunciation || (hasAnswerNotes && navIsAnswerMode) || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
+                  const hasContent = isAnswerQuestion || showAnswerInContext || hasQuestionNotes || hasPronunciation || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
 
                   const formatTime = (s) => {
                     if (!s || !isFinite(s)) return "--:--";
@@ -3858,7 +3854,8 @@ export default function App() {
                     flexShrink: 0,
                     lineHeight: 1.5,
                     paddingTop: "1px",
-                    width: "3.8rem",
+                    width: "5.8rem",
+                    minWidth: "5.8rem",
                     textAlign: "right",
                   };
                   const textStyle = {
@@ -3901,11 +3898,11 @@ export default function App() {
                         </div>
                       )}
 
-                      {isResultsPlaceStep && enrichedItem && (
+                      {isResultsPlaceStep && currentPlacement && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Now</span>
                           <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
-                            {enrichedItem.place} · {enrichedItem.points} {enrichedItem.points === 1 ? "pt" : "pts"}
+                            {currentPlacement.place} · {currentPlacement.points} {currentPlacement.points === 1 ? "pt" : "pts"} · {(currentPlacement.teams || []).join(", ")}
                           </span>
                         </div>
                       )}
@@ -3913,8 +3910,8 @@ export default function App() {
                         <div style={rowStyle}>
                           <span style={labelStyle}>Next</span>
                           <span style={{ ...textStyle, color: colors.accent }}>
-                            {nextPlaceInfo.place} · {nextPlaceInfo.points} pts
-                            {enrichedItem?.points != null ? ` (+${nextPlaceInfo.points - enrichedItem.points})` : ""}
+                            {currentPlacement?.points != null ? `(+${nextPlaceInfo.points - currentPlacement.points}) ` : ""}
+                            {nextPlaceInfo.place} · {nextPlaceInfo.points} {nextPlaceInfo.points === 1 ? "pt" : "pts"} · {(nextPlaceInfo.teams || []).join(", ")}
                           </span>
                         </div>
                       )}
@@ -3927,7 +3924,6 @@ export default function App() {
                           </span></div>}
                         </>
                       )}
-                      {isResultsPlaceStep && resultLookahead.length > 0 && <div style={rowStyle}><span style={labelStyle}>Teams</span><span style={textStyle}>{resultLookahead.map((step, i) => <span key={step.place + "-" + i}>{i > 0 ? " · " : ""}{step.place}: {(step.teams || []).join(", ")} ({step.points} pts)</span>)}</span></div>}
                       {soloTeamName && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Solo</span>
