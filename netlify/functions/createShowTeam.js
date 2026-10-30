@@ -50,7 +50,7 @@ exports.handler = async function handler(event) {
     }
 
     const data = JSON.parse(event.body || "{}");
-    const { showId, teamName, teamId: existingTeamId } = data;
+    const { showId, teamName, teamId: existingTeamId, allowDuplicateName = false } = data;
 
     if (!showId) {
       return {
@@ -78,9 +78,10 @@ exports.handler = async function handler(event) {
         finalTeamName = existingTeam.fields["Team"] || teamName || "(Unknown)";
       } catch (err) {
         // Team doesn't exist, fall through to create new
-        console.warn(`Team ${existingTeamId} not found, will create new`);
-        teamId = null;
+        return { statusCode: 400, headers: { "content-type": "application/json" }, body: JSON.stringify({ error: "Existing team could not be verified; no new team created." }) };
       }
+    } else if (existingTeamId) {
+      return { statusCode: 400, body: JSON.stringify({ error: "Invalid Team ID; no new team created." }) };
     } else {
       teamId = null;
     }
@@ -96,6 +97,25 @@ exports.handler = async function handler(event) {
         };
       }
 
+      // Query the Teams table itself, including teams not yet assigned to any show.
+      if (!allowDuplicateName) {
+        const normalizedName = trimmedName.toLocaleLowerCase();
+        const allTeams = await base(TBL_TEAMS).select({ fields: ["Team"], pageSize: 100 }).all();
+        const matches = allTeams.filter((r) =>
+          String(r.fields.Team || "").trim().toLocaleLowerCase() === normalizedName
+        );
+        if (matches.length) {
+          return {
+            statusCode: 409,
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              code: "TEAM_NAME_EXISTS",
+              matches: matches.map((r) => ({ teamId: r.id, teamName: r.fields.Team })),
+            }),
+          };
+        }
+      }
+
       const newTeam = await base(TBL_TEAMS).create([
         { fields: { Team: trimmedName } },
       ]);
@@ -106,12 +126,15 @@ exports.handler = async function handler(event) {
     // Check if ShowTeam already exists for this Show + Team combo
     const existingFilter = `AND(FIND("${showId}", ARRAYJOIN({Show})), FIND("${teamId}", ARRAYJOIN({Team})))`;
     const existingShowTeams = await base(TBL_SHOWTEAMS)
-      .select({ filterByFormula: existingFilter, maxRecords: 1 })
-      .firstPage();
+      .select({ filterByFormula: existingFilter, pageSize: 100 })
+      .all();
 
-    if (existingShowTeams.length > 0) {
+    const matchingShowTeams = existingShowTeams.filter((r) =>
+      (r.fields.Team || []).includes(teamId) && (r.fields.Show || []).includes(showId)
+    );
+    if (matchingShowTeams.length > 0) {
       // Already exists - return the existing record
-      const existing = existingShowTeams[0];
+      const existing = matchingShowTeams[0];
       return {
         statusCode: 200,
         headers: {
