@@ -402,7 +402,25 @@ export async function handler(event) {
         showId: normalizedShowId,
         team: teamLinked || null,
         teamId: teamId,
-        teamName: f["Team name"] ?? "(Unnamed team)",
+        teamName: (() => {
+          const raw = f["Team name"];
+          // Airtable lookups can be arrays; some copied lookup values are
+          // JSON-encoded arrays stored as text (e.g. '["Testing XYZ"]').
+          if (Array.isArray(raw)) return String(raw[0] ?? "(Unnamed team)");
+          if (typeof raw === "string") {
+            const trimmed = raw.trim();
+            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+              try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) return String(parsed[0] ?? "(Unnamed team)");
+              } catch {
+                // Not JSON; preserve the original team name.
+              }
+            }
+            return raw;
+          }
+          return "(Unnamed team)";
+        })(),
         showBonus: Number(f["Show bonus"] || 0),
         isLeague: !!f["League"],
       };

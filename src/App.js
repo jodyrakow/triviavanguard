@@ -1390,8 +1390,18 @@ export default function App() {
         params: { showId: selectedShowId },
       });
       const bundle = res.data || null;
+
+      // The bundle includes fresh Airtable ShowTeams, but live scoring reads
+      // its roster from Supabase. Import missing records without touching
+      // existing team edits, scores, or soft-deleted teams.
+      const syncRes = await axios.post("/.netlify/functions/syncShowTeamsFromBundle", {
+        showId: selectedShowId,
+        teams: bundle?.teams ?? [],
+      });
+
       isRefreshingBundleRef.current = true;
       setShowBundle(bundle);
+      console.info(`Show refresh: ${syncRes.data?.added ?? 0} new ShowTeams imported`);
       setBundleLoading(false);
     } catch (e) {
       console.error("Error refreshing bundle:", e);
@@ -3517,7 +3527,7 @@ export default function App() {
                 >📋</Button>
                 <Button
                   onClick={refreshBundle}
-                  title="Refresh questions from Airtable"
+                  title="Refresh questions, categories, and teams from Airtable"
                   style={{ fontSize: "1rem", padding: ".35rem .45rem", minWidth: "2rem", height: "2rem", borderRadius: ".4rem" }}
                 >🔄</Button>
                 <Button
