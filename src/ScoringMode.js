@@ -619,21 +619,26 @@ export default function ScoringMode({
     }
   };
 
-  const toggleLeague = (showTeamId, isLeague) => {
-    let updatedTeam = null;
-    setTeams((prev) =>
-      prev.map((t) => {
-        if (t.showTeamId === showTeamId) {
-          updatedTeam = { ...t, isLeague };
-          return updatedTeam;
-        }
-        return t;
-      }),
-    );
-
-    // Save to Supabase
-    if (updatedTeam) {
-      saveShowTeamToSupabase(selectedShowId, updatedTeam);
+  const toggleLeague = async (showTeamId, isLeague) => {
+    const original = teams.find(t => t.showTeamId === showTeamId);
+    if (!original || !!original.isLeague === isLeague) return;
+    // Optimistically update the checkbox, then revert if either save fails.
+    setTeams(prev => prev.map(t =>
+      t.showTeamId === showTeamId ? { ...t, isLeague } : t
+    ));
+    try {
+      const response = await fetch("/.netlify/functions/saveLeagueStatus", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showId: selectedShowId, showTeamId, isLeague }),
+      });
+      if (!response.ok) throw new Error(await response.text());
+    } catch (error) {
+      console.error("Unable to save League status:", error);
+      setTeams(prev => prev.map(t =>
+        t.showTeamId === showTeamId ? { ...t, isLeague: !!original.isLeague } : t
+      ));
+      window.alert("League status could not be saved to Airtable and Supabase. Please try again.");
     }
   };
 
