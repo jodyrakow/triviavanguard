@@ -2755,11 +2755,17 @@ export default function App() {
           }
         }
       } else {
-        // Results step — just advance to the next step
+        // Splash/results step: the next item may be the first question.
         const nextIdx = navIndex + 1;
         if (nextIdx < navAnswersModeList.length) {
+          const nextItem = navAnswersModeList[nextIdx];
           setNavIndex(nextIdx);
-          pushResultsStep(navAnswersModeList[nextIdx]);
+          setNavAnswerStage(0);
+          if (nextItem.type === "question") {
+            pushNavQuestion(nextItem, 0, false);
+          } else {
+            pushResultsStep(nextItem);
+          }
         }
       }
     } else {
