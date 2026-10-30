@@ -254,6 +254,45 @@ export default function ScoringMode({
   const [searchResults, setSearchResults] = useState([]);
   // 🔁 MOVED UP: Add Team modal state so it's defined before useEffect below
   const [addingTeam, setAddingTeam] = useState(false);
+  const [removedTeamsOpen, setRemovedTeamsOpen] = useState(false);
+  const [removedTeams, setRemovedTeams] = useState([]);
+  const [removedTeamsBusy, setRemovedTeamsBusy] = useState(false);
+  const [removedTeamsError, setRemovedTeamsError] = useState("");
+  const openRemovedTeams = async () => {
+    setRemovedTeamsOpen(true);
+    setRemovedTeamsError("");
+    try {
+      const res = await fetch(`/.netlify/functions/supaManageRemovedTeams?showId=${encodeURIComponent(selectedShowId)}`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setRemovedTeams(data.teams || []);
+    } catch (err) {
+      setRemovedTeamsError(err.message);
+    }
+  };
+  const restoreRemovedTeam = async (team) => {
+    setRemovedTeamsBusy(true);
+    setRemovedTeamsError("");
+    try {
+      const res = await fetch("/.netlify/functions/supaManageRemovedTeams", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showId: selectedShowId, showTeamId: team.showTeamId }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const result = await res.json();
+      const restoredId = result.showTeamId || team.showTeamId;
+      const restoredTeam = { ...team, showTeamId: restoredId };
+      setRemovedTeams(prev => prev.filter(t => t.showTeamId !== team.showTeamId));
+      setTeams(prev => prev.some(t => t.showTeamId === restoredId) ? prev : [...prev, restoredTeam]);
+      setEntryOrder(prev => prev.includes(restoredId) ? prev : [...prev, restoredId]);
+      const savedGrid = await loadGridFromSupabase(selectedShowId);
+      if (savedGrid) setGrid(prev => ({ ...prev, [restoredId]: savedGrid[restoredId] || {} }));
+    } catch (err) {
+      setRemovedTeamsError(err.message);
+    } finally {
+      setRemovedTeamsBusy(false);
+    }
+  };
   const [teamInput, setTeamInput] = useState("");
   const [isCreatingTeam, setIsCreatingTeam] = useState(false);
   // Debounce and abort refs for team search
@@ -284,8 +323,8 @@ export default function ScoringMode({
       teams.find((t) => t.showTeamId === showTeamId)?.teamName || "this team";
     const ok = window.confirm(
       hasAnyScores
-        ? `Delete “${name}” and all their scores/bonuses for this round? This cannot be undone.`
-        : `Delete “${name}”?`,
+        ? `Remove “${name}” from scoring? Their saved scores and bonuses will be preserved and the team can be restored.`
+        : `Remove “${name}” from scoring? You can restore the team later.`,
     );
     if (!ok) return;
 
@@ -1394,6 +1433,7 @@ export default function ScoringMode({
               minWidth: 0,
             }}
           >
+            <button onClick={openRemovedTeams} style={{ border: "1px solid #DC6A24", borderRadius: 5, padding: ".4rem .6rem", background: "#fff", color: "#2B394A", cursor: "pointer" }}>Removed teams</button>
             <ButtonPrimary onClick={() => setAddingTeam(true)}>
               + Add team
             </ButtonPrimary>
@@ -2040,6 +2080,23 @@ export default function ScoringMode({
         <code>↑/↓</code> question
       </div>
 
+      {removedTeamsOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(43,57,74,.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div role="dialog" aria-modal="true" aria-label="Removed teams" style={{ background: "#fff", padding: "1rem", borderRadius: 8, width: "min(92vw, 460px)", maxHeight: "85vh", overflowY: "auto" }}>
+            <h3 style={{ marginTop: 0 }}>Removed teams</h3>
+            <p>Restoring a team brings back its existing scores and bonuses.</p>
+            {removedTeamsError && <p role="alert" style={{ color: "#b42318" }}>{removedTeamsError}</p>}
+            {!removedTeams.length && !removedTeamsError && <p>No removed teams for this show.</p>}
+            {removedTeams.map(team => (
+              <div key={team.showTeamId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: ".75rem", padding: ".5rem 0", borderBottom: "1px solid #ddd" }}>
+                <span>{team.teamName}</span>
+                <button disabled={removedTeamsBusy} onClick={() => restoreRemovedTeam(team)}>Restore</button>
+              </div>
+            ))}
+            <button style={{ marginTop: "1rem" }} disabled={removedTeamsBusy} onClick={() => setRemovedTeamsOpen(false)}>Close</button>
+          </div>
+        </div>
+      )}
       {/* Add Team Modal (local or Airtable search) */}
       {addingTeam && (
         <div
