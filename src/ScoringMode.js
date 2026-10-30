@@ -1065,7 +1065,9 @@ export default function ScoringMode({
     });
   };
 
-  const addTeamLocal = async (teamName, airtableTeamId = null) => {
+  const [duplicateTeamPrompt, setDuplicateTeamPrompt] = useState(null);
+
+  const addTeamLocal = async (teamName, airtableTeamId = null, allowDuplicateName = false) => {
     const trimmed = (teamName || "").trim();
     if (!trimmed) return;
 
@@ -1080,15 +1082,30 @@ export default function ScoringMode({
           showId: selectedShowId,
           teamName: trimmed,
           teamId: airtableTeamId, // Pass existing Team ID if from search
+          allowDuplicateName,
         }),
       });
 
+      if (res.status === 409) {
+        const conflict = await res.json();
+        if (conflict.code === "TEAM_NAME_EXISTS") {
+          setDuplicateTeamPrompt({ name: trimmed, matches: conflict.matches || [] });
+          return;
+        }
+      }
       if (!res.ok) {
         const errText = await res.text();
         throw new Error(errText || "Failed to create team");
       }
 
-      const { showTeamId, teamId, teamName: finalName } = await res.json();
+      const { showTeamId, teamId, teamName: finalName, alreadyExisted } = await res.json();
+      if (alreadyExisted || teams.some((t) => t.showTeamId === showTeamId || t.teamId === teamId)) {
+        setAddingTeam(false);
+        setDuplicateTeamPrompt(null);
+        setTeamInput("");
+        setSearchResults([]);
+        return;
+      }
 
       const newTeam = {
         showTeamId, // Real Airtable ShowTeam ID
@@ -1118,6 +1135,7 @@ export default function ScoringMode({
 
       // Close modal and reset input
       setAddingTeam(false);
+      setDuplicateTeamPrompt(null);
       setTeamInput("");
       setSearchResults([]);
     } catch (err) {
@@ -2039,6 +2057,26 @@ export default function ScoringMode({
         <code>Shift+Tab</code> next/prev question • <code>←/→</code> team •{" "}
         <code>↑/↓</code> question
       </div>
+
+      {duplicateTeamPrompt && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(43,57,74,.7)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div role="dialog" aria-modal="true" aria-label="Team name already exists" style={{ background: "#fff", borderRadius: 8, padding: "1.25rem", width: "min(92vw, 480px)", maxHeight: "85vh", overflowY: "auto" }}>
+            <h3 style={{ marginTop: 0 }}>Team name already exists</h3>
+            <p>A team named <strong>{duplicateTeamPrompt.name}</strong> already exists in Airtable. Select an existing team, or explicitly create a separate Team record.</p>
+            {duplicateTeamPrompt.matches.map((match) => (
+              <button key={match.teamId} disabled={isCreatingTeam} onClick={() => { setDuplicateTeamPrompt(null); addTeamLocal(match.teamName, match.teamId); }} style={{ display: "block", width: "100%", padding: ".65rem", marginBottom: ".5rem", textAlign: "left", border: "1px solid #ccc", borderRadius: 5, background: "#fff", cursor: "pointer" }}>
+                Use existing: {match.teamName}
+              </button>
+            ))}
+            <div style={{ display: "flex", gap: ".5rem", marginTop: "1rem" }}>
+              <button disabled={isCreatingTeam} onClick={() => setDuplicateTeamPrompt(null)}>Cancel</button>
+              <button disabled={isCreatingTeam} onClick={() => { const name = duplicateTeamPrompt.name; setDuplicateTeamPrompt(null); addTeamLocal(name, null, true); }} style={{ marginLeft: "auto", padding: ".5rem", background: theme.accent, color: "#fff", border: 0, borderRadius: 5 }}>
+                Create new team anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Team Modal (local or Airtable search) */}
       {addingTeam && (
