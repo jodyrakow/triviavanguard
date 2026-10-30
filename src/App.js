@@ -3834,7 +3834,7 @@ export default function App() {
                   const currentPlacement = currentPlacementIndex >= 0 ? placementReveals[currentPlacementIndex] : enrichedItem;
                   const nextPlaceInfo = currentPlacementIndex >= 0 ? placementReveals[currentPlacementIndex + 1] || null : null;
 
-                  const showAnswerInContext = !navAnswerHidden && enrichedItem?.type === "question" && !liveDisplayState?.content?.answer && !!(enrichedItem?.answer);
+                  const showAnswerInContext = enrichedItem?.type === "question" && !!(enrichedItem?.answer);
                   const hasContent = isAnswerQuestion || showAnswerInContext || hasQuestionNotes || hasPronunciation || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
 
                   const formatTime = (s) => {
@@ -3910,7 +3910,11 @@ export default function App() {
                         <div style={rowStyle}>
                           <span style={labelStyle}>Next</span>
                           <span style={{ ...textStyle, color: colors.accent }}>
-                            {currentPlacement?.points != null ? `(+${nextPlaceInfo.points - currentPlacement.points}) ` : ""}
+                            {currentPlacement?.points != null && (
+                              <span style={{ display: "inline-block", color: "#fff", fontWeight: 800, background: "#36445b", borderRadius: ".3rem", padding: "0 .4rem", marginRight: ".55rem" }}>
+                                (+{nextPlaceInfo.points - currentPlacement.points})
+                              </span>
+                            )}
                             {nextPlaceInfo.place} · {nextPlaceInfo.points} {nextPlaceInfo.points === 1 ? "pt" : "pts"} · {(nextPlaceInfo.teams || []).join(", ")}
                           </span>
                         </div>
@@ -3933,7 +3937,7 @@ export default function App() {
 
                       {showAnswerInContext && (
                         <div style={rowStyle}>
-                          <span style={labelStyle}>Ans.</span>
+                          <span style={labelStyle}>Answer</span>
                           <span style={{ ...textStyle, color: colors.accent, fontWeight: 600 }}>{enrichedItem.answer}</span>
                         </div>
                       )}
