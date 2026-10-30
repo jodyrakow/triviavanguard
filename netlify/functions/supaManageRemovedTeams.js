@@ -21,7 +21,11 @@ export const handler = async (event) => {
         .eq("show_id", showId).eq("is_removed", true)
         .order("entry_order", { ascending: true });
       if (error) throw error;
-      return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teams: (data || []).map(t => ({
+      const { data: active, error: activeError } = await admin.from("show_teams")
+        .select("team_id").eq("show_id", showId).eq("is_removed", false);
+      if (activeError) throw activeError;
+      const activeTeamIds = new Set((active || []).map(t => t.team_id).filter(Boolean));
+      return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teams: (data || []).filter(t => !activeTeamIds.has(t.team_id)).map(t => ({
         showTeamId: t.show_team_id, teamName: t.team_name, teamId: t.team_id,
         showBonus: t.show_bonus, isLeague: t.is_league, entryOrder: t.entry_order,
       })) }) };
