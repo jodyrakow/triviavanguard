@@ -525,7 +525,10 @@ export default function App() {
   // Persistent types (question, category, results, standby, etc.) are upserted to Supabase display_state
   // AND broadcast so the display window updates instantly without waiting for the Realtime event.
   // Ephemeral types (fontSize, guide toggle, image index) are broadcast only.
-  const sendToDisplay = (type, data) => {
+  // Serialize persistent display writes: quick Next presses must not allow an
+  // older splash write to finish after the first question write.
+  const displayWriteQueueRef = useRef(Promise.resolve());
+    const sendToDisplay = (type, data) => {
     const payload = { type, content: data };
 
     // Update local live display state immediately (like scoring_cells optimistic update)
@@ -544,11 +547,17 @@ export default function App() {
 
     // Persist to Supabase for non-ephemeral types so any joining host/display gets current state
     if (!EPHEMERAL_DISPLAY_TYPES.has(type) && venueId) {
-      fetch("/.netlify/functions/supaUpsertDisplayState", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ venueId, venueName, state: payload }),
-      }).catch((err) => console.error("[sendToDisplay] Supabase upsert failed:", err));
+      displayWriteQueueRef.current = displayWriteQueueRef.current
+        .catch(() => {})
+        .then(async () => {
+          const response = await fetch("/.netlify/functions/supaUpsertDisplayState", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ venueId, venueName, state: payload }),
+          });
+          if (!response.ok) throw new Error(`Display state save failed: ${response.status}`);
+        })
+        .catch((err) => console.error("[sendToDisplay] Supabase upsert failed:", err));
     }
   };
 
@@ -2197,8 +2206,12 @@ export default function App() {
 
   // Answers mode list: questions + optional tiebreaker reveal + results sequence
   const navAnswersModeList = useMemo(
-    () => [...navQuestionList, ...navTiebreakerSteps, ...resultsNavSequence],
-    [navQuestionList, navTiebreakerSteps, resultsNavSequence],
+     () => [
+      { type: "answers-splash" },
+      ...(scoringMode === "pooled-adaptive" ? [{ type: "pool-splash" }] : []),
+      ...navQuestionList, ...navTiebreakerSteps, ...resultsNavSequence,
+    ],
+    [navQuestionList, navTiebreakerSteps, resultsNavSequence, scoringMode],
   );
 
   // Grid of categories + questions for Mission Control direct navigation
@@ -2365,6 +2378,17 @@ export default function App() {
   // Push a results-reveal step to the display
   const pushResultsStep = useCallback((step) => {
     if (!step) return;
+    if (step.type === "answers-splash") {
+      sendToDisplay("answers-splash", {});
+      return;
+    }
+    if (step.type === "pool-splash") {
+      const activeTeams = (composedCachedState?.teams || []).filter(t => !t.isRemoved && !t.is_removed);
+      const teamCount = activeTeams.length;
+      const contribution = Number(poolContribution) || 0;
+      sendToDisplay("pool-splash", { teamCount, totalPoints: teamCount * contribution });
+      return;
+    }
     if (step.type === "results-splash") {
       sendToDisplay("results-splash", {});
       return;
@@ -2397,7 +2421,7 @@ export default function App() {
       return;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [composedCachedState?.teams, poolContribution]);
 
   // ── Host Script (moved from Sidebar.js) ──────────────────────────────────
   const scriptPanelRef = useRef(null);
@@ -2731,11 +2755,17 @@ export default function App() {
           }
         }
       } else {
-        // Results step — just advance to the next step
+        // Splash/results step: the next item may be the first question.
         const nextIdx = navIndex + 1;
         if (nextIdx < navAnswersModeList.length) {
+          const nextItem = navAnswersModeList[nextIdx];
           setNavIndex(nextIdx);
-          pushResultsStep(navAnswersModeList[nextIdx]);
+          setNavAnswerStage(0);
+          if (nextItem.type === "question") {
+            pushNavQuestion(nextItem, 0, false);
+          } else {
+            pushResultsStep(nextItem);
+          }
         }
       }
     } else {
@@ -2845,6 +2875,8 @@ export default function App() {
         const catIdx = catItems.indexOf(item);
         return catIdx !== -1 ? `Cat ${catIdx + 1}` : (item.categoryName || "Category");
       }
+      if (item.type === "answers-splash") return "Answers splash";
+      if (item.type === "pool-splash") return "Pool splash";
       if (item.type === "results-splash") return "Results splash";
       if (item.type === "results-scramble") return "Scramble";
       if (item.type === "results-tb-question") return "TB question";
