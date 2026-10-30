@@ -171,6 +171,13 @@ export default function DisplayMode() {
       {displayState.type === "results-splash" && (
         <ResultsSplashDisplay fontSize={fontSize} />
       )}
+      {displayState.type === "answers-splash" && (
+        <ResultsSplashDisplay fontSize={fontSize} title="Answers" />
+      )}
+      {displayState.type === "pool-splash" && (
+        <ResultsSplashDisplay fontSize={fontSize}
+          title={`${displayState.content?.teamCount ?? 0} teams = ${displayState.content?.totalPoints ?? 0} points in the pool`} />
+      )}
       {displayState.type === "results-tb-question" && (
         <ResultsTbDisplay content={displayState.content} showAnswer={false} fontSize={fontSize} />
       )}
@@ -1133,7 +1140,7 @@ function ResultsDisplay({ content, fontSize = 100 }) {
   );
 }
 
-function ResultsSplashDisplay({ fontSize = 100 }) {
+function ResultsSplashDisplay({ fontSize = 100, title = "Results" }) {
   const scale = fontSize / 100;
   return (
     <div style={{
@@ -1152,7 +1159,7 @@ function ResultsSplashDisplay({ fontSize = 100 }) {
         lineHeight: 1.05,
         textAlign: "center",
       }}>
-        Results
+        {title}
       </div>
     </div>
   );
