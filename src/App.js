@@ -525,7 +525,10 @@ export default function App() {
   // Persistent types (question, category, results, standby, etc.) are upserted to Supabase display_state
   // AND broadcast so the display window updates instantly without waiting for the Realtime event.
   // Ephemeral types (fontSize, guide toggle, image index) are broadcast only.
-  const sendToDisplay = (type, data) => {
+  // Serialize persistent display writes: quick Next presses must not allow an
+  // older splash write to finish after the first question write.
+  const displayWriteQueueRef = useRef(Promise.resolve());
+    const sendToDisplay = (type, data) => {
     const payload = { type, content: data };
 
     // Update local live display state immediately (like scoring_cells optimistic update)
@@ -544,11 +547,17 @@ export default function App() {
 
     // Persist to Supabase for non-ephemeral types so any joining host/display gets current state
     if (!EPHEMERAL_DISPLAY_TYPES.has(type) && venueId) {
-      fetch("/.netlify/functions/supaUpsertDisplayState", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ venueId, venueName, state: payload }),
-      }).catch((err) => console.error("[sendToDisplay] Supabase upsert failed:", err));
+      displayWriteQueueRef.current = displayWriteQueueRef.current
+        .catch(() => {})
+        .then(async () => {
+          const response = await fetch("/.netlify/functions/supaUpsertDisplayState", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ venueId, venueName, state: payload }),
+          });
+          if (!response.ok) throw new Error(`Display state save failed: ${response.status}`);
+        })
+        .catch((err) => console.error("[sendToDisplay] Supabase upsert failed:", err));
     }
   };
 
