@@ -279,11 +279,14 @@ export default function ScoringMode({
         body: JSON.stringify({ showId: selectedShowId, showTeamId: team.showTeamId }),
       });
       if (!res.ok) throw new Error(await res.text());
+      const result = await res.json();
+      const restoredId = result.showTeamId || team.showTeamId;
+      const restoredTeam = { ...team, showTeamId: restoredId };
       setRemovedTeams(prev => prev.filter(t => t.showTeamId !== team.showTeamId));
-      setTeams(prev => prev.some(t => t.showTeamId === team.showTeamId) ? prev : [...prev, team]);
-      setEntryOrder(prev => prev.includes(team.showTeamId) ? prev : [...prev, team.showTeamId]);
+      setTeams(prev => prev.some(t => t.showTeamId === restoredId) ? prev : [...prev, restoredTeam]);
+      setEntryOrder(prev => prev.includes(restoredId) ? prev : [...prev, restoredId]);
       const savedGrid = await loadGridFromSupabase(selectedShowId);
-      if (savedGrid) setGrid(prev => ({ ...prev, [team.showTeamId]: savedGrid[team.showTeamId] || {} }));
+      if (savedGrid) setGrid(prev => ({ ...prev, [restoredId]: savedGrid[restoredId] || {} }));
     } catch (err) {
       setRemovedTeamsError(err.message);
     } finally {
