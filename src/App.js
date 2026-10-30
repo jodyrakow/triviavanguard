@@ -2197,8 +2197,12 @@ export default function App() {
 
   // Answers mode list: questions + optional tiebreaker reveal + results sequence
   const navAnswersModeList = useMemo(
-    () => [...navQuestionList, ...navTiebreakerSteps, ...resultsNavSequence],
-    [navQuestionList, navTiebreakerSteps, resultsNavSequence],
+     () => [
+      { type: "answers-splash" },
+      ...(scoringMode === "pooled-adaptive" ? [{ type: "pool-splash" }] : []),
+      ...navQuestionList, ...navTiebreakerSteps, ...resultsNavSequence,
+    ],
+    [navQuestionList, navTiebreakerSteps, resultsNavSequence, scoringMode],
   );
 
   // Grid of categories + questions for Mission Control direct navigation
@@ -2365,6 +2369,17 @@ export default function App() {
   // Push a results-reveal step to the display
   const pushResultsStep = useCallback((step) => {
     if (!step) return;
+    if (step.type === "answers-splash") {
+      sendToDisplay("answers-splash", {});
+      return;
+    }
+    if (step.type === "pool-splash") {
+      const activeTeams = (composedCachedState?.teams || []).filter(t => !t.isRemoved && !t.is_removed);
+      const teamCount = activeTeams.length;
+      const contribution = Number(poolContribution) || 0;
+      sendToDisplay("pool-splash", { teamCount, totalPoints: teamCount * contribution });
+      return;
+    }
     if (step.type === "results-splash") {
       sendToDisplay("results-splash", {});
       return;
@@ -2845,6 +2860,8 @@ export default function App() {
         const catIdx = catItems.indexOf(item);
         return catIdx !== -1 ? `Cat ${catIdx + 1}` : (item.categoryName || "Category");
       }
+      if (item.type === "answers-splash") return "Answers splash";
+      if (item.type === "pool-splash") return "Pool splash";
       if (item.type === "results-splash") return "Results splash";
       if (item.type === "results-scramble") return "Scramble";
       if (item.type === "results-tb-question") return "TB question";
