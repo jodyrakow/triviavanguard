@@ -2412,7 +2412,7 @@ export default function App() {
       return;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [composedCachedState?.teams, poolContribution]);
 
   // ── Host Script (moved from Sidebar.js) ──────────────────────────────────
   const scriptPanelRef = useRef(null);
