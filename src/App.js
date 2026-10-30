@@ -3801,6 +3801,14 @@ export default function App() {
                   }
 
                   const hasQuestionNotes = !!(enrichedItem?.questionNotes?.trim());
+                  const isAnswerQuestion = navIsAnswerMode && enrichedItem?.type === "question";
+                  const answerGrid = composedCachedState?.grid || {};
+                  const answerTeams = (composedCachedState?.teams || []).filter(t => !t.isRemoved && !t.is_removed);
+                  const answerCorrectCount = isAnswerQuestion ? answerTeams.filter(t => answerGrid[t.showTeamId]?.[enrichedItem.showQuestionId]?.isCorrect === true).length : null;
+                  const answerScoring = { mode: scoringMode, pubPoints: enrichedItem?.pubPerQuestion ?? pubPoints, poolPerQuestion, poolContribution, teamCount: answerTeams.length };
+                  const answerPoints = isAnswerQuestion && scoringMode !== "pub" ? computeAutoEarned({ isCorrect: true }, answerScoring, answerCorrectCount) : null;
+                  const answerBonus = isAnswerQuestion && enrichedItem.bonusAvailable ? computeBonusBreakdown(answerTeams, answerGrid, enrichedItem.showQuestionId, answerScoring, answerCorrectCount, { bonusValue: enrichedItem.bonusValue, maxBonuses: enrichedItem.maxBonuses }) : [];
+                  const answerPartial = isAnswerQuestion && enrichedItem.partialCreditAvailable && enrichedItem.numParts > 0 ? computePartialBreakdown(answerTeams, answerGrid, enrichedItem.showQuestionId, answerScoring, answerCorrectCount, { numParts: enrichedItem.numParts }) : [];
                   const hasPronunciation = !!(enrichedItem?.pronunciationGuide?.trim());
                   const hasAnswerNotes = !!(enrichedItem?.answerNotes?.trim());
                   const isTbStep = enrichedItem?.type === "results-tb-question" || enrichedItem?.type === "results-tb-answer";
@@ -3816,21 +3824,18 @@ export default function App() {
                   }
                   const tbTeamsAndGuesses = isTbStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
 
-                  // Next place info: find the next results-place-pts or results-place-reveal step after current
+                  // Resolve the current placement from the actual shared display, not the local nav cursor.
+                  // Each placement has a points-only and a team-reveal step; those are ONE placement.
                   const isResultsPlaceStep = enrichedItem?.type === "results-place-pts" || enrichedItem?.type === "results-place-reveal";
-                  let nextPlaceInfo = null;
-                  if (isResultsPlaceStep) {
-                    for (let i = navIndex + 1; i < navAnswersModeList.length; i++) {
-                      const s = navAnswersModeList[i];
-                      if (s.type === "results-place-pts" || s.type === "results-place-reveal") {
-                        nextPlaceInfo = s;
-                        break;
-                      }
-                    }
-                  }
+                  const placementReveals = navAnswersModeList.filter(s => s.type === "results-place-reveal");
+                  const currentPlacementIndex = isResultsPlaceStep
+                    ? placementReveals.findIndex(s => s.place === enrichedItem.place && s.points === enrichedItem.points)
+                    : -1;
+                  const currentPlacement = currentPlacementIndex >= 0 ? placementReveals[currentPlacementIndex] : enrichedItem;
+                  const nextPlaceInfo = currentPlacementIndex >= 0 ? placementReveals[currentPlacementIndex + 1] || null : null;
 
-                  const showAnswerInContext = !navAnswerHidden && enrichedItem?.type === "question" && !liveDisplayState?.content?.answer && !!(enrichedItem?.answer);
-                  const hasContent = showAnswerInContext || (hasQuestionNotes && !navIsAnswerMode) || hasPronunciation || (hasAnswerNotes && navIsAnswerMode) || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
+                  const showAnswerInContext = enrichedItem?.type === "question" && !!(enrichedItem?.answer);
+                  const hasContent = isAnswerQuestion || showAnswerInContext || hasQuestionNotes || hasPronunciation || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
 
                   const formatTime = (s) => {
                     if (!s || !isFinite(s)) return "--:--";
@@ -3849,7 +3854,8 @@ export default function App() {
                     flexShrink: 0,
                     lineHeight: 1.5,
                     paddingTop: "1px",
-                    width: "3.8rem",
+                    width: "5.8rem",
+                    minWidth: "5.8rem",
                     textAlign: "right",
                   };
                   const textStyle = {
@@ -3892,11 +3898,11 @@ export default function App() {
                         </div>
                       )}
 
-                      {isResultsPlaceStep && enrichedItem && (
+                      {isResultsPlaceStep && currentPlacement && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Now</span>
                           <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
-                            {enrichedItem.place} · {enrichedItem.points} {enrichedItem.points === 1 ? "pt" : "pts"}
+                            {currentPlacement.place} · {currentPlacement.points} {currentPlacement.points === 1 ? "pt" : "pts"} · {(currentPlacement.teams || []).join(", ")}
                           </span>
                         </div>
                       )}
@@ -3904,12 +3910,24 @@ export default function App() {
                         <div style={rowStyle}>
                           <span style={labelStyle}>Next</span>
                           <span style={{ ...textStyle, color: colors.accent }}>
-                            {nextPlaceInfo.place} · {nextPlaceInfo.points} pts
-                            {enrichedItem?.points != null ? ` (+${nextPlaceInfo.points - enrichedItem.points})` : ""}
+                            {currentPlacement?.points != null && (
+                              <span style={{ display: "inline-block", color: "#fff", fontWeight: 800, background: "#36445b", borderRadius: ".3rem", padding: "0 .4rem", marginRight: ".55rem" }}>
+                                (+{nextPlaceInfo.points - currentPlacement.points})
+                              </span>
+                            )}
+                            {nextPlaceInfo.place} · {nextPlaceInfo.points} {nextPlaceInfo.points === 1 ? "pt" : "pts"} · {(nextPlaceInfo.teams || []).join(", ")}
                           </span>
                         </div>
                       )}
 
+                      {isAnswerQuestion && (
+                        <>
+                          <div style={rowStyle}><span style={labelStyle}>Correct</span><span style={textStyle}>{answerCorrectCount} / {answerTeams.length} teams correct</span></div>
+                          {scoringMode !== "pub" && <div style={rowStyle}><span style={labelStyle}>Points</span><span style={textStyle}>
+                            {answerBonus.length > 1 ? answerBonus.map((level, i) => <span key={level.bonusLevel}>{i > 0 ? " · " : ""}{level.pointsPerTeam} pts{level.bonusLevel > 0 ? " (" + level.bonusLevel + " " + (level.bonusLevel > 1 ? "bonuses" : "bonus") + ")" : ""}</span>) : answerPartial.length > 0 ? answerPartial.map((level, i) => <span key={level.partialCount}>{i > 0 ? " · " : ""}{level.teamCount} {level.teamCount === 1 ? "team" : "teams"} ({level.partialCount === level.numParts ? "full" : level.partialCount + "/" + level.numParts} · {level.pointsPerTeam} pts)</span>) : answerPoints + " points per team"}
+                          </span></div>}
+                        </>
+                      )}
                       {soloTeamName && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Solo</span>
@@ -3919,7 +3937,7 @@ export default function App() {
 
                       {showAnswerInContext && (
                         <div style={rowStyle}>
-                          <span style={labelStyle}>Ans.</span>
+                          <span style={labelStyle}>Answer</span>
                           <span style={{ ...textStyle, color: colors.accent, fontWeight: 600 }}>{enrichedItem.answer}</span>
                         </div>
                       )}
@@ -3934,7 +3952,7 @@ export default function App() {
                         </div>
                       )}
 
-                      {hasQuestionNotes && !navIsAnswerMode && (
+                      {hasQuestionNotes && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Notes</span>
                           <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.questionNotes) }} />
@@ -3948,7 +3966,7 @@ export default function App() {
                         </div>
                       )}
 
-                      {hasAnswerNotes && navIsAnswerMode && (
+                      {false && hasAnswerNotes && navIsAnswerMode && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Ans. notes</span>
                           <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.answerNotes) }} />

@@ -280,7 +280,7 @@ export async function handler(event) {
       const hasEditedQuestion =
         f["Edited question"] !== undefined && f["Edited question"] !== null;
       const hasEditedNotes =
-        f["Edited notes"] !== undefined && f["Edited notes"] !== null;
+        f["Edited question notes"] !== undefined && f["Edited question notes"] !== null;
       const hasEditedPronunciation =
         f["Edited pronunciation guide"] !== undefined &&
         f["Edited pronunciation guide"] !== null;
@@ -300,7 +300,7 @@ export async function handler(event) {
         questionText: hasEditedQuestion
           ? f["Edited question"]
           : f["Question text"] || "",
-        questionNotes: hasEditedNotes ? f["Edited notes"] : f["Notes"] || "",
+        questionNotes: hasEditedNotes ? f["Edited question notes"] : f["Question notes"] || "",
         questionPronunciationGuide: hasEditedPronunciation
           ? f["Edited pronunciation guide"]
           : f["Pronunciation guide"] || "",
