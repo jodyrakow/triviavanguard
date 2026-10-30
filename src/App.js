@@ -3801,6 +3801,14 @@ export default function App() {
                   }
 
                   const hasQuestionNotes = !!(enrichedItem?.questionNotes?.trim());
+                  const isAnswerQuestion = navIsAnswerMode && enrichedItem?.type === "question";
+                  const answerGrid = composedCachedState?.grid || {};
+                  const answerTeams = (composedCachedState?.teams || []).filter(t => !t.isRemoved && !t.is_removed);
+                  const answerCorrectCount = isAnswerQuestion ? answerTeams.filter(t => answerGrid[t.showTeamId]?.[enrichedItem.showQuestionId]?.isCorrect === true).length : null;
+                  const answerScoring = { mode: scoringMode, pubPoints: enrichedItem?.pubPerQuestion ?? pubPoints, poolPerQuestion, poolContribution, teamCount: answerTeams.length };
+                  const answerPoints = isAnswerQuestion && scoringMode !== "pub" ? computeAutoEarned({ isCorrect: true }, answerScoring, answerCorrectCount) : null;
+                  const answerBonus = isAnswerQuestion && enrichedItem.bonusAvailable ? computeBonusBreakdown(answerTeams, answerGrid, enrichedItem.showQuestionId, answerScoring, answerCorrectCount, { bonusValue: enrichedItem.bonusValue, maxBonuses: enrichedItem.maxBonuses }) : [];
+                  const answerPartial = isAnswerQuestion && enrichedItem.partialCreditAvailable && enrichedItem.numParts > 0 ? computePartialBreakdown(answerTeams, answerGrid, enrichedItem.showQuestionId, answerScoring, answerCorrectCount, { numParts: enrichedItem.numParts }) : [];
                   const hasPronunciation = !!(enrichedItem?.pronunciationGuide?.trim());
                   const hasAnswerNotes = !!(enrichedItem?.answerNotes?.trim());
                   const isTbStep = enrichedItem?.type === "results-tb-question" || enrichedItem?.type === "results-tb-answer";
@@ -3819,6 +3827,7 @@ export default function App() {
                   // Next place info: find the next results-place-pts or results-place-reveal step after current
                   const isResultsPlaceStep = enrichedItem?.type === "results-place-pts" || enrichedItem?.type === "results-place-reveal";
                   let nextPlaceInfo = null;
+                  const resultLookahead = isResultsPlaceStep ? navAnswersModeList.slice(navIndex).filter(s => s.type === "results-place-reveal").slice(0, 4) : [];
                   if (isResultsPlaceStep) {
                     for (let i = navIndex + 1; i < navAnswersModeList.length; i++) {
                       const s = navAnswersModeList[i];
@@ -3830,7 +3839,7 @@ export default function App() {
                   }
 
                   const showAnswerInContext = !navAnswerHidden && enrichedItem?.type === "question" && !liveDisplayState?.content?.answer && !!(enrichedItem?.answer);
-                  const hasContent = showAnswerInContext || (hasQuestionNotes && !navIsAnswerMode) || hasPronunciation || (hasAnswerNotes && navIsAnswerMode) || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
+                  const hasContent = isAnswerQuestion || showAnswerInContext || hasQuestionNotes || hasPronunciation || (hasAnswerNotes && navIsAnswerMode) || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
 
                   const formatTime = (s) => {
                     if (!s || !isFinite(s)) return "--:--";
@@ -3910,6 +3919,15 @@ export default function App() {
                         </div>
                       )}
 
+                      {isAnswerQuestion && (
+                        <>
+                          <div style={rowStyle}><span style={labelStyle}>Correct</span><span style={textStyle}>{answerCorrectCount} / {answerTeams.length} teams correct</span></div>
+                          {scoringMode !== "pub" && <div style={rowStyle}><span style={labelStyle}>Points</span><span style={textStyle}>
+                            {answerBonus.length > 1 ? answerBonus.map((level, i) => <span key={level.bonusLevel}>{i > 0 ? " · " : ""}{level.pointsPerTeam} pts{level.bonusLevel > 0 ? " (" + level.bonusLevel + " " + (level.bonusLevel > 1 ? "bonuses" : "bonus") + ")" : ""}</span>) : answerPartial.length > 0 ? answerPartial.map((level, i) => <span key={level.partialCount}>{i > 0 ? " · " : ""}{level.teamCount} {level.teamCount === 1 ? "team" : "teams"} ({level.partialCount === level.numParts ? "full" : level.partialCount + "/" + level.numParts} · {level.pointsPerTeam} pts)</span>) : answerPoints + " points per team"}
+                          </span></div>}
+                        </>
+                      )}
+                      {isResultsPlaceStep && resultLookahead.length > 0 && <div style={rowStyle}><span style={labelStyle}>Teams</span><span style={textStyle}>{resultLookahead.map((step, i) => <span key={step.place + "-" + i}>{i > 0 ? " · " : ""}{step.place}: {(step.teams || []).join(", ")} ({step.points} pts)</span>)}</span></div>}
                       {soloTeamName && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Solo</span>
@@ -3934,7 +3952,7 @@ export default function App() {
                         </div>
                       )}
 
-                      {hasQuestionNotes && !navIsAnswerMode && (
+                      {hasQuestionNotes && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Notes</span>
                           <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.questionNotes) }} />
@@ -3948,7 +3966,7 @@ export default function App() {
                         </div>
                       )}
 
-                      {hasAnswerNotes && navIsAnswerMode && (
+                      {false && hasAnswerNotes && navIsAnswerMode && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Ans. notes</span>
                           <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.answerNotes) }} />
