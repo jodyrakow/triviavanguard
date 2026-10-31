@@ -17,8 +17,9 @@ const showTeamRowsFor = (showId) => base("ShowTeams").select({
   pageSize: 100
 }).all();
 const teamIdsOf = (record) => {
-  const linkedIds = linked(record, "Team");
-  return linkedIds.length ? linkedIds : (Array.isArray(record.fields["Team ID"]) ? record.fields["Team ID"] : [record.fields["Team ID"]].filter(Boolean));
+  const raw = record.fields["Team ID"];
+  const ids = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return ids.map(String).filter(validId);
 };
 const teamNameOfShowTeam = (record) => {
   const raw = record.fields["Team name"];
