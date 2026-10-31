@@ -2168,7 +2168,7 @@ export default function ScoringMode({
                 </div>
               </>
             )}
-            {copySourceId && !copyBusy && copyCandidates.length === 0 && <p>No teams found in that show.{copyDiagnostics && <span style={{ display: "block", fontSize: ".8rem", color: "#667" }}>Diagnostic: {copyDiagnostics.matchingShowTeamRecords} matching show-team records, {copyDiagnostics.sourceRecords} source records, {copyDiagnostics.sourceTeamIds} team IDs.</span>}</p>}
+            {copySourceId && !copyBusy && copyCandidates.length === 0 && <p>No teams found in that show.{copyDiagnostics && <span style={{ display: "block", fontSize: ".8rem", color: "#667" }}>Diagnostic: Looking for Show ID <strong>{copyDiagnostics.requestedSourceShowId}</strong> in ShowTeams. Airtable records for source: {copyDiagnostics.sourceAirtableRecords}; for destination: {copyDiagnostics.destinationAirtableRecords}. Active Supabase source records: {copyDiagnostics.sourceRecords}. Team IDs found: {copyDiagnostics.sourceTeamIds}.</span>}</p>}
             {copyError && <p role="alert" style={{ color: "#a22" }}>{copyError}</p>}
             {copyResult && <p role="status" style={{ color: "#265b3b" }}>{copyResult}</p>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: "1rem" }}>
