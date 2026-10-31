@@ -48,7 +48,7 @@ exports.handler = async (event) => {
         const row = rows.find((item) => showIds(item).includes(source) && teamIdsOf(item).includes(id));
         return { teamId: id, teamName: row ? teamNameOfShowTeam(row) : nameOf(await base("Teams").find(id)), alreadyInDestination: destinationTeamIds.has(id) };
       }));
-      return json(200, { teams: teams.sort((a, b) => a.teamName.localeCompare(b.teamName)) });
+      return json(200, { teams: teams.sort((a, b) => a.teamName.localeCompare(b.teamName)), diagnostics: { matchingShowTeamRecords: rows.length, sourceRecords: rows.filter((row) => showIds(row).includes(source)).length, sourceTeamIds: sourceTeamIds.length } });
     }
     if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
     const { sourceShowId, destinationShowId, teamIds } = JSON.parse(event.body || "{}");
