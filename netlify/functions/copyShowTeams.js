@@ -29,6 +29,14 @@ const teamNameOfShowTeam = (record) => {
   return String(raw || "(Unnamed team)");
 };
 const nameOf = (record) => String(record.fields["Team"] || "(Unnamed team)");
+const supabaseAdmin = () => createClient(process.env.REACT_APP_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+const rosterFor = async (showId) => {
+  const { data, error } = await supabaseAdmin().from("show_teams")
+    .select("show_team_id,team_id,team_name,is_removed")
+    .eq("show_id", showId);
+  if (error) throw error;
+  return data || [];
+};
 
 exports.handler = async (event) => {
   try {
@@ -42,16 +50,26 @@ exports.handler = async (event) => {
         return json(200, { shows: shows.filter((s) => s.id !== destination).map((s) => ({ id: s.id, label: String(s.fields.Show || s.fields.Date || s.id) })) });
       }
       if (!validId(source) || source === destination) return json(400, { error: "Invalid source show" });
-      const [sourceRows, destinationRows] = await Promise.all([
-        showTeamRowsFor(source), showTeamRowsFor(destination)
+      const [sourceRoster, destinationRoster, sourceRows, destinationRows] = await Promise.all([
+        rosterFor(source), rosterFor(destination), showTeamRowsFor(source), showTeamRowsFor(destination)
       ]);
-      const sourceTeamIds = [...new Set(sourceRows.flatMap(teamIdsOf))];
-      const destinationTeamIds = new Set(destinationRows.flatMap(teamIdsOf));
-      const teams = await Promise.all(sourceTeamIds.map(async (id) => {
-        const row = sourceRows.find((item) => teamIdsOf(item).includes(id));
-        return { teamId: id, teamName: row ? teamNameOfShowTeam(row) : nameOf(await base("Teams").find(id)), alreadyInDestination: destinationTeamIds.has(id) };
+      const sourceTeams = new Map();
+      // Supabase is the live Scores roster. Include Airtable-only teams for older shows.
+      for (const row of sourceRows) {
+        for (const id of teamIdsOf(row)) if (validId(id)) sourceTeams.set(id, { teamId: id, teamName: teamNameOfShowTeam(row) });
+      }
+      for (const row of sourceRoster) {
+        if (row.is_removed || !validId(row.team_id)) continue;
+        sourceTeams.set(row.team_id, { teamId: row.team_id, teamName: row.team_name || sourceTeams.get(row.team_id)?.teamName || "(Unnamed team)" });
+      }
+      const destinationIds = new Set([
+        ...destinationRows.flatMap(teamIdsOf),
+        ...destinationRoster.filter((row) => !row.is_removed).map((row) => row.team_id)
+      ]);
+      const teams = [...sourceTeams.values()].map((team) => ({
+        ...team, alreadyInDestination: destinationIds.has(team.teamId)
       }));
-      return json(200, { teams: teams.sort((a, b) => a.teamName.localeCompare(b.teamName)), diagnostics: { matchingShowTeamRecords: sourceRows.length + destinationRows.length, sourceRecords: sourceRows.length, sourceTeamIds: sourceTeamIds.length } });
+      return json(200, { teams: teams.sort((a, b) => a.teamName.localeCompare(b.teamName)), diagnostics: { matchingShowTeamRecords: sourceRows.length + destinationRows.length, sourceRecords: sourceRoster.filter((row) => !row.is_removed).length, sourceTeamIds: sourceTeams.size } });
     }
     if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
     const { sourceShowId, destinationShowId, teamIds } = JSON.parse(event.body || "{}");
@@ -62,10 +80,13 @@ exports.handler = async (event) => {
     if (!process.env.REACT_APP_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
       return json(500, { error: "Supabase is not configured" });
 
-    const [sourceRows, destinationRows] = await Promise.all([
-      showTeamRowsFor(sourceShowId), showTeamRowsFor(destinationShowId)
+    const [sourceRows, destinationRows, sourceRoster] = await Promise.all([
+      showTeamRowsFor(sourceShowId), showTeamRowsFor(destinationShowId), rosterFor(sourceShowId)
     ]);
-    const sourceIds = new Set(sourceRows.flatMap(teamIdsOf));
+    const sourceIds = new Set([
+      ...sourceRows.flatMap(teamIdsOf),
+      ...sourceRoster.filter((row) => !row.is_removed).map((row) => row.team_id)
+    ]);
     const existing = new Map(destinationRows.flatMap((row) =>
       teamIdsOf(row).map((teamId) => [teamId, row.id])));
     const requested = [...new Set(teamIds)];
