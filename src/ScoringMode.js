@@ -300,7 +300,6 @@ export default function ScoringMode({
         setTeams(refreshed);
         setEntryOrder(refreshed.map((t) => t.showTeamId));
       }
-      await loadCopyData(copySourceId);
     } catch (err) { setCopyError(err.message); }
     finally { setCopyBusy(false); }
   };
