@@ -63,14 +63,11 @@ exports.handler = async (event) => {
         if (row.is_removed || !validId(row.team_id)) continue;
         sourceTeams.set(row.team_id, { teamId: row.team_id, teamName: row.team_name || sourceTeams.get(row.team_id)?.teamName || "(Unnamed team)" });
       }
-      const destinationIds = new Set([
-        ...destinationRows.flatMap(teamIdsOf),
-        ...destinationRoster.filter((row) => !row.is_removed).map((row) => row.team_id)
-      ]);
+      const destinationIds = new Set(destinationRoster.filter((row) => !row.is_removed).map((row) => row.team_id));
       const teams = [...sourceTeams.values()].map((team) => ({
         ...team, alreadyInDestination: destinationIds.has(team.teamId)
       }));
-      return json(200, { teams: teams.sort((a, b) => a.teamName.localeCompare(b.teamName)), diagnostics: { requestedSourceShowId: source, requestedDestinationShowId: destination, sourceAirtableRecords: sourceRows.length, destinationAirtableRecords: destinationRows.length, matchingShowTeamRecords: sourceRows.length + destinationRows.length, sourceRecords: sourceRoster.filter((row) => !row.is_removed).length, sourceTeamIds: sourceTeams.size } });
+      return json(200, { teams: teams.sort((a, b) => a.teamName.localeCompare(b.teamName)) });
     }
     if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
     const { sourceShowId, destinationShowId, teamIds } = JSON.parse(event.body || "{}");
