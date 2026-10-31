@@ -38,9 +38,12 @@ exports.handler = async (event) => {
         return json(200, { shows: shows.filter((s) => s.id !== destination).map((s) => ({ id: s.id, label: String(s.fields.Show || s.fields.Date || s.id) })) });
       }
       if (!validId(source) || source === destination) return json(400, { error: "Invalid source show" });
-      const rows = await allShowTeams();
+      const rows = await base("ShowTeams").select({
+        filterByFormula: "OR(FIND('" + source + "', ARRAYJOIN({Show ID})), FIND('" + destination + "', ARRAYJOIN({Show ID})))",
+        pageSize: 100
+      }).all();
       const sourceTeamIds = [...new Set(rows.filter((row) => showIds(row).includes(source)).flatMap(teamIdsOf))];
-      const destinationTeamIds = new Set(rows.filter((row) => showIds(row).includes(destination)).flatMap((row) => linked(row, "Team")));
+      const destinationTeamIds = new Set(rows.filter((row) => showIds(row).includes(destination)).flatMap(teamIdsOf));
       const teams = await Promise.all(sourceTeamIds.map(async (id) => {
         const row = rows.find((item) => showIds(item).includes(source) && teamIdsOf(item).includes(id));
         return { teamId: id, teamName: row ? teamNameOfShowTeam(row) : nameOf(await base("Teams").find(id)), alreadyInDestination: destinationTeamIds.has(id) };
@@ -56,8 +59,11 @@ exports.handler = async (event) => {
     if (!process.env.REACT_APP_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
       return json(500, { error: "Supabase is not configured" });
 
-    const rows = await base("ShowTeams").select({ fields: ["Show", "Team"], pageSize: 100 }).all();
-    const sourceIds = new Set(rows.filter((row) => showIds(row).includes(sourceShowId)).flatMap((row) => linked(row, "Team")));
+    const rows = await base("ShowTeams").select({
+      filterByFormula: "OR(FIND('" + sourceShowId + "', ARRAYJOIN({Show ID})), FIND('" + destinationShowId + "', ARRAYJOIN({Show ID})))",
+      pageSize: 100
+    }).all();
+    const sourceIds = new Set(rows.filter((row) => showIds(row).includes(sourceShowId)).flatMap(teamIdsOf));
     const existing = new Map(rows.filter((row) => showIds(row).includes(destinationShowId))
       .flatMap((row) => teamIdsOf(row).map((teamId) => [teamId, row.id])));
     const requested = [...new Set(teamIds)];
