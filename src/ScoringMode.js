@@ -21,6 +21,7 @@ import {
   computeSocialsForRound,
 } from "./scoring/compute.js";
 import { supabase } from "./App.js";
+import { createPortal } from "react-dom";
 
 // Save a single cell to Supabase (debounced calls happen in the component)
 const saveCellToSupabase = async (showId, showTeamId, showQuestionId, cell) => {
@@ -2135,7 +2136,7 @@ export default function ScoringMode({
         </div>
       )}
 
-      {copyTeamsOpen && (
+      {copyTeamsOpen && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(43,57,74,.65)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }} onClick={() => !copyBusy && setCopyTeamsOpen(false)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", color: "#263447", borderRadius: 9, padding: "1.25rem", width: "min(540px, 100%)", maxHeight: "85vh", overflowY: "auto" }}>
             <h3 style={{ marginTop: 0 }}>Copy teams from another show</h3>
@@ -2175,7 +2176,7 @@ export default function ScoringMode({
               </button>
             </div>
           </div>
-        </div>
+        </div>, document.body
       )}
 
       {/* Add Team Modal (local or Airtable search) */}
