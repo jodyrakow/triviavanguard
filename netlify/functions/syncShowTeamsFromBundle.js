@@ -65,6 +65,13 @@ export const handler = async (event) => {
       .eq("show_id", showId);
     if (rosterError) throw rosterError;
 
+    // Only active Supabase teams absent from the authoritative Airtable bundle
+    // require a host decision. Already-removed teams are never prompted.
+    const airtableIds = new Set(teams.map(t => t?.showTeamId).filter(Boolean));
+    const missingFromAirtable = (roster || [])
+      .filter(t => !t.is_removed && !airtableIds.has(t.show_team_id))
+      .map(t => ({ showTeamId: t.show_team_id, teamName: t.team_name }));
+
     const activeTeams = (roster || []).filter((t) => !t.is_removed).map((t) => ({
       showTeamId: t.show_team_id,
       teamId: t.team_id,
@@ -80,6 +87,7 @@ export const handler = async (event) => {
       body: JSON.stringify({
         added: missing.filter((t) => (roster || []).some((r) => r.show_team_id === t.showTeamId && !r.is_removed)).length,
         teams: activeTeams,
+        missingFromAirtable,
       }),
     };
   } catch (err) {
