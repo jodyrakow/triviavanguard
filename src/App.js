@@ -4354,7 +4354,7 @@ export default function App() {
         <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 500 }}>
           <Draggable nodeRef={questionsRef} position={questionsPos} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setQuestionsPos(p); localStorage.setItem("tv_questionsPos", JSON.stringify(p)); }}>
             <div ref={questionsRef} style={{ position: "absolute", background: "#fff", borderRadius: "8px", boxShadow: "0 4px 24px rgba(0,0,0,0.2)", width: "min(96vw, 900px)", maxHeight: "85vh", display: "flex", flexDirection: "column", pointerEvents: "auto" }}>
-              <div style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: `1px solid ${colors.gray?.border || "#e0e0e0"}`, cursor: "grab", background: colors.dark, borderRadius: "8px 8px 0 0", userSelect: "none" }}>
+              <div className="tv-scores-drag-handle" style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: `1px solid ${colors.gray?.border || "#e0e0e0"}`, cursor: "grab", background: colors.dark, borderRadius: "8px 8px 0 0", userSelect: "none" }}>
                 <span style={{ color: "#fff", fontWeight: 700, fontSize: ".9rem", flex: 1, fontFamily: tokens.font.body }}>Questions &amp; Answers</span>
                 <button onClick={() => setQuestionsOpen(false)} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "1.1rem", lineHeight: 1, padding: "0 .25rem" }}>✕</button>
               </div>
@@ -4400,7 +4400,7 @@ export default function App() {
       {/* ── Floating Scores panel ── */}
       {scoringOpen && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 500 }}>
-          <Draggable nodeRef={scoringRef} position={scoringPos} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setScoringPos(p); localStorage.setItem("tv_scoringPos", JSON.stringify(p)); }}>
+          <Draggable nodeRef={scoringRef} handle=".tv-scores-drag-handle" cancel="button, input, select, textarea, option" position={scoringPos} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setScoringPos(p); localStorage.setItem("tv_scoringPos", JSON.stringify(p)); }}>
             <div ref={scoringRef} style={{ position: "absolute", background: "#fff", borderRadius: "8px", boxShadow: "0 4px 24px rgba(0,0,0,0.2)", width: "min(96vw, 1100px)", maxHeight: "85vh", display: "flex", flexDirection: "column", pointerEvents: "auto" }}>
               <div style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: `1px solid ${colors.gray?.border || "#e0e0e0"}`, cursor: "grab", background: colors.dark, borderRadius: "8px 8px 0 0", userSelect: "none" }}>
                 <span style={{ color: "#fff", fontWeight: 700, fontSize: ".9rem", flex: 1, fontFamily: tokens.font.body }}>Scores</span>

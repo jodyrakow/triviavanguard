@@ -21,6 +21,7 @@ import {
   computeSocialsForRound,
 } from "./scoring/compute.js";
 import { supabase } from "./App.js";
+import { createPortal } from "react-dom";
 
 // Save a single cell to Supabase (debounced calls happen in the component)
 const saveCellToSupabase = async (showId, showTeamId, showQuestionId, cell) => {
@@ -254,6 +255,57 @@ export default function ScoringMode({
   const [searchResults, setSearchResults] = useState([]);
   // 🔁 MOVED UP: Add Team modal state so it's defined before useEffect below
   const [addingTeam, setAddingTeam] = useState(false);
+  const [copyTeamsOpen, setCopyTeamsOpen] = useState(false);
+  const [copySourceShows, setCopySourceShows] = useState([]);
+  const [copySourceId, setCopySourceId] = useState("");
+  const [copyCandidates, setCopyCandidates] = useState([]);
+  const [copyDiagnostics, setCopyDiagnostics] = useState(null);
+  const [copySelected, setCopySelected] = useState([]);
+  const [copyBusy, setCopyBusy] = useState(false);
+  const [copyError, setCopyError] = useState("");
+  const [copyResult, setCopyResult] = useState("");
+
+  const loadCopyData = async (sourceId = "") => {
+    setCopyBusy(true);
+    setCopyError("");
+    setCopyResult("");
+    try {
+      const query = new URLSearchParams({ destinationShowId: selectedShowId });
+      if (sourceId) query.set("sourceShowId", sourceId);
+      const res = await fetch("/.netlify/functions/copyShowTeams?" + query.toString());
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to load teams");
+      if (sourceId) {
+        setCopyCandidates(data.teams || []);
+        setCopyDiagnostics(data.diagnostics || null);
+        setCopySelected((data.teams || []).filter((t) => !t.alreadyInDestination).map((t) => t.teamId));
+      } else {
+        setCopySourceShows(data.shows || []);
+      }
+    } catch (err) { setCopyError(err.message); }
+    finally { setCopyBusy(false); }
+  };
+
+  const copySelectedTeams = async () => {
+    setCopyBusy(true);
+    setCopyError("");
+    try {
+      const res = await fetch("/.netlify/functions/copyShowTeams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceShowId: copySourceId, destinationShowId: selectedShowId, teamIds: copySelected })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to copy teams");
+      setCopyResult(`Added ${data.added}; restored ${data.restored}; already present ${data.skipped}.`);
+      const refreshed = await loadShowTeamsFromSupabase(selectedShowId);
+      if (Array.isArray(refreshed)) {
+        setTeams(refreshed);
+        setEntryOrder(refreshed.map((t) => t.showTeamId));
+      }
+    } catch (err) { setCopyError(err.message); }
+    finally { setCopyBusy(false); }
+  };
   const [teamInput, setTeamInput] = useState("");
   const [isCreatingTeam, setIsCreatingTeam] = useState(false);
   // Debounce and abort refs for team search
@@ -1420,6 +1472,9 @@ export default function ScoringMode({
             <ButtonPrimary onClick={() => setAddingTeam(true)}>
               + Add team
             </ButtonPrimary>
+            <button type="button" onClick={() => { setCopyTeamsOpen(true); setCopySourceId(""); setCopyCandidates([]); setCopyDiagnostics(null); setCopySelected([]); loadCopyData(); }} style={{ padding: "0.5rem 0.75rem", border: "1px solid #d97322", borderRadius: 5, background: "#fff", color: "#9b4b0c", fontWeight: 700, cursor: "pointer" }}>
+              Copy teams from another show
+            </button>
 
             <ui.Segmented style={{ flexShrink: 0 }}>
               <button
@@ -2081,6 +2136,49 @@ export default function ScoringMode({
             </div>
           </div>
         </div>
+      )}
+
+      {copyTeamsOpen && createPortal(
+        <div style={{ position: "fixed", inset: 0, background: "rgba(43,57,74,.65)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }} onClick={() => !copyBusy && setCopyTeamsOpen(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", color: "#263447", borderRadius: 9, padding: "1.25rem", width: "min(540px, 100%)", maxHeight: "85vh", overflowY: "auto" }}>
+            <h3 style={{ marginTop: 0 }}>Copy teams from another show</h3>
+            <p>Teams are added to this show. Existing teams and scores are preserved.</p>
+            <label style={{ display: "block", fontWeight: 700, marginBottom: 6 }}>Source show</label>
+            <select value={copySourceId} disabled={copyBusy} onChange={(e) => { const id = e.target.value; setCopySourceId(id); setCopyCandidates([]); setCopyDiagnostics(null); setCopySelected([]); if (id) loadCopyData(id); }} style={{ width: "100%", padding: ".55rem", marginBottom: ".75rem" }}>
+              <option value="">Choose a show…</option>
+              {copySourceShows.map((show) => <option key={show.id} value={show.id}>{show.label}</option>)}
+            </select>
+            {copySourceId && copyCandidates.length > 0 && (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: ".5rem" }}>
+                  <strong>{copySelected.length} selected</strong>
+                  <div>
+                    <button type="button" onClick={() => setCopySelected(copyCandidates.filter((t) => !t.alreadyInDestination).map((t) => t.teamId))}>Select all</button>
+                    <button type="button" onClick={() => setCopySelected([])} style={{ marginLeft: 8 }}>Deselect all</button>
+                  </div>
+                </div>
+                <div style={{ border: "1px solid #ddd", borderRadius: 5, maxHeight: 300, overflowY: "auto", padding: ".5rem" }}>
+                  {copyCandidates.map((team) => (
+                    <label key={team.teamId} style={{ display: "flex", gap: 10, alignItems: "center", padding: ".4rem" }}>
+                      <input type="checkbox" disabled={copyBusy || team.alreadyInDestination} checked={copySelected.includes(team.teamId)} onChange={(e) => setCopySelected((prev) => e.target.checked ? [...prev, team.teamId] : prev.filter((id) => id !== team.teamId))} />
+                      <span>{team.teamName}</span>
+                      {team.alreadyInDestination && <span style={{ marginLeft: "auto", color: "#667" }}>Already in show</span>}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+            {copySourceId && !copyBusy && copyCandidates.length === 0 && <p>No teams found in that show.{copyDiagnostics && <span style={{ display: "block", fontSize: ".8rem", color: "#667" }}>Diagnostic: {copyDiagnostics.matchingShowTeamRecords} matching show-team records, {copyDiagnostics.sourceRecords} source records, {copyDiagnostics.sourceTeamIds} team IDs.</span>}</p>}
+            {copyError && <p role="alert" style={{ color: "#a22" }}>{copyError}</p>}
+            {copyResult && <p role="status" style={{ color: "#265b3b" }}>{copyResult}</p>}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: "1rem" }}>
+              <button type="button" disabled={copyBusy} onClick={() => setCopyTeamsOpen(false)}>Close</button>
+              <button type="button" disabled={copyBusy || !copySourceId || !copySelected.length} onClick={copySelectedTeams} style={{ padding: ".55rem .85rem", border: 0, borderRadius: 5, background: "#e87524", color: "#fff", fontWeight: 700, opacity: copyBusy || !copySelected.length ? .5 : 1 }}>
+                {copyBusy ? "Working…" : `Copy ${copySelected.length} selected team${copySelected.length === 1 ? "" : "s"}`}
+              </button>
+            </div>
+          </div>
+        </div>, document.body
       )}
 
       {/* Add Team Modal (local or Airtable search) */}
