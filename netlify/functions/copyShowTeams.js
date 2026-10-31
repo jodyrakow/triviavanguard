@@ -11,7 +11,11 @@ const showIds = (record) => {
   const raw = record.fields["Show ID"];
   return (Array.isArray(raw) ? raw : raw ? [raw] : []).map(String);
 };
-const allShowTeams = () => base("ShowTeams").select({ fields: ["Show", "Show ID", "Team", "Team ID", "Team name"], pageSize: 100 }).all();
+// Match the working fetchShowBundle filter, not the returned lookup value.
+const showTeamRowsFor = (showId) => base("ShowTeams").select({
+  filterByFormula: "FIND('" + showId + "', ARRAYJOIN({Show ID}))",
+  pageSize: 100
+}).all();
 const teamIdsOf = (record) => {
   const linkedIds = linked(record, "Team");
   return linkedIds.length ? linkedIds : (Array.isArray(record.fields["Team ID"]) ? record.fields["Team ID"] : [record.fields["Team ID"]].filter(Boolean));
@@ -38,17 +42,16 @@ exports.handler = async (event) => {
         return json(200, { shows: shows.filter((s) => s.id !== destination).map((s) => ({ id: s.id, label: String(s.fields.Show || s.fields.Date || s.id) })) });
       }
       if (!validId(source) || source === destination) return json(400, { error: "Invalid source show" });
-      const rows = await base("ShowTeams").select({
-        filterByFormula: "OR(FIND('" + source + "', ARRAYJOIN({Show ID})), FIND('" + destination + "', ARRAYJOIN({Show ID})))",
-        pageSize: 100
-      }).all();
-      const sourceTeamIds = [...new Set(rows.filter((row) => showIds(row).includes(source)).flatMap(teamIdsOf))];
-      const destinationTeamIds = new Set(rows.filter((row) => showIds(row).includes(destination)).flatMap(teamIdsOf));
+      const [sourceRows, destinationRows] = await Promise.all([
+        showTeamRowsFor(source), showTeamRowsFor(destination)
+      ]);
+      const sourceTeamIds = [...new Set(sourceRows.flatMap(teamIdsOf))];
+      const destinationTeamIds = new Set(destinationRows.flatMap(teamIdsOf));
       const teams = await Promise.all(sourceTeamIds.map(async (id) => {
-        const row = rows.find((item) => showIds(item).includes(source) && teamIdsOf(item).includes(id));
+        const row = sourceRows.find((item) => teamIdsOf(item).includes(id));
         return { teamId: id, teamName: row ? teamNameOfShowTeam(row) : nameOf(await base("Teams").find(id)), alreadyInDestination: destinationTeamIds.has(id) };
       }));
-      return json(200, { teams: teams.sort((a, b) => a.teamName.localeCompare(b.teamName)), diagnostics: { matchingShowTeamRecords: rows.length, sourceRecords: rows.filter((row) => showIds(row).includes(source)).length, sourceTeamIds: sourceTeamIds.length } });
+      return json(200, { teams: teams.sort((a, b) => a.teamName.localeCompare(b.teamName)), diagnostics: { matchingShowTeamRecords: sourceRows.length + destinationRows.length, sourceRecords: sourceRows.length, sourceTeamIds: sourceTeamIds.length } });
     }
     if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
     const { sourceShowId, destinationShowId, teamIds } = JSON.parse(event.body || "{}");
@@ -59,13 +62,12 @@ exports.handler = async (event) => {
     if (!process.env.REACT_APP_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
       return json(500, { error: "Supabase is not configured" });
 
-    const rows = await base("ShowTeams").select({
-      filterByFormula: "OR(FIND('" + sourceShowId + "', ARRAYJOIN({Show ID})), FIND('" + destinationShowId + "', ARRAYJOIN({Show ID})))",
-      pageSize: 100
-    }).all();
-    const sourceIds = new Set(rows.filter((row) => showIds(row).includes(sourceShowId)).flatMap(teamIdsOf));
-    const existing = new Map(rows.filter((row) => showIds(row).includes(destinationShowId))
-      .flatMap((row) => teamIdsOf(row).map((teamId) => [teamId, row.id])));
+    const [sourceRows, destinationRows] = await Promise.all([
+      showTeamRowsFor(sourceShowId), showTeamRowsFor(destinationShowId)
+    ]);
+    const sourceIds = new Set(sourceRows.flatMap(teamIdsOf));
+    const existing = new Map(destinationRows.flatMap((row) =>
+      teamIdsOf(row).map((teamId) => [teamId, row.id])));
     const requested = [...new Set(teamIds)];
     if (requested.some((id) => !sourceIds.has(id))) return json(400, { error: "Selected team does not belong to the source show" });
 
