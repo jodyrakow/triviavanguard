@@ -17,8 +17,8 @@ exports.handler = async (event) => {
       const source = event.queryStringParameters?.sourceShowId;
       if (!validId(destination)) return json(400, { error: "Invalid destination show" });
       if (!source) {
-        const shows = await base("Shows").select({ fields: ["Date"], sort: [{ field: "Date", direction: "desc" }], maxRecords: 100 }).all();
-        return json(200, { shows: shows.filter((s) => s.id !== destination).map((s) => ({ id: s.id, label: String(s.fields.Date || s.id) })) });
+        const shows = await base("Shows").select({ fields: ["Show", "Date"], sort: [{ field: "Date", direction: "desc" }], maxRecords: 100 }).all();
+        return json(200, { shows: shows.filter((s) => s.id !== destination).map((s) => ({ id: s.id, label: String(s.fields.Show || s.fields.Date || s.id) })) });
       }
       if (!validId(source) || source === destination) return json(400, { error: "Invalid source show" });
       const rows = await base("ShowTeams").select({ fields: ["Show", "Team"], pageSize: 100 }).all();
