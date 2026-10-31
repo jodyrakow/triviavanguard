@@ -7,6 +7,23 @@ const base = new Airtable({ apiKey: process.env.AIRTABLE_TOKEN }).base("appnwzfw
 const validId = (id) => typeof id === "string" && /^rec[A-Za-z0-9]{14}$/.test(id);
 const json = (statusCode, value) => ({ statusCode, headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
 const linked = (record, field) => Array.isArray(record.fields[field]) ? record.fields[field] : [];
+const showIds = (record) => {
+  const raw = record.fields["Show ID"];
+  return (Array.isArray(raw) ? raw : raw ? [raw] : []).map(String);
+};
+const allShowTeams = () => base("ShowTeams").select({ fields: ["Show", "Show ID", "Team", "Team ID", "Team name"], pageSize: 100 }).all();
+const teamIdsOf = (record) => {
+  const linkedIds = linked(record, "Team");
+  return linkedIds.length ? linkedIds : (Array.isArray(record.fields["Team ID"]) ? record.fields["Team ID"] : [record.fields["Team ID"]].filter(Boolean));
+};
+const teamNameOfShowTeam = (record) => {
+  const raw = record.fields["Team name"];
+  if (Array.isArray(raw)) return String(raw[0] || "(Unnamed team)");
+  if (typeof raw === "string" && raw.startsWith("[")) {
+    try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return String(parsed[0] || "(Unnamed team)"); } catch (_) {}
+  }
+  return String(raw || "(Unnamed team)");
+};
 const nameOf = (record) => String(record.fields["Team"] || "(Unnamed team)");
 
 exports.handler = async (event) => {
@@ -21,12 +38,12 @@ exports.handler = async (event) => {
         return json(200, { shows: shows.filter((s) => s.id !== destination).map((s) => ({ id: s.id, label: String(s.fields.Show || s.fields.Date || s.id) })) });
       }
       if (!validId(source) || source === destination) return json(400, { error: "Invalid source show" });
-      const rows = await base("ShowTeams").select({ fields: ["Show", "Team"], pageSize: 100 }).all();
-      const sourceTeamIds = [...new Set(rows.filter((row) => linked(row, "Show").includes(source)).flatMap((row) => linked(row, "Team")))];
-      const destinationTeamIds = new Set(rows.filter((row) => linked(row, "Show").includes(destination)).flatMap((row) => linked(row, "Team")));
+      const rows = await allShowTeams();
+      const sourceTeamIds = [...new Set(rows.filter((row) => showIds(row).includes(source)).flatMap(teamIdsOf))];
+      const destinationTeamIds = new Set(rows.filter((row) => showIds(row).includes(destination)).flatMap((row) => linked(row, "Team")));
       const teams = await Promise.all(sourceTeamIds.map(async (id) => {
-        const record = await base("Teams").find(id);
-        return { teamId: id, teamName: nameOf(record), alreadyInDestination: destinationTeamIds.has(id) };
+        const row = rows.find((item) => showIds(item).includes(source) && teamIdsOf(item).includes(id));
+        return { teamId: id, teamName: row ? teamNameOfShowTeam(row) : nameOf(await base("Teams").find(id)), alreadyInDestination: destinationTeamIds.has(id) };
       }));
       return json(200, { teams: teams.sort((a, b) => a.teamName.localeCompare(b.teamName)) });
     }
@@ -40,9 +57,9 @@ exports.handler = async (event) => {
       return json(500, { error: "Supabase is not configured" });
 
     const rows = await base("ShowTeams").select({ fields: ["Show", "Team"], pageSize: 100 }).all();
-    const sourceIds = new Set(rows.filter((row) => linked(row, "Show").includes(sourceShowId)).flatMap((row) => linked(row, "Team")));
-    const existing = new Map(rows.filter((row) => linked(row, "Show").includes(destinationShowId))
-      .flatMap((row) => linked(row, "Team").map((teamId) => [teamId, row.id])));
+    const sourceIds = new Set(rows.filter((row) => showIds(row).includes(sourceShowId)).flatMap((row) => linked(row, "Team")));
+    const existing = new Map(rows.filter((row) => showIds(row).includes(destinationShowId))
+      .flatMap((row) => teamIdsOf(row).map((teamId) => [teamId, row.id])));
     const requested = [...new Set(teamIds)];
     if (requested.some((id) => !sourceIds.has(id))) return json(400, { error: "Selected team does not belong to the source show" });
 
