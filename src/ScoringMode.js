@@ -259,7 +259,6 @@ export default function ScoringMode({
   const [copySourceShows, setCopySourceShows] = useState([]);
   const [copySourceId, setCopySourceId] = useState("");
   const [copyCandidates, setCopyCandidates] = useState([]);
-  const [copyDiagnostics, setCopyDiagnostics] = useState(null);
   const [copySelected, setCopySelected] = useState([]);
   const [copyBusy, setCopyBusy] = useState(false);
   const [copyError, setCopyError] = useState("");
@@ -277,7 +276,6 @@ export default function ScoringMode({
       if (!res.ok) throw new Error(data.error || "Unable to load teams");
       if (sourceId) {
         setCopyCandidates(data.teams || []);
-        setCopyDiagnostics(data.diagnostics || null);
         setCopySelected((data.teams || []).filter((t) => !t.alreadyInDestination).map((t) => t.teamId));
       } else {
         setCopySourceShows(data.shows || []);
@@ -298,6 +296,8 @@ export default function ScoringMode({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to copy teams");
       setCopyResult(`Added ${data.added}; restored ${data.restored}; already present ${data.skipped}.`);
+      setCopyCandidates((prev) => prev.map((team) => copySelected.includes(team.teamId) ? { ...team, alreadyInDestination: true } : team));
+      setCopySelected([]);
       const refreshed = await loadShowTeamsFromSupabase(selectedShowId);
       if (Array.isArray(refreshed)) {
         setTeams(refreshed);
@@ -1472,7 +1472,7 @@ export default function ScoringMode({
             <ButtonPrimary onClick={() => setAddingTeam(true)}>
               + Add team
             </ButtonPrimary>
-            <button type="button" onClick={() => { setCopyTeamsOpen(true); setCopySourceId(""); setCopyCandidates([]); setCopyDiagnostics(null); setCopySelected([]); loadCopyData(); }} style={{ padding: "0.5rem 0.75rem", border: "1px solid #d97322", borderRadius: 5, background: "#fff", color: "#9b4b0c", fontWeight: 700, cursor: "pointer" }}>
+            <button type="button" onClick={() => { setCopyTeamsOpen(true); setCopySourceId(""); setCopyCandidates([]); setCopySelected([]); loadCopyData(); }} style={{ padding: "0.5rem 0.75rem", border: "1px solid #d97322", borderRadius: 5, background: "#fff", color: "#9b4b0c", fontWeight: 700, cursor: "pointer" }}>
               Copy teams from another show
             </button>
 
@@ -2144,7 +2144,7 @@ export default function ScoringMode({
             <h3 style={{ marginTop: 0 }}>Copy teams from another show</h3>
             <p>Teams are added to this show. Existing teams and scores are preserved.</p>
             <label style={{ display: "block", fontWeight: 700, marginBottom: 6 }}>Source show</label>
-            <select value={copySourceId} disabled={copyBusy} onChange={(e) => { const id = e.target.value; setCopySourceId(id); setCopyCandidates([]); setCopyDiagnostics(null); setCopySelected([]); if (id) loadCopyData(id); }} style={{ width: "100%", padding: ".55rem", marginBottom: ".75rem" }}>
+            <select value={copySourceId} disabled={copyBusy} onChange={(e) => { const id = e.target.value; setCopySourceId(id); setCopyCandidates([]); setCopySelected([]); if (id) loadCopyData(id); }} style={{ width: "100%", padding: ".55rem", marginBottom: ".75rem" }}>
               <option value="">Choose a show…</option>
               {copySourceShows.map((show) => <option key={show.id} value={show.id}>{show.label}</option>)}
             </select>
@@ -2168,7 +2168,7 @@ export default function ScoringMode({
                 </div>
               </>
             )}
-            {copySourceId && !copyBusy && copyCandidates.length === 0 && <p>No teams found in that show.{copyDiagnostics && <span style={{ display: "block", fontSize: ".8rem", color: "#667" }}>Diagnostic: Looking for Show ID <strong>{copyDiagnostics.requestedSourceShowId}</strong> in ShowTeams. Airtable records for source: {copyDiagnostics.sourceAirtableRecords}; for destination: {copyDiagnostics.destinationAirtableRecords}. Active Supabase source records: {copyDiagnostics.sourceRecords}. Team IDs found: {copyDiagnostics.sourceTeamIds}.</span>}</p>}
+            {copySourceId && !copyBusy && copyCandidates.length === 0 && <p>No teams found in that show.</p>}
             {copyError && <p role="alert" style={{ color: "#a22" }}>{copyError}</p>}
             {copyResult && <p role="status" style={{ color: "#265b3b" }}>{copyResult}</p>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: "1rem" }}>
