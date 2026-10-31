@@ -1734,6 +1734,8 @@ export default function App() {
     for (const r of showBundle.rounds) {
       for (const cat of r.categories || []) {
         for (const q of cat.questions || []) {
+          const type = String(q.questionType || "").toLowerCase();
+          if (type === "tiebreaker" || String(q.questionOrder).toUpperCase() === "TB" || String(q.id || "").startsWith("tb-")) continue;
           qs.push({
             showQuestionId: q.showQuestionId || q.id,
             questionType: q.questionType || null,
