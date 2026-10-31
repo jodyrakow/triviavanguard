@@ -1390,6 +1390,31 @@ export default function App() {
   }, []);
 
   // Function to manually refresh the bundle (for getting fresh URLs)
+  const [refreshMissingTeams, setRefreshMissingTeams] = useState([]);
+  const [refreshMissingShowId, setRefreshMissingShowId] = useState("");
+  const [refreshDecisionPending, setRefreshDecisionPending] = useState(false);
+  const resolveMissingTeam = async (remove) => {
+    const current = refreshMissingTeams[0];
+    if (!current || refreshDecisionPending) return;
+    if (remove) {
+      try {
+        setRefreshDecisionPending(true);
+        const res = await axios.post("/.netlify/functions/supaRemoveShowTeam", {
+          showId: refreshMissingShowId,
+          showTeamId: current.showTeamId,
+          updatedBy: window.localStorage.getItem("hostDevice") || "unknown",
+        });
+        if (!res.data?.ok) throw new Error("Removal was not confirmed");
+      } catch (err) {
+        window.alert(`Could not remove team: ${err.message}`);
+        setRefreshDecisionPending(false);
+        return;
+      }
+      setRefreshDecisionPending(false);
+    }
+    setRefreshMissingTeams(prev => prev.slice(1));
+  };
+
   const refreshBundle = async () => {
     if (!selectedShowId) return;
     try {
@@ -1408,6 +1433,8 @@ export default function App() {
         teams: bundle?.teams ?? [],
       });
 
+      setRefreshMissingShowId(selectedShowId);
+      setRefreshMissingTeams(syncRes.data?.missingFromAirtable || []);
       isRefreshingBundleRef.current = true;
       setShowBundle(bundle);
       console.info(`Show refresh: ${syncRes.data?.added ?? 0} new ShowTeams imported`);
@@ -4397,6 +4424,20 @@ export default function App() {
         </div>
       )}
 
+      {refreshMissingTeams.length > 0 && refreshMissingShowId === selectedShowId && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 20000, background: "rgba(43,57,74,.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div role="dialog" aria-modal="true" aria-label="Reconcile missing team" style={{ background: "#fff", color: "#2B394A", padding: "1.25rem", borderRadius: 8, width: "min(92vw, 460px)" }}>
+            <h3 style={{ marginTop: 0 }}>Team missing from Airtable</h3>
+            <p><strong>{refreshMissingTeams[0].teamName}</strong> is still active in scoring, but is no longer assigned to this show in Airtable.</p>
+            <p>Keep the team in scoring, or remove it from the grid and standings? Removing preserves its stored scores and allows restoration later.</p>
+            <div style={{ display: "flex", gap: ".75rem", justifyContent: "flex-end" }}>
+              <button disabled={refreshDecisionPending} onClick={() => resolveMissingTeam(false)}>Keep team</button>
+              <button disabled={refreshDecisionPending} onClick={() => resolveMissingTeam(true)} style={{ background: "#DC6A24", color: "#fff", border: 0, borderRadius: 5, padding: ".5rem .8rem" }}>Remove team</button>
+            </div>
+            <div style={{ marginTop: ".65rem", fontSize: ".8rem", opacity: .7 }}>{refreshMissingTeams.length} team(s) awaiting a decision</div>
+          </div>
+        </div>
+      )}
       {/* ── Floating Scores panel ── */}
       {scoringOpen && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 500 }}>
