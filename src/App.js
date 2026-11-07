@@ -2731,6 +2731,11 @@ export default function App() {
           item.type === "category" && item.categoryName === content?.categoryName,
       ) ?? null;
     }
+    if (type === "results-tb-question" || type === "results-tb-answer") {
+      return navAnswersModeList.find(
+        (item) => item.type === type && item.tbQuestion === content?.tbQuestion,
+      ) ?? null;
+    }
     if (type === "results" && content?.place != null) {
       const stepType = content.teams == null ? "results-place-pts" : "results-place-reveal";
       return navAnswersModeList.find(
@@ -3852,6 +3857,13 @@ export default function App() {
                     if (correctTeams.length === 1) soloTeamName = correctTeams[0].teamName || correctTeams[0].name || null;
                   }
                   const tbTeamsAndGuesses = isTbStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
+                  // Private host reference: all teams tied on points, including their guesses and distances.
+                  const tiedTbGroups = isTbStep
+                    ? [...new Set(resultsStandings.map(r => r.total))]
+                        .map(total => resultsStandings.filter(r => r.total === total))
+                        .filter(group => group.length > 1)
+                    : [];
+
 
                   // Resolve the current placement from the actual shared display, not the local nav cursor.
                   // Each placement has a points-only and a team-reveal step; those are ONE placement.
@@ -4002,25 +4014,27 @@ export default function App() {
                         </div>
                       )}
 
-                      {isTbStep && tbTeamsAndGuesses.length > 0 && (
+                      {isTbStep && (
                         <div style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
                           <div style={rowStyle}>
-                            <span style={labelStyle}>TB</span>
-                            <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
-                              {enrichedItem.tbQuestion || ""}
+                            <span style={labelStyle}>TB answer</span>
+                            <span style={{ ...textStyle, color: colors.accent, fontWeight: 700 }}>
+                              {resultsTbNumber !== null ? resultsTbNumber.toLocaleString() : (enrichedItem.tbAnswer || "Not available")}
                             </span>
                           </div>
-                          {enrichedItem.tbAnswer && (
-                            <div style={rowStyle}>
-                              <span style={labelStyle}>Ans.</span>
-                              <span style={{ ...textStyle, color: colors.accent }}>{enrichedItem.tbAnswer}</span>
-                            </div>
-                          )}
-                          {tbTeamsAndGuesses.map((tg, i) => (
-                            <div key={i} style={{ ...rowStyle, paddingLeft: "4.3rem" }}>
-                              <span style={{ ...textStyle, color: "#aaa", flex: 1 }}>{tg.teamName}</span>
-                              <span style={{ ...textStyle, color: "#fff", flexShrink: 0, marginLeft: ".5rem" }}>
-                                {tg.guess !== null && tg.guess !== undefined ? `guessed ${tg.guess}` : "no guess"}
+                          {tiedTbGroups.map((group, groupIndex) => (
+                            <div key={groupIndex} style={rowStyle}>
+                              <span style={labelStyle}>Tied</span>
+                              <span style={textStyle}>
+                                {group.map((team, i) => (
+                                  <span key={team.showTeamId}>
+                                    {i > 0 ? " · " : ""}
+                                    <strong style={{ color: "#fff" }}>{team.teamName}</strong>
+                                    {" — "}
+                                    {team.tbGuess === null ? "no guess" : `guess ${team.tbGuess.toLocaleString()}`}
+                                    {team.tbGuess !== null && resultsTbNumber !== null && ` (off by ${Math.abs(team.tbGuess - resultsTbNumber).toLocaleString()})`}
+                                  </span>
+                                ))}
                               </span>
                             </div>
                           ))}
