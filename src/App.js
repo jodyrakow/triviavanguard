@@ -2174,11 +2174,15 @@ export default function App() {
         });
         steps.push({
           type: "results-tb-question",
+          place: placeStr,
+          points: total,
           tbQuestion: resultsTbQ?.questionText || "",
           tbTeamsAndGuesses: group.map(r => ({ teamName: r.teamName, guess: r.tbGuess })),
         });
         steps.push({
           type: "results-tb-answer",
+          place: placeStr,
+          points: total,
           tbQuestion: resultsTbQ?.questionText || "",
           tbAnswer: tbAnswerText,
           tbTeamsAndGuesses: group.map(r => ({ teamName: r.teamName, guess: r.tbGuess })),
@@ -2428,12 +2432,14 @@ export default function App() {
       return;
     }
     if (step.type === "results-tb-question") {
-      sendToDisplay("results-tb-question", { tbQuestion: step.tbQuestion });
+      sendToDisplay("results-tb-question", { tbQuestion: step.tbQuestion, place: step.place, points: step.points });
       return;
     }
     if (step.type === "results-tb-answer") {
       sendToDisplay("results-tb-answer", {
         tbQuestion: step.tbQuestion,
+        place: step.place,
+        points: step.points,
         tbAnswer: step.tbAnswer,
         tbTeamsAndGuesses: step.tbTeamsAndGuesses,
       });
@@ -2733,7 +2739,7 @@ export default function App() {
     }
     if (type === "results-tb-question" || type === "results-tb-answer") {
       return navAnswersModeList.find(
-        (item) => item.type === type && item.tbQuestion === content?.tbQuestion,
+        (item) => item.type === type && item.place === content?.place && item.points === content?.points,
       ) ?? null;
     }
     if (type === "results" && content?.place != null) {
@@ -3857,13 +3863,10 @@ export default function App() {
                     if (correctTeams.length === 1) soloTeamName = correctTeams[0].teamName || correctTeams[0].name || null;
                   }
                   const tbTeamsAndGuesses = isTbStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
-                  // Private host reference: all teams tied on points, including their guesses and distances.
-                  const tiedTbGroups = isTbStep
-                    ? [...new Set(resultsStandings.map(r => r.total))]
-                        .map(total => resultsStandings.filter(r => r.total === total))
-                        .filter(group => group.length > 1)
+                  // Scope the host reference to the one tie group being presented.
+                  const tiedTbGroup = isTbStep && enrichedItem?.points != null
+                    ? resultsStandings.filter(r => r.total === enrichedItem.points)
                     : [];
-
 
                   // Resolve the current placement from the actual shared display, not the local nav cursor.
                   // Each placement has a points-only and a team-reveal step; those are ONE placement.
@@ -4022,11 +4025,11 @@ export default function App() {
                               {resultsTbNumber !== null ? resultsTbNumber.toLocaleString() : (enrichedItem.tbAnswer || "Not available")}
                             </span>
                           </div>
-                          {tiedTbGroups.map((group, groupIndex) => (
-                            <div key={groupIndex} style={rowStyle}>
-                              <span style={labelStyle}>Tied</span>
+                          {tiedTbGroup.length > 1 && (
+                            <div style={rowStyle}>
+                              <span style={labelStyle}>{enrichedItem.place ? `Tied for ${enrichedItem.place}` : "Tied"}</span>
                               <span style={textStyle}>
-                                {group.map((team, i) => (
+                                {tiedTbGroup.map((team, i) => (
                                   <span key={team.showTeamId}>
                                     {i > 0 ? " · " : ""}
                                     <strong style={{ color: "#fff" }}>{team.teamName}</strong>
