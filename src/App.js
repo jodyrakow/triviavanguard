@@ -2174,11 +2174,15 @@ export default function App() {
         });
         steps.push({
           type: "results-tb-question",
+          place: placeStr,
+          points: total,
           tbQuestion: resultsTbQ?.questionText || "",
           tbTeamsAndGuesses: group.map(r => ({ teamName: r.teamName, guess: r.tbGuess })),
         });
         steps.push({
           type: "results-tb-answer",
+          place: placeStr,
+          points: total,
           tbQuestion: resultsTbQ?.questionText || "",
           tbAnswer: tbAnswerText,
           tbTeamsAndGuesses: group.map(r => ({ teamName: r.teamName, guess: r.tbGuess })),
@@ -2428,12 +2432,14 @@ export default function App() {
       return;
     }
     if (step.type === "results-tb-question") {
-      sendToDisplay("results-tb-question", { tbQuestion: step.tbQuestion });
+      sendToDisplay("results-tb-question", { tbQuestion: step.tbQuestion, place: step.place, points: step.points });
       return;
     }
     if (step.type === "results-tb-answer") {
       sendToDisplay("results-tb-answer", {
         tbQuestion: step.tbQuestion,
+        place: step.place,
+        points: step.points,
         tbAnswer: step.tbAnswer,
         tbTeamsAndGuesses: step.tbTeamsAndGuesses,
       });
@@ -2729,6 +2735,11 @@ export default function App() {
       return navFlatList.find(
         (item) =>
           item.type === "category" && item.categoryName === content?.categoryName,
+      ) ?? null;
+    }
+    if (type === "results-tb-question" || type === "results-tb-answer") {
+      return navAnswersModeList.find(
+        (item) => item.type === type && item.place === content?.place && item.points === content?.points,
       ) ?? null;
     }
     if (type === "results" && content?.place != null) {
@@ -3852,6 +3863,10 @@ export default function App() {
                     if (correctTeams.length === 1) soloTeamName = correctTeams[0].teamName || correctTeams[0].name || null;
                   }
                   const tbTeamsAndGuesses = isTbStep ? (enrichedItem.tbTeamsAndGuesses || []) : [];
+                  // Scope the host reference to the one tie group being presented.
+                  const tiedTbGroup = isTbStep && enrichedItem?.points != null
+                    ? resultsStandings.filter(r => r.total === enrichedItem.points)
+                    : [];
 
                   // Resolve the current placement from the actual shared display, not the local nav cursor.
                   // Each placement has a points-only and a team-reveal step; those are ONE placement.
@@ -4002,28 +4017,30 @@ export default function App() {
                         </div>
                       )}
 
-                      {isTbStep && tbTeamsAndGuesses.length > 0 && (
+                      {isTbStep && (
                         <div style={{ display: "flex", flexDirection: "column", gap: ".2rem" }}>
                           <div style={rowStyle}>
-                            <span style={labelStyle}>TB</span>
-                            <span style={{ ...textStyle, color: "#fff", fontWeight: 700 }}>
-                              {enrichedItem.tbQuestion || ""}
+                            <span style={labelStyle}>TB answer</span>
+                            <span style={{ ...textStyle, color: colors.accent, fontWeight: 700 }}>
+                              {resultsTbNumber !== null ? resultsTbNumber.toLocaleString() : (enrichedItem.tbAnswer || "Not available")}
                             </span>
                           </div>
-                          {enrichedItem.tbAnswer && (
+                          {tiedTbGroup.length > 1 && (
                             <div style={rowStyle}>
-                              <span style={labelStyle}>Ans.</span>
-                              <span style={{ ...textStyle, color: colors.accent }}>{enrichedItem.tbAnswer}</span>
-                            </div>
-                          )}
-                          {tbTeamsAndGuesses.map((tg, i) => (
-                            <div key={i} style={{ ...rowStyle, paddingLeft: "4.3rem" }}>
-                              <span style={{ ...textStyle, color: "#aaa", flex: 1 }}>{tg.teamName}</span>
-                              <span style={{ ...textStyle, color: "#fff", flexShrink: 0, marginLeft: ".5rem" }}>
-                                {tg.guess !== null && tg.guess !== undefined ? `guessed ${tg.guess}` : "no guess"}
+                              <span style={labelStyle}>{enrichedItem.place ? `Tied for ${enrichedItem.place}` : "Tied"}</span>
+                              <span style={textStyle}>
+                                {tiedTbGroup.map((team, i) => (
+                                  <span key={team.showTeamId}>
+                                    {i > 0 ? " · " : ""}
+                                    <strong style={{ color: "#fff" }}>{team.teamName}</strong>
+                                    {" — "}
+                                    {team.tbGuess === null ? "no guess" : `guess ${team.tbGuess.toLocaleString()}`}
+                                    {team.tbGuess !== null && resultsTbNumber !== null && ` (off by ${Math.abs(team.tbGuess - resultsTbNumber).toLocaleString()})`}
+                                  </span>
+                                ))}
                               </span>
                             </div>
-                          ))}
+                          )}
                         </div>
                       )}
 
