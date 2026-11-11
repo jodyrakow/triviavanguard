@@ -419,13 +419,15 @@ function AutoFitText({ html, maxRem = 2.8, minRem = 1.6, style = {} }) {
 function formatQuestionText(questionText) {
   // Render any [[label]] as a smaller orange connector, and [[---]] as a divider.
   // Replace markers before Markdown parsing so ordinary question Markdown still works.
-  const formatted = String(questionText || "").replace(
+  // Consume one adjacent line break on each side, leaving intentional blank lines.
+  const withDividers = String(questionText || "").replace(
+    /(?:\r?\n)?\[\[---\]\](?:\r?\n)?/g,
+    `<span style="display: block; width: 32%; height: 2px; margin: 0 auto; background: ${theme.accent};"></span>`,
+  );
+  const formatted = withDividers.replace(
     /\[\[([^\]\r\n]+)\]\]/g,
     (_, rawLabel) => {
       const label = rawLabel.trim();
-      if (label === "---") {
-        return '<span style="display: block; width: 32%; height: 2px; margin: 0.25em auto; background: #aeb8c3;"></span>';
-      }
       if (!label) return "";
       const safeLabel = label.toUpperCase().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
       return `<span style="color: ${theme.accent}; font-size: 0.88em; font-weight: 600;">${safeLabel}</span>`;
