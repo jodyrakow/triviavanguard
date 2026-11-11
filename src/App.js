@@ -2064,6 +2064,7 @@ export default function App() {
           type: "category",
           categoryName: (cat.categoryName || "").trim(),
           categoryDescription: cat.categoryDescription || "",
+          categoryNotes: cat.categoryNotes || "",
           isTiebreaker,
           superSecret: !!cat.superSecret,
           questionType: (cat.questionType || "").toLowerCase(),
@@ -3840,7 +3841,8 @@ export default function App() {
                     if (catIdx !== -1) categoryNumber = catIdx + 1;
                   }
 
-                  const hasQuestionNotes = !!(enrichedItem?.questionNotes?.trim());
+                  const hostNotes = enrichedItem?.type === "category" ? enrichedItem.categoryNotes : enrichedItem?.questionNotes;
+                  const hasQuestionNotes = !!hostNotes?.trim();
                   const isAnswerQuestion = navIsAnswerMode && enrichedItem?.type === "question";
                   const answerGrid = composedCachedState?.grid || {};
                   const answerTeams = (composedCachedState?.teams || []).filter(t => !t.isRemoved && !t.is_removed);
@@ -3999,7 +4001,7 @@ export default function App() {
                       {hasQuestionNotes && (
                         <div style={rowStyle}>
                           <span style={labelStyle}>Notes</span>
-                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(enrichedItem.questionNotes) }} />
+                          <span style={textStyle} dangerouslySetInnerHTML={{ __html: marked.parseInline(hostNotes) }} />
                         </div>
                       )}
 
