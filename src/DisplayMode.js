@@ -415,6 +415,15 @@ function AutoFitText({ html, maxRem = 2.8, minRem = 1.6, style = {} }) {
   );
 }
 
+// Explicit Airtable question markers; preserve ordinary Markdown and text.
+function formatQuestionText(questionText) {
+  const withConnectors = String(questionText || "").replace(
+    /\\[\\[(and|or)\\]\\]/gi,
+    (_, connector) => `<span style="color: ${theme.accent}; font-size: 0.88em; font-weight: 600;">${connector.toUpperCase()}</span>`,
+  );
+  return marked.parseInline(withConnectors);
+}
+
 function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
   const {
     questionNumber,
@@ -580,7 +589,7 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
               {/* Text on right (50%) */}
               <div style={{ width: "44vw", height: "48vh" }}>
                 <AutoFitText
-                  html={marked.parseInline(questionText || "")}
+                  html={formatQuestionText(questionText)}
                   maxRem={2.8 * scale}
                   minRem={1.0 * scale}
                   style={{
@@ -605,7 +614,7 @@ function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
             // Show only question text for regular questions (no image)
             <div style={{ width: "90vw", height: "100%" }}>
               <AutoFitText
-                html={marked.parseInline(questionText || "")}
+                html={formatQuestionText(questionText)}
                 maxRem={2.8 * scale}
                 minRem={1.0 * scale}
                 style={{
