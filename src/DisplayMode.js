@@ -417,11 +417,21 @@ function AutoFitText({ html, maxRem = 2.8, minRem = 1.6, style = {} }) {
 
 // Explicit Airtable question markers; preserve ordinary Markdown and text.
 function formatQuestionText(questionText) {
-  const withConnectors = String(questionText || "").replace(
-    /\[\[(and|or)\]\]/gi,
-    (_, connector) => `<span style="color: ${theme.accent}; font-size: 0.88em; font-weight: 600;">${connector.toUpperCase()}</span>`,
+  // Render any [[label]] as a smaller orange connector, and [[---]] as a divider.
+  // Replace markers before Markdown parsing so ordinary question Markdown still works.
+  const formatted = String(questionText || "").replace(
+    /\[\[([^\]\r\n]+)\]\]/g,
+    (_, rawLabel) => {
+      const label = rawLabel.trim();
+      if (label === "---") {
+        return '<span style="display: block; width: 32%; height: 2px; margin: 0.25em auto; background: #aeb8c3;"></span>';
+      }
+      if (!label) return "";
+      const safeLabel = label.toUpperCase().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      return `<span style="color: ${theme.accent}; font-size: 0.88em; font-weight: 600;">${safeLabel}</span>`;
+    },
   );
-  return marked.parseInline(withConnectors);
+  return marked.parseInline(formatted);
 }
 
 function QuestionDisplay({ content, fontSize = 100, inlineImageIndex = 0 }) {
