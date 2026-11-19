@@ -3084,6 +3084,8 @@ export default function App() {
     const handler = (e) => {
       const tag = e.target?.tagName;
       const inInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target?.isContentEditable;
+      // Let text-editing controls use arrows, selection, and other keys normally.
+      if (inInput || e.target?.closest?.('[contenteditable="true"]')) return;
       if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         e.preventDefault();
         navForward();
