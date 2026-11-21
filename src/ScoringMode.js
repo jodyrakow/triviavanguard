@@ -1398,8 +1398,8 @@ export default function ScoringMode({
       background: "#fff",
       textAlign: "center",
       minWidth: COL_Q_WIDTH,
-      width: COL_Q_WIDTH,
-      maxWidth: COL_Q_WIDTH,
+      width: showGridAnswers ? "max-content" : COL_Q_WIDTH,
+      whiteSpace: "nowrap",
       boxShadow: "2px 2px 4px rgba(0,0,0,0.1)", // Shadow on both axes
     },
     qNumTd: {
@@ -1409,8 +1409,8 @@ export default function ScoringMode({
       background: "#fff",
       textAlign: "center",
       minWidth: COL_Q_WIDTH,
-      width: COL_Q_WIDTH,
-      maxWidth: COL_Q_WIDTH,
+      width: showGridAnswers ? "max-content" : COL_Q_WIDTH,
+      whiteSpace: "nowrap",
       boxShadow: "2px 0 4px rgba(0,0,0,0.05)", // Subtle shadow
     },
     bonusRowCell: {
@@ -1699,7 +1699,7 @@ export default function ScoringMode({
           style={{
             width: "auto",
             borderCollapse: "separate",
-            tableLayout: "fixed",
+            tableLayout: showGridAnswers ? "auto" : "fixed",
             borderSpacing: 0,
           }}
         >
