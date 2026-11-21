@@ -3527,8 +3527,8 @@ export default function App() {
               style={{ fontSize: "1rem", padding: ".3rem .65rem", borderRadius: ".4rem", ...(resultsOpen && { background: colors.accent, color: "#fff" }) }}>
               Results
             </Button>
-            <Button onClick={() => { setResultsOpen(true); setPublishResultsRequested(true); }} title="Export backup and publish final results to Airtable"
-              style={{ fontSize: "1rem", padding: ".3rem .65rem", borderRadius: ".4rem", background: colors.accent, color: "#fff" }}>
+            <Button onClick={() => setPublishResultsRequested(true)} title="Export backup and publish final results to Airtable"
+              style={{ fontSize: "1rem", padding: ".3rem .65rem", borderRadius: ".4rem" }}>
               Publish Results
             </Button>
           </div>
@@ -4530,8 +4530,9 @@ export default function App() {
       )}
 
       {/* ── Floating Results panel ── */}
-      {resultsOpen && (
-        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 500 }}>
+      {/* Keep ResultsMode mounted for publishing without opening its floating window. */}
+      {
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 500, display: resultsOpen ? "block" : "none" }}>
           <Draggable nodeRef={resultsRef} handle=".tv-results-drag-handle" cancel="button, input, select, textarea, option" position={resultsPos} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setResultsPos(p); localStorage.setItem("tv_resultsPos", JSON.stringify(p)); }}>
             <div ref={resultsRef} style={{ position: "absolute", background: "#fff", borderRadius: "8px", boxShadow: "0 4px 24px rgba(0,0,0,0.2)", width: "min(96vw, 1100px)", maxHeight: "85vh", display: "flex", flexDirection: "column", pointerEvents: "auto" }}>
               <div className="tv-results-drag-handle" style={{ display: "flex", alignItems: "center", padding: ".4rem .75rem", borderBottom: `1px solid ${colors.gray?.border || "#e0e0e0"}`, cursor: "grab", background: colors.dark, borderRadius: "8px 8px 0 0", userSelect: "none" }}>
