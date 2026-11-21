@@ -1480,14 +1480,10 @@ export default function ScoringMode({
               minWidth: 0,
             }}
           >
-            <button onClick={openRemovedTeams} style={{ border: "1px solid #DC6A24", borderRadius: 5, padding: ".4rem .6rem", background: "#fff", color: "#2B394A", cursor: "pointer" }}>Removed teams</button>
-            {tiebreaker && <button type="button" onClick={() => setTbEntryOpen(true)} style={{ padding: ".5rem .75rem", border: `1px solid ${theme.accent}`, borderRadius: 5, background: "#fff", color: theme.accent, fontWeight: 700, cursor: "pointer" }}>🎯 Tiebreaker guesses</button>}
             <ButtonPrimary onClick={() => setAddingTeam(true)}>
               + Add team
             </ButtonPrimary>
-            <button type="button" onClick={() => { setCopyTeamsOpen(true); setCopySourceId(""); setCopyCandidates([]); setCopySelected([]); loadCopyData(); }} style={{ padding: "0.5rem 0.75rem", border: "1px solid #d97322", borderRadius: 5, background: "#fff", color: "#9b4b0c", fontWeight: 700, cursor: "pointer" }}>
-              Copy teams from another show
-            </button>
+            {tiebreaker && <button type="button" onClick={() => setTbEntryOpen(true)} style={{ padding: ".5rem .75rem", border: `1px solid ${theme.accent}`, borderRadius: 5, background: "#fff", color: theme.accent, fontWeight: 700, cursor: "pointer" }}>🎯 Tiebreaker guesses</button>}
 
             <ui.Segmented style={{ flexShrink: 0 }}>
               <button
@@ -2366,6 +2362,27 @@ export default function ScoringMode({
               >
                 Cancel
               </button>
+            </div>
+            <div style={{ marginTop: "1rem", paddingTop: ".85rem", borderTop: "1px solid #e1e1e1" }}>
+              <div style={{ fontSize: ".85rem", fontWeight: 700, color: theme.dark, marginBottom: ".55rem" }}>Other team options</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: ".5rem" }}>
+                <button type="button" disabled={isCreatingTeam} onClick={() => {
+                  setAddingTeam(false);
+                  setCopyTeamsOpen(true);
+                  setCopySourceId("");
+                  setCopyCandidates([]);
+                  setCopySelected([]);
+                  loadCopyData();
+                }} style={{ padding: ".55rem .65rem", border: `1px solid ${theme.accent}`, borderRadius: 5, background: "#fff", color: theme.dark, cursor: "pointer", flex: 1 }}>
+                  Copy teams from another show
+                </button>
+                <button type="button" disabled={isCreatingTeam} onClick={() => {
+                  setAddingTeam(false);
+                  openRemovedTeams();
+                }} style={{ padding: ".55rem .65rem", border: `1px solid ${theme.accent}`, borderRadius: 5, background: "#fff", color: theme.dark, cursor: "pointer", flex: 1 }}>
+                  Removed teams
+                </button>
+              </div>
             </div>
           </div>
         </div>
