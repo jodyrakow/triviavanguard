@@ -4531,7 +4531,7 @@ export default function App() {
 
       {/* ── Floating Results panel ── */}
       {/* Keep ResultsMode mounted for publishing without opening its floating window. */}
-      {
+      {(
         <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 500, display: resultsOpen ? "block" : "none" }}>
           <Draggable nodeRef={resultsRef} handle=".tv-results-drag-handle" cancel="button, input, select, textarea, option" position={resultsPos} onStop={(e, d) => { const p = { x: d.x, y: d.y }; setResultsPos(p); localStorage.setItem("tv_resultsPos", JSON.stringify(p)); }}>
             <div ref={resultsRef} style={{ position: "absolute", background: "#fff", borderRadius: "8px", boxShadow: "0 4px 24px rgba(0,0,0,0.2)", width: "min(96vw, 1100px)", maxHeight: "85vh", display: "flex", flexDirection: "column", pointerEvents: "auto" }}>
