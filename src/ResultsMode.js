@@ -1,5 +1,5 @@
 // src/ResultsMode.js
-import React, { useMemo, useRef, useState, useCallback } from "react";
+import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import { tokens, colors as theme, Button } from "./styles/index.js";
 import { colors } from "./styles/ui.js";
 import {
@@ -44,6 +44,8 @@ export default function ResultsMode({
   questionEdits = {}, // { [showQuestionId]: { question?, notes?, pronunciationGuide?, answer? } }
   sendToDisplay, // Function to send content to display mode
   displayControlsOpen = false,
+  publishRequested = false,
+  onPublishRequestHandled,
 }) {
   // New architecture is ALWAYS cumulative (all data in one flat structure)
   const usingCumulative = true;
@@ -1050,6 +1052,16 @@ export default function ResultsMode({
       setIsPublishing(false);
     }
   };
+
+  // Mission Control uses this same publishing flow, including confirmation,
+  // backup export, status messages, and Airtable updates.
+  useEffect(() => {
+    if (!publishRequested) return;
+    onPublishRequestHandled?.();
+    publishResults();
+    // A request is consumed once; publishing itself uses the current ResultsMode data.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publishRequested]);
 
   // --------- Guard rails ---------
   const noRound = false; // Always false since we're always in cumulative mode
