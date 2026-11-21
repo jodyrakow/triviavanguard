@@ -1849,7 +1849,10 @@ export default function ScoringMode({
                     borderBottom: thinRowBorder,
                   }}
                 >
-                  <strong>{q.order}</strong>{showGridAnswers && q.answer && <span style={{ marginLeft: ".55rem", fontSize: ".85rem", fontWeight: 400, color: theme.dark }}>{q.answer}</span>}
+                  <div style={{ display: "flex", alignItems: "center", gap: ".55rem", whiteSpace: "nowrap", minWidth: "max-content" }}>
+                    <strong style={{ flexShrink: 0 }}>{q.order}</strong>
+                    {showGridAnswers && q.answer && <span style={{ fontSize: ".85rem", fontWeight: 400, color: theme.dark, whiteSpace: "nowrap" }}>{q.answer}</span>}
+                  </div>
                 </td>
 
                 {renderTeams.map((t, ti) => {
