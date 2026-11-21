@@ -84,6 +84,7 @@ export default function App() {
   const [questionsOpen, setQuestionsOpen] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
   const [resultsOpen, setResultsOpen] = useState(false);
+  const [publishResultsRequested, setPublishResultsRequested] = useState(false);
   const [questionsPos, setQuestionsPos] = useState(() => { try { const s=localStorage.getItem("tv_questionsPos"); return s?JSON.parse(s):{x:80,y:100}; } catch { return {x:80,y:100}; } });
   const [scoringPos, setScoringPos] = useState(() => { try { const s=localStorage.getItem("tv_scoringPos"); return s?JSON.parse(s):{x:120,y:120}; } catch { return {x:120,y:120}; } });
   const [resultsPos, setResultsPos] = useState(() => { try { const s=localStorage.getItem("tv_resultsPos"); return s?JSON.parse(s):{x:160,y:140}; } catch { return {x:160,y:140}; } });
@@ -3526,6 +3527,10 @@ export default function App() {
               style={{ fontSize: "1rem", padding: ".3rem .65rem", borderRadius: ".4rem", ...(resultsOpen && { background: colors.accent, color: "#fff" }) }}>
               Results
             </Button>
+            <Button onClick={() => { setResultsOpen(true); setPublishResultsRequested(true); }} title="Export backup and publish final results to Airtable"
+              style={{ fontSize: "1rem", padding: ".3rem .65rem", borderRadius: ".4rem", background: colors.accent, color: "#fff" }}>
+              Publish Results
+            </Button>
           </div>
         </div>
 
@@ -4553,6 +4558,8 @@ export default function App() {
                   questionEdits={questionEdits[selectedShowId] ?? {}}
                   sendToDisplay={sendToDisplayWithNavSync}
                   displayControlsOpen={true}
+                  publishRequested={publishResultsRequested}
+                  onPublishRequestHandled={() => setPublishResultsRequested(false)}
                 />
               </div>
             </div>
