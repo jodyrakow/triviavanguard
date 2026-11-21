@@ -4477,7 +4477,7 @@ export default function App() {
               </div>
               <div style={{ overflowY: "auto", flex: 1 }}>
                 <ScoringMode
-                  showBundle={showBundle ? { ...showBundle, rounds: (showBundle.rounds || []).filter((r) => Number(r.round) === Number(selectedRoundId)) } : { rounds: [], teams: [] }}
+                  showBundle={showBundleWithEdits ? { ...showBundleWithEdits, rounds: (showBundleWithEdits.rounds || []).filter((r) => Number(r.round) === Number(selectedRoundId)) } : { rounds: [], teams: [] }}
                   selectedShowId={selectedShowId}
                   selectedRoundId={selectedRoundId}
                   preloadedTeams={showBundle?.teams ?? []}
