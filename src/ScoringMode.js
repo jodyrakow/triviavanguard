@@ -312,6 +312,9 @@ export default function ScoringMode({
   const [addingTeam, setAddingTeam] = useState(false);
   const [teamManageMode, setTeamManageMode] = useState("add");
   const [bonusEntryOpen, setBonusEntryOpen] = useState(false);
+  const [newTeamLeague, setNewTeamLeague] = useState(false);
+  const [showGridAnswers, setShowGridAnswers] = useState(false);
+  const [scoreDetailsTeamId, setScoreDetailsTeamId] = useState(null);
   const [copyTeamsOpen, setCopyTeamsOpen] = useState(false);
   const [copySourceShows, setCopySourceShows] = useState([]);
   const [copySourceId, setCopySourceId] = useState("");
@@ -1190,6 +1193,18 @@ export default function ScoringMode({
     });
   };
 
+  const toggleLeagueForNewTeam = async (showTeamId) => {
+    const response = await fetch("/.netlify/functions/saveLeagueStatus", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ showId: selectedShowId, showTeamId, isLeague: true }),
+    });
+    if (!response.ok) {
+      window.alert("Team was added, but league status could not be saved. Please update it in Manage teams.");
+      return;
+    }
+    setTeams(prev => prev.map(t => t.showTeamId === showTeamId ? { ...t, isLeague: true } : t));
+  };
+
   const [duplicateTeamPrompt, setDuplicateTeamPrompt] = useState(null);
 
   const addTeamLocal = async (teamName, airtableTeamId = null, allowDuplicateName = false) => {
@@ -1237,6 +1252,7 @@ export default function ScoringMode({
         teamId, // Real Airtable Team ID
         teamName: finalName || trimmed,
         showBonus: 0,
+        isLeague: false,
       };
 
       let entryOrderIdx = 0;
@@ -1258,8 +1274,12 @@ export default function ScoringMode({
         entryOrder: entryOrderIdx,
       });
 
+      // Apply league status using the existing Airtable + Supabase endpoint.
+      if (newTeamLeague) await toggleLeagueForNewTeam(newTeam.showTeamId);
+
       // Close modal and reset input
       setAddingTeam(false);
+      setNewTeamLeague(false);
       setDuplicateTeamPrompt(null);
       setTeamInput("");
       setSearchResults([]);
@@ -1542,6 +1562,8 @@ export default function ScoringMode({
             </ButtonPrimary>
             {tiebreaker && <button type="button" onClick={() => setTbEntryOpen(true)} style={{ padding: ".5rem .75rem", border: `1px solid ${theme.accent}`, borderRadius: 5, background: "#fff", color: theme.accent, fontWeight: 700, cursor: "pointer" }}>🎯 Tiebreaker guesses</button>}
 
+            <button type="button" onClick={() => setShowGridAnswers(v => !v)} aria-pressed={showGridAnswers} style={{ padding: ".5rem .75rem", border: `1px solid ${theme.accent}`, borderRadius: 5, background: "#fff", color: theme.accent, fontWeight: 700, cursor: "pointer" }}>{showGridAnswers ? "Hide answers" : "Show answers"}</button>
+
             <ui.Segmented style={{ flexShrink: 0 }}>
               <button
                 style={ui.segBtn(sortMode === "entry")}
@@ -1729,38 +1751,6 @@ export default function ScoringMode({
                     {t.teamName}
                   </div>
 
-                  {/* League checkbox */}
-                  <div
-                    style={{
-                      marginTop: "0.25rem",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "0.25rem",
-                    }}
-                  >
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.25rem",
-                        fontSize: "0.75rem",
-                        cursor: "pointer",
-                        userSelect: "none",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={!!t.isLeague}
-                        onChange={(e) => {
-                          toggleLeague(t.showTeamId, e.target.checked);
-                        }}
-                        style={{ cursor: "pointer" }}
-                      />
-                      <span style={{ opacity: 0.85 }}>League</span>
-                    </label>
-                  </div>
-
                   {/* Faction pledge dropdown */}
                   {ENABLE_FACTION_BATTLE && (
                     <div
@@ -1810,55 +1800,40 @@ export default function ScoringMode({
                     </div>
                   )}
 
-                  {/* Move buttons */}
-                  <div
-                    style={{
-                      marginTop: "0.25rem",
-                      display: "flex",
-                      gap: "0.25rem",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <div
-                      style={{
-                        marginTop: "0.25rem",
-                        display: "flex",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <ui.Segmented
-                        style={{
-                          border: "1px solid rgba(220,106,36,0.65)", // thin orange border all around
-                          borderRadius: "999px", // keep pill shape
-                          overflow: "hidden",
-                        }}
-                      >
-                        <button
-                          style={ui.segBtn(false)}
-                          onClick={() => moveTeam(t.showTeamId, -1)}
-                          title="Move left"
-                        >
-                          ◀
-                        </button>
-                        <button
-                          style={{
-                            ...ui.segBtn(false),
-                            borderLeft: "1px solid rgba(220,106,36,0.65)", // thin orange divider
-                          }}
-                          onClick={() => moveTeam(t.showTeamId, +1)}
-                          title="Move right"
-                        >
-                          ▶
-                        </button>
-                      </ui.Segmented>
-                    </div>
-                  </div>
-
-                  {/* Totals */}
-                  <div
-                    style={{ fontSize: ".8rem", opacity: 0.85, marginTop: 2 }}
-                  >
-                    Total: <strong>{displayTotals[t.showTeamId] ?? 0}</strong>
+                  {/* Read-only total and scoring exceptions */}
+                  <div style={{ marginTop: ".3rem", position: "relative", display: "flex", justifyContent: "center" }}>
+                    <button type="button"
+                      onMouseEnter={() => setScoreDetailsTeamId(t.showTeamId)}
+                      onMouseLeave={() => setScoreDetailsTeamId(null)}
+                      onFocus={() => setScoreDetailsTeamId(t.showTeamId)}
+                      onBlur={() => setScoreDetailsTeamId(null)}
+                      onClick={() => setScoreDetailsTeamId(prev => prev === t.showTeamId ? null : t.showTeamId)}
+                      aria-label={`Score details for ${t.teamName}`}
+                      style={{ background: "transparent", border: "none", color: theme.dark, cursor: "pointer", padding: ".15rem .35rem", fontSize: ".95rem", fontWeight: 700 }}>
+                      {displayTotals[t.showTeamId] ?? 0} <span style={{ fontSize: ".7rem", opacity: .65 }}>ⓘ</span>
+                    </button>
+                    {scoreDetailsTeamId === t.showTeamId && (
+                      <div onMouseEnter={() => setScoreDetailsTeamId(t.showTeamId)} onMouseLeave={() => setScoreDetailsTeamId(null)}
+                        style={{ position: "absolute", zIndex: 200, top: "100%", left: "50%", transform: "translateX(-50%)", minWidth: 245, maxWidth: 330, padding: ".8rem", background: "#fff", color: theme.dark, border: `1px solid ${theme.accent}`, borderRadius: 7, boxShadow: "0 6px 22px rgba(0,0,0,.25)", textAlign: "left", whiteSpace: "normal", fontSize: ".85rem", fontWeight: 400 }}>
+                        <strong>{t.teamName} · {displayTotals[t.showTeamId] ?? 0} points</strong>
+                        <div style={{ marginTop: ".5rem", color: "#265b3b" }}>Team bonus: {Number(t.showBonus || 0) > 0 ? "+" : ""}{t.showBonus || 0}</div>
+                        <div style={{ borderTop: "1px solid #ddd", marginTop: ".5rem", paddingTop: ".5rem", fontWeight: 700 }}>Questions with unusual scoring</div>
+                        {(() => {
+                          const unusual = questions.filter(q => {
+                            const cell = grid[t.showTeamId]?.[q.showQuestionId];
+                            return (cell?.bonusCount || 0) > 0 || (cell?.partialCount || 0) > 0 && (cell?.partialCount || 0) < (q.numParts || Infinity);
+                          });
+                          return unusual.length ? unusual.map(q => {
+                            const cell = grid[t.showTeamId]?.[q.showQuestionId];
+                            const hasBonus = (cell?.bonusCount || 0) > 0;
+                            return <div key={q.showQuestionId} style={{ marginTop: ".4rem", display: "flex", gap: ".5rem", justifyContent: "space-between" }}>
+                              <span>Q{q.order}: <span style={{ color: hasBonus ? "#a65b12" : "#316caa" }}>{hasBonus ? `${cell.bonusCount} bonus${cell.bonusCount === 1 ? "" : "es"}` : `${cell.partialCount} of ${q.numParts} parts`}</span></span>
+                              <strong>{earnedFor(cell, q.showQuestionId)} pts</strong>
+                            </div>;
+                          }) : <div style={{ marginTop: ".4rem", opacity: .7 }}>No question bonuses or partial credit awarded.</div>;
+                        })()}
+                      </div>
+                    )}
                   </div>
                 </th>
               ))}
@@ -1874,7 +1849,7 @@ export default function ScoringMode({
                     borderBottom: thinRowBorder,
                   }}
                 >
-                  <strong>{q.order}</strong>
+                  <strong>{q.order}</strong>{showGridAnswers && q.answer && <span style={{ marginLeft: ".55rem", fontSize: ".85rem", fontWeight: 400, color: theme.dark }}>{q.answer}</span>}
                 </td>
 
                 {renderTeams.map((t, ti) => {
@@ -2126,6 +2101,7 @@ export default function ScoringMode({
                 ["add", "Add team"],
                 ["copy", "Copy teams from another show"],
                 ["remove", "Remove team"],
+                ["league", "League status"],
                 ["restore", "Restore removed teams"],
                 ["bonus", "Team bonus points"],
               ].map(([id, label]) => (
@@ -2139,6 +2115,13 @@ export default function ScoringMode({
             {teamManageMode === "copy" && <div><p>Copy teams from a previous show without replacing existing teams or scores.</p><button onClick={() => { setAddingTeam(false); setCopyTeamsOpen(true); setCopySourceId(""); setCopyCandidates([]); setCopySelected([]); loadCopyData(); }}>Choose show and teams</button></div>}
             {teamManageMode === "restore" && <div><p>Restore previously removed teams and their scores.</p><button onClick={() => { setAddingTeam(false); openRemovedTeams(); }}>View removed teams</button></div>}
             {teamManageMode === "bonus" && <div><p>Enter bonus points in the same team-by-team panel as tiebreaker guesses.</p><button onClick={() => { setAddingTeam(false); setBonusEntryOpen(true); }}>Open team bonus points</button></div>}
+            {teamManageMode === "league" && <div>
+              <p>Mark which teams participate in the league. Changes save immediately.</p>
+              {visibleTeams.map(t => <label key={t.showTeamId} style={{ display: "flex", alignItems: "center", gap: ".6rem", padding: ".45rem 0", borderBottom: "1px solid #eee" }}>
+                <input type="checkbox" checked={!!t.isLeague} onChange={e => toggleLeague(t.showTeamId, e.target.checked)} />
+                <span>{t.teamName}</span>
+              </label>)}
+            </div>}
             {teamManageMode === "remove" && <div>
               <p>Select a team to remove. You'll be asked to confirm before anything changes.</p>
               <div style={{ maxHeight: "35vh", overflowY: "auto" }}>
@@ -2289,6 +2272,11 @@ export default function ScoringMode({
                 Adding team...
               </div>
             )}
+
+            <label style={{ display: "flex", alignItems: "center", gap: ".5rem", margin: ".6rem 0" }}>
+              <input type="checkbox" checked={newTeamLeague} onChange={e => setNewTeamLeague(e.target.checked)} />
+              League team
+            </label>
 
             {/* Manual add fallback */}
             <div style={{ display: "flex", gap: "0.5rem" }}>
