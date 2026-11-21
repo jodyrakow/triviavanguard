@@ -51,7 +51,7 @@ function TeamNumberEntryPanel({ title, teams, getValue, onChange, onCommit, onCl
                 value={values[idx]}
                 onChange={e => {
                   const raw = e.target.value;
-                  if (!/^-?\\d*\\.?\\d*$/.test(raw)) return;
+                  if (!/^-?\d*\.?\d*$/.test(raw)) return;
                   setDrafts(prev => ({ ...prev, [t.showTeamId]: raw }));
                   onChange?.(t.showTeamId, raw);
                 }}
