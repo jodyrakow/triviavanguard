@@ -23,6 +23,61 @@ import {
 import { supabase } from "./App.js";
 import { createPortal } from "react-dom";
 
+
+function TeamNumberEntryPanel({ title, teams, getValue, onChange, onCommit, onClose }) {
+  const refs = useRef({});
+  const [drafts, setDrafts] = useState({});
+  const values = teams.map(t => drafts[t.showTeamId] ?? String(getValue(t) ?? ""));
+  const move = (index, direction) => {
+    const next = index + direction;
+    if (next >= 0 && next < teams.length) {
+      refs.current[teams[next].showTeamId]?.focus();
+      refs.current[teams[next].showTeamId]?.select();
+    } else refs.current[teams[index].showTeamId]?.blur();
+  };
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: 10020, pointerEvents: "none", display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: "8vh" }}>
+      <div role="dialog" aria-label={title} style={{ pointerEvents: "auto", width: "min(420px, 94vw)", maxHeight: "80vh", display: "flex", flexDirection: "column", background: "#fff", border: "2px solid #DC6A24", borderRadius: 9, boxShadow: "0 8px 36px rgba(0,0,0,.3)", color: "#2B394A" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#2B394A", color: "#fff", padding: ".65rem .85rem", borderRadius: "7px 7px 0 0" }}>
+          <strong>{title}</strong>
+          <button type="button" onClick={onClose} style={{ background: "transparent", color: "#fff", border: 0, fontSize: "1.25rem", cursor: "pointer" }} aria-label={`Close ${title}`}>×</button>
+        </div>
+        <div style={{ overflowY: "auto", padding: ".7rem .85rem" }}>
+          <div style={{ fontSize: ".8rem", marginBottom: ".6rem", color: "#596579" }}>Enter / ↓: next team · ↑: previous team · Tab / Shift+Tab also work</div>
+          {teams.map((t, idx) => (
+            <label key={t.showTeamId} style={{ display: "grid", gridTemplateColumns: "1fr 105px", alignItems: "center", gap: ".75rem", marginBottom: ".45rem" }}>
+              <span>{t.teamName}</span>
+              <input ref={el => { refs.current[t.showTeamId] = el; }} type="text" inputMode="decimal" placeholder="—"
+                value={values[idx]}
+                onChange={e => {
+                  const raw = e.target.value;
+                  if (!/^-?\\d*\\.?\\d*$/.test(raw)) return;
+                  setDrafts(prev => ({ ...prev, [t.showTeamId]: raw }));
+                  onChange?.(t.showTeamId, raw);
+                }}
+                onBlur={e => {
+                  onCommit(t.showTeamId, e.target.value);
+                  setDrafts(prev => { const next = { ...prev }; delete next[t.showTeamId]; return next; });
+                }}
+                onKeyDown={e => {
+                  if (["Enter", "ArrowDown", "ArrowUp"].includes(e.key)) {
+                    e.preventDefault();
+                    move(idx, e.key === "ArrowUp" ? -1 : 1);
+                  } else if (e.key === "Tab") {
+                    e.preventDefault();
+                    move(idx, e.shiftKey ? -1 : 1);
+                  }
+                }}
+                style={{ width: "100%", boxSizing: "border-box", padding: ".35rem .4rem", border: "1px solid #DC6A24", borderRadius: 5, textAlign: "center", fontSize: "1rem" }}
+                aria-label={`${title} for ${t.teamName}`} />
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>, document.body
+  );
+}
+
 // Save a single cell to Supabase (debounced calls happen in the component)
 const saveCellToSupabase = async (showId, showTeamId, showQuestionId, cell) => {
   try {
@@ -255,6 +310,8 @@ export default function ScoringMode({
   const [searchResults, setSearchResults] = useState([]);
   // 🔁 MOVED UP: Add Team modal state so it's defined before useEffect below
   const [addingTeam, setAddingTeam] = useState(false);
+  const [teamManageMode, setTeamManageMode] = useState("add");
+  const [bonusEntryOpen, setBonusEntryOpen] = useState(false);
   const [copyTeamsOpen, setCopyTeamsOpen] = useState(false);
   const [copySourceShows, setCopySourceShows] = useState([]);
   const [copySourceId, setCopySourceId] = useState("");
@@ -1480,8 +1537,8 @@ export default function ScoringMode({
               minWidth: 0,
             }}
           >
-            <ButtonPrimary onClick={() => setAddingTeam(true)}>
-              + Add team
+            <ButtonPrimary onClick={() => { setTeamManageMode("add"); setAddingTeam(true); }}>
+              Manage teams
             </ButtonPrimary>
             {tiebreaker && <button type="button" onClick={() => setTbEntryOpen(true)} style={{ padding: ".5rem .75rem", border: `1px solid ${theme.accent}`, borderRadius: 5, background: "#fff", color: theme.accent, fontWeight: 700, cursor: "pointer" }}>🎯 Tiebreaker guesses</button>}
 
@@ -1797,43 +1854,6 @@ export default function ScoringMode({
                     </div>
                   </div>
 
-                  {/* Delete button */}
-                  <button
-                    aria-label={`Remove ${t.teamName}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeTeam(t.showTeamId);
-                    }}
-                    style={{
-                      margin: "0.25rem auto 0",
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      border: `1px solid ${theme.accent}`,
-                      background: theme.bg,
-                      color: theme.accent,
-                      cursor: "pointer",
-                      padding: 0,
-                      display: "grid",
-                      placeItems: "center",
-                    }}
-                    title="Delete team"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M6 6l12 12M18 6L6 18"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </button>
-
                   {/* Totals */}
                   <div
                     style={{ fontSize: ".8rem", opacity: 0.85, marginTop: 2 }}
@@ -1845,62 +1865,6 @@ export default function ScoringMode({
             </tr>
           </thead>
           <tbody>
-            {/* Team bonus row */}
-            <tr>
-              <td
-                style={{
-                  padding: "0.3rem",
-                  ...sticky.qNumTd,
-                  ...sticky.bonusRowCell,
-                  fontWeight: "bold",
-                  color: theme.accent,
-                  borderTop: bonusBorder,
-                  borderBottom: bonusBorder,
-                  whiteSpace: "normal",
-                  wordBreak: "break-word",
-                  overflowWrap: "anywhere",
-                  lineHeight: 1.1,
-                  fontSize: ".9rem",
-                }}
-              >
-                Team bonus
-              </td>
-
-              {renderTeams.map((t) => (
-                <td
-                  key={t.showTeamId}
-                  style={{
-                    textAlign: "center",
-                    padding: "0.2rem",
-                    borderTop: bonusBorder,
-                    borderBottom: bonusBorder,
-                    ...sticky.bonusRowCell,
-                  }}
-                >
-                  <input
-                    type="number"
-                    key={t.showBonus ?? 0}
-                    defaultValue={t.showBonus ?? 0}
-                    onBlur={(e) =>
-                      updateShowBonus(t.showTeamId, e.target.value)
-                    }
-                    onKeyDown={onEnterBlur}
-                    style={{
-                      width: 40,
-                      textAlign: "center",
-                      padding: "0.2rem",
-                      border: `1px solid ${theme.accent}`,
-                      borderRadius: "0.25rem",
-                      fontSize: ".85rem",
-                      color: theme.accent,
-                      outlineColor: theme.accent,
-                    }}
-                    title="Show-level bonus points"
-                  />
-                </td>
-              ))}
-            </tr>
-
             {questions.map((q, qi) => (
               <tr key={q.showQuestionId}>
                 <td
@@ -2039,39 +2003,18 @@ export default function ScoringMode({
         <code>↑/↓</code> question
       </div>
 
-      {tbEntryOpen && tiebreaker && createPortal(
-        <div style={{ position: "fixed", inset: 0, zIndex: 10020, pointerEvents: "none", display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: "8vh" }}>
-          <div role="dialog" aria-label="Tiebreaker guesses" style={{ pointerEvents: "auto", width: "min(420px, 94vw)", maxHeight: "80vh", display: "flex", flexDirection: "column", background: "#fff", border: `2px solid ${theme.accent}`, borderRadius: 9, boxShadow: "0 8px 36px rgba(0,0,0,.3)", color: theme.dark }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: theme.dark, color: "#fff", padding: ".65rem .85rem", borderRadius: "7px 7px 0 0" }}>
-              <strong>🎯 Tiebreaker guesses</strong>
-              <button type="button" onClick={() => setTbEntryOpen(false)} style={{ background: "transparent", color: "#fff", border: 0, fontSize: "1.25rem", cursor: "pointer" }} aria-label="Close tiebreaker guesses">×</button>
-            </div>
-            <div style={{ overflowY: "auto", padding: ".7rem .85rem" }}>
-              <div style={{ fontSize: ".8rem", marginBottom: ".6rem", color: "#596579" }}>Enter or ↓: next team · ↑: previous team · Tab / Shift+Tab also work</div>
-              {visibleTeams.map((t, idx) => (
-                <label key={t.showTeamId} style={{ display: "grid", gridTemplateColumns: "1fr 105px", alignItems: "center", gap: ".75rem", marginBottom: ".45rem" }}>
-                  <span>{t.teamName}</span>
-                  <input ref={(el) => { tbRefs.current[t.showTeamId] = el; }} type="text" inputMode="decimal" placeholder="—"
-                    value={getTBGuess(t.showTeamId)}
-                    onChange={(e) => setTBGuess(t.showTeamId, e.target.value)}
-                    onBlur={() => commitTBGuess(t.showTeamId)}
-                    onKeyDown={(e) => {
-                      if (!["Enter", "ArrowDown", "ArrowUp"].includes(e.key)) return;
-                      e.preventDefault();
-                      const nextIdx = idx + (e.key === "ArrowUp" ? -1 : 1);
-                      if (nextIdx >= 0 && nextIdx < visibleTeams.length) {
-                        tbRefs.current[visibleTeams[nextIdx].showTeamId]?.focus();
-                        tbRefs.current[visibleTeams[nextIdx].showTeamId]?.select();
-                      } else e.currentTarget.blur();
-                    }}
-                    style={{ width: "100%", boxSizing: "border-box", padding: ".35rem .4rem", border: `1px solid ${theme.accent}`, borderRadius: 5, textAlign: "center", fontSize: "1rem" }}
-                    aria-label={`Tiebreaker guess for ${t.teamName}`} />
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>, document.body
-      )}
+      {tbEntryOpen && tiebreaker && <TeamNumberEntryPanel
+        title="🎯 Tiebreaker guesses" teams={visibleTeams}
+        getValue={t => getTBGuess(t.showTeamId)} onChange={setTBGuess}
+        onCommit={showTeamId => commitTBGuess(showTeamId)}
+        onClose={() => setTbEntryOpen(false)}
+      />}
+      {bonusEntryOpen && <TeamNumberEntryPanel
+        title="Team bonus points" teams={visibleTeams}
+        getValue={t => t.showBonus ?? 0}
+        onCommit={(showTeamId, value) => updateShowBonus(showTeamId, value)}
+        onClose={() => setBonusEntryOpen(false)}
+      />}
 
       {duplicateTeamPrompt && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(43,57,74,.7)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -2177,9 +2120,32 @@ export default function ScoringMode({
               border: `1px solid ${theme.accent}`,
             }}
           >
-            <h3 style={{ marginTop: 0, color: theme.dark }}>
-              Add team to this show
-            </h3>
+            <h3 style={{ marginTop: 0, color: theme.dark }}>Manage teams</h3>
+            <div role="group" aria-label="Team management action" style={{ display: "flex", flexDirection: "column", gap: ".3rem", marginBottom: ".85rem" }}>
+              {[
+                ["add", "Add team"],
+                ["copy", "Copy teams from another show"],
+                ["remove", "Remove team"],
+                ["restore", "Restore removed teams"],
+                ["bonus", "Team bonus points"],
+              ].map(([id, label]) => (
+                <label key={id} style={{ cursor: "pointer", padding: ".2rem 0", fontWeight: teamManageMode === id ? 700 : 400 }}>
+                  <input type="radio" name="teamManageMode" checked={teamManageMode === id} onChange={() => setTeamManageMode(id)} style={{ marginRight: ".5rem", accentColor: theme.accent }} />
+                  {label}
+                </label>
+              ))}
+            </div>
+            {teamManageMode === "add" && <h4 style={{ margin: "0 0 .6rem" }}>Add team to this show</h4>}
+            {teamManageMode === "copy" && <div><p>Copy teams from a previous show without replacing existing teams or scores.</p><button onClick={() => { setAddingTeam(false); setCopyTeamsOpen(true); setCopySourceId(""); setCopyCandidates([]); setCopySelected([]); loadCopyData(); }}>Choose show and teams</button></div>}
+            {teamManageMode === "restore" && <div><p>Restore previously removed teams and their scores.</p><button onClick={() => { setAddingTeam(false); openRemovedTeams(); }}>View removed teams</button></div>}
+            {teamManageMode === "bonus" && <div><p>Enter bonus points in the same team-by-team panel as tiebreaker guesses.</p><button onClick={() => { setAddingTeam(false); setBonusEntryOpen(true); }}>Open team bonus points</button></div>}
+            {teamManageMode === "remove" && <div>
+              <p>Select a team to remove. You'll be asked to confirm before anything changes.</p>
+              <div style={{ maxHeight: "35vh", overflowY: "auto" }}>
+                {visibleTeams.map(t => <button key={t.showTeamId} type="button" onClick={() => removeTeam(t.showTeamId)} style={{ display: "block", width: "100%", padding: ".5rem", marginBottom: ".25rem", textAlign: "left", border: "1px solid #ddd", borderRadius: 5, background: "#fff", cursor: "pointer" }}>Remove {t.teamName}</button>)}
+              </div>
+            </div>}
+            {teamManageMode === "add" && <>
 
             {/* Search field */}
             <input
@@ -2363,27 +2329,8 @@ export default function ScoringMode({
                 Cancel
               </button>
             </div>
-            <div style={{ marginTop: "1rem", paddingTop: ".85rem", borderTop: "1px solid #e1e1e1" }}>
-              <div style={{ fontSize: ".85rem", fontWeight: 700, color: theme.dark, marginBottom: ".55rem" }}>Other team options</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: ".5rem" }}>
-                <button type="button" disabled={isCreatingTeam} onClick={() => {
-                  setAddingTeam(false);
-                  setCopyTeamsOpen(true);
-                  setCopySourceId("");
-                  setCopyCandidates([]);
-                  setCopySelected([]);
-                  loadCopyData();
-                }} style={{ padding: ".55rem .65rem", border: `1px solid ${theme.accent}`, borderRadius: 5, background: "#fff", color: theme.dark, cursor: "pointer", flex: 1 }}>
-                  Copy teams from another show
-                </button>
-                <button type="button" disabled={isCreatingTeam} onClick={() => {
-                  setAddingTeam(false);
-                  openRemovedTeams();
-                }} style={{ padding: ".55rem .65rem", border: `1px solid ${theme.accent}`, borderRadius: 5, background: "#fff", color: theme.dark, cursor: "pointer", flex: 1 }}>
-                  Removed teams
-                </button>
-              </div>
-            </div>
+            </>}
+            {teamManageMode !== "add" && <button type="button" onClick={() => setAddingTeam(false)} style={{ marginTop: ".8rem" }}>Close</button>}
           </div>
         </div>
       )}
