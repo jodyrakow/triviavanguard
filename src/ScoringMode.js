@@ -353,6 +353,7 @@ export default function ScoringMode({
   // Keep refs to each cell <div> for scrolling into view
   const cellRefs = useRef({});
   const tbRefs = useRef({});
+  const [tbEntryOpen, setTbEntryOpen] = useState(false);
   const scoringBroadcastRef = useRef(null);
   const onEnterBlur = (e) => {
     if (e.key === "Enter") {
@@ -898,23 +899,6 @@ export default function ScoringMode({
         if (currentQuestion) {
           markRowPassed(currentQuestion.showQuestionId);
         }
-        // If we're on the last grid row and there's a TB row, focus its input
-        if (focus.qIdx === questions.length - 1 && tiebreaker) {
-          const colTeam = teamMode
-            ? visibleTeams[teamIdxSolo]
-            : renderTeams[teamIdx];
-          const input = colTeam ? tbRefs.current?.[colTeam.showTeamId] : null;
-          if (input && typeof input.focus === "function") {
-            input.focus();
-            // make it obvious + bring it onscreen
-            input.select?.();
-            input.scrollIntoView?.({ block: "center", behavior: "smooth" });
-            // brief highlight so you can SEE it moved
-            input.style.outline = "2px solid #DC6A24";
-            setTimeout(() => (input.style.outline = ""), 600);
-            return; // stop here so we don't advance to next column
-          }
-        }
         // otherwise: advance to next question in this column
         setFocus(({ teamIdx: t, qIdx }) => ({
           teamIdx: teamMode ? teamIdxSolo : t,
@@ -955,18 +939,6 @@ export default function ScoringMode({
         if (currentQuestion && qIdx < questions.length - 1) {
           markRowPassed(currentQuestion.showQuestionId);
         }
-        // If we're on the last grid row and there's a TB row, focus its input
-        if (focus.qIdx === questions.length - 1 && tiebreaker) {
-          const colTeam = teamMode
-            ? visibleTeams[teamIdxSolo]
-            : renderTeams[teamIdx];
-          const input = colTeam ? tbRefs.current?.[colTeam.showTeamId] : null;
-          if (input && typeof input.focus === "function") {
-            input.focus();
-            return; // stop here so we don't advance to next question
-          }
-        }
-
         // otherwise: advance down in the grid as usual
         setFocus(({ teamIdx: t, qIdx }) => ({
           teamIdx: teamMode ? teamIdxSolo : t,
@@ -1509,6 +1481,7 @@ export default function ScoringMode({
             }}
           >
             <button onClick={openRemovedTeams} style={{ border: "1px solid #DC6A24", borderRadius: 5, padding: ".4rem .6rem", background: "#fff", color: "#2B394A", cursor: "pointer" }}>Removed teams</button>
+            {tiebreaker && <button type="button" onClick={() => setTbEntryOpen(true)} style={{ padding: ".5rem .75rem", border: `1px solid ${theme.accent}`, borderRadius: 5, background: "#fff", color: theme.accent, fontWeight: 700, cursor: "pointer" }}>🎯 Tiebreaker guesses</button>}
             <ButtonPrimary onClick={() => setAddingTeam(true)}>
               + Add team
             </ButtonPrimary>
@@ -2060,94 +2033,6 @@ export default function ScoringMode({
               </tr>
             ))}
 
-            {/* --- TB ADD: Tiebreaker capture row (final in grid) ---------------- */}
-            {tiebreaker && (
-              <tr>
-                <td
-                  style={{
-                    padding: "0.35rem",
-                    ...sticky.qNumTd,
-                    borderTop: thinRowBorder,
-                    borderBottom: thinRowBorder,
-                    fontWeight: 700,
-                    color: theme.accent,
-                    verticalAlign: "middle",
-                  }}
-                  title="Tiebreaker — closest to the number wins"
-                >
-                  <span
-                    aria-hidden
-                    style={{
-                      display: "inline-block",
-                      transform: "translateY(2px)",
-                      marginRight: "0.25rem",
-                    }}
-                  >
-                    🎯
-                  </span>
-                  TB
-                </td>
-
-                {renderTeams.map((t) => (
-                  <td
-                    key={t.showTeamId}
-                    style={{
-                      textAlign: "center",
-                      padding: "0.25rem",
-                      borderTop: thinRowBorder,
-                      borderBottom: thinRowBorder,
-                    }}
-                  >
-                    <input
-                      ref={(el) => {
-                        tbRefs.current[t.showTeamId] = el;
-                      }}
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="—"
-                      value={getTBGuess(t.showTeamId)}
-                      onChange={(e) => setTBGuess(t.showTeamId, e.target.value)}
-                      onBlur={() => commitTBGuess(t.showTeamId)}
-                      style={{
-                        width: 60,
-                        textAlign: "center",
-                        padding: ".2rem .3rem",
-                        border: `1px solid ${theme.accent}`,
-                        borderRadius: tokens.radius.sm,
-                        fontFamily: tokens.font.body,
-                        fontSize: tokens.font.size,
-                        color: theme.accent,
-                        outlineColor: theme.accent,
-                      }}
-                      onKeyDown={(e) => {
-                        const goTopOfSameColumn = () => {
-                          e.preventDefault();
-                          // Always return to top of current column (don't advance to next column)
-                          setFocus(({ teamIdx }) => ({
-                            teamIdx: teamMode ? 0 : teamIdx,
-                            qIdx: 0,
-                          }));
-                          e.currentTarget.blur(); // leave the TB field so focus returns to grid
-                        };
-
-                        if (e.key === "Enter") {
-                          commitTBGuess(t.showTeamId);
-                          goTopOfSameColumn();
-                          return;
-                        }
-                        if (e.key === "Tab" && !e.shiftKey) {
-                          goTopOfSameColumn();
-                        } else if (e.key === "ArrowDown") {
-                          goTopOfSameColumn();
-                        }
-                      }}
-                      aria-label={`Tiebreaker guess for ${t.teamName}`}
-                    />
-                  </td>
-                ))}
-              </tr>
-            )}
-            {/* ------------------------------------------------------------------- */}
           </tbody>
         </table>
       </div>
@@ -2157,6 +2042,40 @@ export default function ScoringMode({
         <code>Shift+Tab</code> next/prev question • <code>←/→</code> team •{" "}
         <code>↑/↓</code> question
       </div>
+
+      {tbEntryOpen && tiebreaker && createPortal(
+        <div style={{ position: "fixed", inset: 0, zIndex: 10020, pointerEvents: "none", display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: "8vh" }}>
+          <div role="dialog" aria-label="Tiebreaker guesses" style={{ pointerEvents: "auto", width: "min(420px, 94vw)", maxHeight: "80vh", display: "flex", flexDirection: "column", background: "#fff", border: `2px solid ${theme.accent}`, borderRadius: 9, boxShadow: "0 8px 36px rgba(0,0,0,.3)", color: theme.dark }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: theme.dark, color: "#fff", padding: ".65rem .85rem", borderRadius: "7px 7px 0 0" }}>
+              <strong>🎯 Tiebreaker guesses</strong>
+              <button type="button" onClick={() => setTbEntryOpen(false)} style={{ background: "transparent", color: "#fff", border: 0, fontSize: "1.25rem", cursor: "pointer" }} aria-label="Close tiebreaker guesses">×</button>
+            </div>
+            <div style={{ overflowY: "auto", padding: ".7rem .85rem" }}>
+              <div style={{ fontSize: ".8rem", marginBottom: ".6rem", color: "#596579" }}>Enter or ↓: next team · ↑: previous team · Tab / Shift+Tab also work</div>
+              {visibleTeams.map((t, idx) => (
+                <label key={t.showTeamId} style={{ display: "grid", gridTemplateColumns: "1fr 105px", alignItems: "center", gap: ".75rem", marginBottom: ".45rem" }}>
+                  <span>{t.teamName}</span>
+                  <input ref={(el) => { tbRefs.current[t.showTeamId] = el; }} type="text" inputMode="decimal" placeholder="—"
+                    value={getTBGuess(t.showTeamId)}
+                    onChange={(e) => setTBGuess(t.showTeamId, e.target.value)}
+                    onBlur={() => commitTBGuess(t.showTeamId)}
+                    onKeyDown={(e) => {
+                      if (!["Enter", "ArrowDown", "ArrowUp"].includes(e.key)) return;
+                      e.preventDefault();
+                      const nextIdx = idx + (e.key === "ArrowUp" ? -1 : 1);
+                      if (nextIdx >= 0 && nextIdx < visibleTeams.length) {
+                        tbRefs.current[visibleTeams[nextIdx].showTeamId]?.focus();
+                        tbRefs.current[visibleTeams[nextIdx].showTeamId]?.select();
+                      } else e.currentTarget.blur();
+                    }}
+                    style={{ width: "100%", boxSizing: "border-box", padding: ".35rem .4rem", border: `1px solid ${theme.accent}`, borderRadius: 5, textAlign: "center", fontSize: "1rem" }}
+                    aria-label={`Tiebreaker guess for ${t.teamName}`} />
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>, document.body
+      )}
 
       {duplicateTeamPrompt && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(43,57,74,.7)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center" }}>
