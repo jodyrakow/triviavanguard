@@ -315,6 +315,12 @@ export default function ScoringMode({
   const [newTeamLeague, setNewTeamLeague] = useState(false);
   const [showGridAnswers, setShowGridAnswers] = useState(false);
   const [scoreDetailsTeamId, setScoreDetailsTeamId] = useState(null);
+  const [scoreDetailsPosition, setScoreDetailsPosition] = useState({ top: 0, left: 0 });
+  const openScoreDetails = (id, element) => {
+    const rect = element.getBoundingClientRect();
+    setScoreDetailsPosition({ top: Math.min(rect.bottom + 6, window.innerHeight - 30), left: Math.max(8, Math.min(rect.left + rect.width / 2 - 145, window.innerWidth - 308)) });
+    setScoreDetailsTeamId(id);
+  };
   const [copyTeamsOpen, setCopyTeamsOpen] = useState(false);
   const [copySourceShows, setCopySourceShows] = useState([]);
   const [copySourceId, setCopySourceId] = useState("");
@@ -1803,18 +1809,17 @@ export default function ScoringMode({
                   {/* Read-only total and scoring exceptions */}
                   <div style={{ marginTop: ".3rem", position: "relative", display: "flex", justifyContent: "center" }}>
                     <button type="button"
-                      onMouseEnter={() => setScoreDetailsTeamId(t.showTeamId)}
+                      onMouseEnter={e => openScoreDetails(t.showTeamId, e.currentTarget)}
                       onMouseLeave={() => setScoreDetailsTeamId(null)}
-                      onFocus={() => setScoreDetailsTeamId(t.showTeamId)}
+                      onFocus={e => openScoreDetails(t.showTeamId, e.currentTarget)}
                       onBlur={() => setScoreDetailsTeamId(null)}
-                      onClick={() => setScoreDetailsTeamId(prev => prev === t.showTeamId ? null : t.showTeamId)}
+                      onClick={e => { if (scoreDetailsTeamId === t.showTeamId) setScoreDetailsTeamId(null); else openScoreDetails(t.showTeamId, e.currentTarget); }}
                       aria-label={`Score details for ${t.teamName}`}
                       style={{ background: "transparent", border: "none", color: theme.dark, cursor: "pointer", padding: ".15rem .35rem", fontSize: ".95rem", fontWeight: 700 }}>
                       {displayTotals[t.showTeamId] ?? 0} <span style={{ fontSize: ".7rem", opacity: .65 }}>ⓘ</span>
                     </button>
-                    {scoreDetailsTeamId === t.showTeamId && (
-                      <div onMouseEnter={() => setScoreDetailsTeamId(t.showTeamId)} onMouseLeave={() => setScoreDetailsTeamId(null)}
-                        style={{ position: "absolute", zIndex: 200, top: "100%", left: "50%", transform: "translateX(-50%)", minWidth: 245, maxWidth: 330, padding: ".8rem", background: "#fff", color: theme.dark, border: `1px solid ${theme.accent}`, borderRadius: 7, boxShadow: "0 6px 22px rgba(0,0,0,.25)", textAlign: "left", whiteSpace: "normal", fontSize: ".85rem", fontWeight: 400 }}>
+                    {scoreDetailsTeamId === t.showTeamId && createPortal(
+                      <div style={{ position: "fixed", pointerEvents: "none", zIndex: 11000, top: scoreDetailsPosition.top, left: scoreDetailsPosition.left, width: 290, maxHeight: "min(65vh, 440px)", overflowY: "auto", boxSizing: "border-box", padding: ".8rem", background: "#fff", color: theme.dark, border: `1px solid ${theme.accent}`, borderRadius: 7, boxShadow: "0 6px 22px rgba(0,0,0,.25)", textAlign: "left", whiteSpace: "normal", fontSize: ".85rem", fontWeight: 400 }}>
                         <strong>{t.teamName} · {displayTotals[t.showTeamId] ?? 0} points</strong>
                         <div style={{ marginTop: ".5rem", color: "#265b3b" }}>Team bonus: {Number(t.showBonus || 0) > 0 ? "+" : ""}{t.showBonus || 0}</div>
                         <div style={{ borderTop: "1px solid #ddd", marginTop: ".5rem", paddingTop: ".5rem", fontWeight: 700 }}>Questions with unusual scoring</div>
@@ -1832,7 +1837,7 @@ export default function ScoringMode({
                             </div>;
                           }) : <div style={{ marginTop: ".4rem", opacity: .7 }}>No question bonuses or partial credit awarded.</div>;
                         })()}
-                      </div>
+                      </div>, document.body
                     )}
                   </div>
                 </th>
@@ -1849,7 +1854,7 @@ export default function ScoringMode({
                     borderBottom: thinRowBorder,
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: ".55rem", whiteSpace: "nowrap", minWidth: "max-content" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: showGridAnswers ? "flex-start" : "center", gap: ".55rem", whiteSpace: "nowrap", minWidth: showGridAnswers ? "max-content" : "100%" }}>
                     <strong style={{ flexShrink: 0 }}>{q.order}</strong>
                     {showGridAnswers && q.answer && <span style={{ fontSize: ".85rem", fontWeight: 400, color: theme.dark, whiteSpace: "nowrap" }}>{q.answer}</span>}
                   </div>
