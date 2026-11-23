@@ -3887,7 +3887,7 @@ export default function App() {
                   const currentPlacement = currentPlacementIndex >= 0 ? placementReveals[currentPlacementIndex] : enrichedItem;
                   const nextPlaceInfo = currentPlacementIndex >= 0 ? placementReveals[currentPlacementIndex + 1] || null : null;
 
-                  const showAnswerInContext = enrichedItem?.type === "question" && !!(enrichedItem?.answer);
+                  const showAnswerInContext = !navAnswerHidden && enrichedItem?.type === "question" && !!(enrichedItem?.answer);
                   const hasContent = isAnswerQuestion || showAnswerInContext || hasQuestionNotes || hasPronunciation || hasAudio || categoryNumber !== null || isTbStep || isResultsPlaceStep || soloTeamName !== null || !!enrichedItem?.superSecret;
 
                   const formatTime = (s) => {
