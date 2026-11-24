@@ -300,7 +300,7 @@ export default function App() {
   const [navIndex, setNavIndex] = useState(0);
   const [navAnswerStage, setNavAnswerStage] = useState(0); // 0=question, 1=answer, 2=stats
   const [navStarted, setNavStarted] = useState(false); // true once first item has been sent via nav
-  const [navKeyboardEnabled, setNavKeyboardEnabled] = useState(false); // arrow key nav
+  const [navKeyboardEnabled, setNavKeyboardEnabled] = useState(true); // arrow key nav
   const [navImageVisible, setNavImageVisible] = useState(false); // true when image toggled on for current nav item
   const [navImageIndex, setNavImageIndex] = useState(0); // current image index when cycling
   const [navAudioIndex, setNavAudioIndex] = useState(0); // current audio index when cycling
