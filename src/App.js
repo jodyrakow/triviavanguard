@@ -2094,6 +2094,7 @@ export default function App() {
           maxBonuses: q.maxBonuses || null,
           partialCreditAvailable: !!q.partialCreditAvailable,
           numParts: typeof q.numParts === "number" ? q.numParts : null,
+          pubPerQuestion: typeof q.pointsPerQuestion === "number" ? q.pointsPerQuestion : null,
           showImageByDefault: !!q.showImageByDefault,
           autoRevealAnswerImage: !!q.autoRevealAnswerImage,
           inlineImages: Array.isArray(q.questionImages)
@@ -2360,7 +2361,7 @@ export default function App() {
         }
         const scoringObj = {
           mode: scoringMode,
-          pubPoints,
+          pubPoints: scoringMode === "pub" && item.pubPerQuestion != null ? item.pubPerQuestion : pubPoints,
           poolPerQuestion,
           poolContribution,
           teamCount: teams.length,
@@ -2596,7 +2597,7 @@ export default function App() {
         }
         const scoringObj = {
           mode: scoringMode,
-          pubPoints,
+          pubPoints: scoringMode === "pub" && item.pubPerQuestion != null ? item.pubPerQuestion : pubPoints,
           poolPerQuestion,
           poolContribution,
           teamCount: teams.length,

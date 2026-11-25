@@ -919,6 +919,7 @@ export default function ResultsMode({
           const adaptedCell = {
             isCorrect: cell.isCorrect,
             bonusCount: cell.bonusCount || 0,
+            partialCount: cell.partialCount ?? 0,
           };
 
           // Handle per-question pub points
@@ -935,11 +936,15 @@ export default function ResultsMode({
           const questionBonus = q.bonusAvailable
             ? { bonusValue: q.bonusValue, maxBonuses: q.maxBonuses }
             : null;
+          const questionPartial = q.partialCreditAvailable && q.numParts > 0
+            ? { numParts: q.numParts }
+            : null;
           const pointsEarned = computeCellPoints(
             adaptedCell,
             config,
             correctCount,
             questionBonus,
+            questionPartial,
           );
 
           scoresPayload.push({

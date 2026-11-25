@@ -161,7 +161,11 @@ export function buildTeamTotals(
       const questionPartial = q.partialCreditAvailable && q.numParts > 0
         ? { numParts: q.numParts }
         : null;
-      sum += computeCellPoints(cell, scoring, correctCount, questionBonus, questionPartial);
+      // A question-specific pub value must apply to totals as well as scoring tiles.
+      const questionScoring = scoring.mode === "pub" && q.pubPerQuestion != null
+        ? { ...scoring, pubPoints: Number(q.pubPerQuestion) }
+        : scoring;
+      sum += computeCellPoints(cell, questionScoring, correctCount, questionBonus, questionPartial);
     }
     totals[t.showTeamId] = sum;
   }
