@@ -11,5 +11,5 @@ GitHub: jodyrakow/triviavanguard, next-generation. Local workspace ~/Developer/T
 
 ## Next Generation infrastructure
 Netlify: no separate site visible in connected listing.
-Supabase: no separate project visible in connected listing.
+Supabase: TriviaVanguard Next Generation, project ref amiycegrjuthebidynrl, organization jrzzzypixtsvuzsxaadj, us-east-2 (Ohio), ACTIVE_HEALTHY. Created with explicit user authorization at quoted $0/month on 2026-11-27. Verified by project detail and listing; distinct database host db.amiycegrjuthebidynrl.supabase.co. Existing project remains ACTIVE_HEALTHY. No application schema or credentials configured.
 No credentials, storage or database schemas provisioned. Do not assume account listings prove absence outside connected account. Verify independent identities and permissions before writes. Never store secrets in repository.
